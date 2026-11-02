@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import platform
 import shutil
 import subprocess
@@ -12,6 +13,12 @@ CWD = Path(__file__).resolve().parent
 RESOURCES_DIR = CWD / "resources"
 BUILD_DIR = CWD / "build"
 SYSTEM = platform.system()
+PACKAGING_DIR = RESOURCES_DIR / "packaging"
+APPIMAGE_BUILD_DIR = CWD / "dist" / "appimage"
+APPIMAGE_APPDIR = APPIMAGE_BUILD_DIR / "AppDir"
+APPIMAGE_PATH = CWD / "dist" / f"musiq-{platform.machine()}.AppImage"
+LINUXDEPLOY_TOOL = CWD / f"linuxdeploy-{platform.machine()}.AppImage"
+LINUXDEPLOY_URL = f"https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/{LINUXDEPLOY_TOOL.name}"
 
 def run(
     command: str | list[str], check: bool = True, env: Mapping[str, str] | None = None, capture: bool = False
@@ -76,6 +83,58 @@ def build(build_type: str) -> Path:
 def format_code() -> None:
     run("clang-format -i $(rg --files -g '*.{h,hpp,cpp,cc,cxx}' src)")
 
+def find_linuxdeploy() -> Path | None:
+    configured = os.environ.get("LINUXDEPLOY")
+    candidates = [
+        Path(configured).expanduser() if configured else None,
+        LINUXDEPLOY_TOOL,
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate.resolve()
+    executable = shutil.which("linuxdeploy")
+    return Path(executable).resolve() if executable else None
+
+def package_appimage() -> None:
+    if SYSTEM != "Linux":
+        print("[ez] AppImage packages can only be built on Linux")
+        sys.exit(1)
+
+    linuxdeploy = find_linuxdeploy()
+    if linuxdeploy is None:
+        linuxdeploy = LINUXDEPLOY_TOOL
+        if not linuxdeploy.exists():
+            require_tool("curl")
+            print("[ez] downloading linuxdeploy...")
+            run([
+                "curl", "-fL", "--remove-on-error", "-H", "Accept: application/octet-stream",
+                LINUXDEPLOY_URL, "-o", str(linuxdeploy),
+            ])
+        linuxdeploy.chmod(0o755)
+
+    build_dir = build("Release")
+    if APPIMAGE_BUILD_DIR.exists():
+        shutil.rmtree(APPIMAGE_BUILD_DIR)
+    APPIMAGE_BUILD_DIR.mkdir(parents=True)
+    run([
+        "cmake", "--install", str(build_dir), "--prefix", str(APPIMAGE_APPDIR / "usr"),
+        "--component", "Runtime",
+    ])
+
+    environment = os.environ.copy()
+    environment["LDAI_OUTPUT"] = str(APPIMAGE_PATH)
+    environment.setdefault("APPIMAGE_EXTRACT_AND_RUN", "1")
+    run([
+        str(linuxdeploy), "--appdir", str(APPIMAGE_APPDIR),
+        "--desktop-file", str(PACKAGING_DIR / "org.mezleca.musiq.desktop"),
+        "--icon-file", str(PACKAGING_DIR / "org.mezleca.musiq.svg"),
+        "--custom-apprun", str(PACKAGING_DIR / "AppRun"),
+        "--exclude-library", "libwebkit2gtk-4.1.so.*",
+        "--exclude-library", "libjavascriptcoregtk-4.1.so.*",
+        "--output", "appimage",
+    ], env=environment)
+    print(f"[ez] AppImage created: {APPIMAGE_PATH}")
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ez")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +144,9 @@ def main() -> None:
 
     subparsers.add_parser("init")
     subparsers.add_parser("format")
+
+    package_parser = subparsers.add_parser("package")
+    package_parser.add_argument("--type", choices=("appimage",), default="appimage")
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--type", choices=("debug", "release"), default="debug")
@@ -97,6 +159,10 @@ def main() -> None:
 
     if args.command == "format":
         format_code()
+        return
+
+    if args.command == "package":
+        package_appimage()
         return
 
     build_type = args.type.capitalize()

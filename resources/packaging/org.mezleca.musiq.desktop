@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Musiq
+Comment=YouTube Music client
+Exec=musiq
+Type=Application
+Icon=org.mezleca.musiq
+Categories=AudioVideo;Audio;Player;
+Terminal=false
+StartupNotify=true

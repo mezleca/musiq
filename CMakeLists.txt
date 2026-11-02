@@ -28,6 +28,14 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "src/*.hpp")
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
+include(GNUInstallDirs)
+install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
+install(DIRECTORY resources/fonts resources/icons
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/resources
+    COMPONENT Runtime
+)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME} COMPONENT Runtime)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Boost::process
     Boost::hash2

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export APPDIR
+cd "$APPDIR/usr/share/musiq"
+exec "$APPDIR/usr/bin/musiq" "$@"
