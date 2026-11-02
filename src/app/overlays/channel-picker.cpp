@@ -23,16 +23,17 @@ ChannelPickerOverlay::ChannelPickerOverlay(std::function<void(std::string)> sele
 
 void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bool failed) {
     m_channels->clear();
+
     for (const auto& identity : identities) {
         auto label = identity.name;
-        if (!identity.handle.empty()) {
-            label += "  " + identity.handle;
-        }
+        if (!identity.handle.empty()) label += "  " + identity.handle;
+
         auto& button = m_channels->add<MusiqButtonWidget>(std::move(label), LayoutSize{grow(), fit()});
         button.set_id(identity.data_sync_id);
         button.set_text_alignment({0.0f, 0.5f});
         button.on_click([this, id = identity.data_sync_id] { m_select(id); });
     }
+
     m_status->set_text(failed ? "Could not open this channel. Try again." : "Select the channel to use in musiq.");
     set_visible(true);
 }

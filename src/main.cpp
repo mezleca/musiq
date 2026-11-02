@@ -7,18 +7,11 @@
 #include <exception>
 
 int main() {
+    SDL_SetHint(SDL_HINT_APP_ID, "org.mezleca.musiq");
 #if defined(__linux__)
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
 #endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        return 1;
-    }
-
-    try {
-        MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());
-    } catch (const std::exception& error) {
-        LOG_ERROR("[settings] initialization failed: {}", error.what());
-        SDL_Quit();
         return 1;
     }
 
@@ -33,6 +26,16 @@ int main() {
         return 1;
     }
 
+    SDL_Surface* icon = SDL_LoadPNG("resources/icons/app/musiq.png");
+    if (icon) {
+        if (!SDL_SetWindowIcon(window, icon)) {
+            LOG_WARN("[window] could not set icon: {}", SDL_GetError());
+        }
+        SDL_DestroySurface(icon);
+    } else {
+        LOG_WARN("[window] could not load icon: {}", SDL_GetError());
+    }
+
     SDL_GLContext context = SDL_GL_CreateContext(window);
     if (context == nullptr) {
         SDL_DestroyWindow(window);
@@ -43,10 +46,18 @@ int main() {
     SDL_GL_MakeCurrent(window, context);
     SDL_GL_SetSwapInterval(1);
 
-    // create and start UI loop
+    // initialize main app loop
     {
-        MusiqApp app(window, context);
-        app.initialize();
+        try {
+            MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());
+            MusiqApp app(window, context);
+            app.initialize();
+        } catch (std::exception& error) {
+            LOG_ERROR("failed to initialize: {}", error.what());
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
     }
 
     SDL_GL_DestroyContext(context);

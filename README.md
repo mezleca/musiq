@@ -8,7 +8,7 @@
 ### required
 - cmake >= 3.25
 - clang >= 21
-- linux: boost 1.88+, gtk3, webkitgtk 4.1, sdl3
+- linux: boost 1.88+, gtk3, webkitgtk 4.1, sdl3 >= 3.4
 - windows: msvc
 
 ```sh
