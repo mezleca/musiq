@@ -17,7 +17,8 @@ public:
     void apply_theme_defaults(const ui::Theme& theme) override;
 
     void set_busy(bool busy);
-    void set_user(std::string_view name, ui::Texture* avatar);
+    void set_user(std::string_view name, ui::Texture* avatar, std::string_view channel_url);
+    void clear_user();
 
 private:
     AuthButtonWidget* m_sign_in;

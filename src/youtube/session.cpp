@@ -7,6 +7,7 @@
 #include <chrono>
 #include <format>
 #include <utility>
+#include <algorithm>
 
 static std::string_view trim(std::string_view value) {
     const auto start = value.find_first_not_of(" \t");
@@ -85,7 +86,75 @@ static const json* find_account_header(const json& node) {
     return nullptr;
 }
 
-bool YoutubeMusicSession::authenticate(std::string cookies) {
+static std::string account_text(const json& value) {
+    if (value.is_string()) return value.get<std::string>();
+    if (value.contains("simpleText")) return value.at("simpleText").get<std::string>();
+
+    std::string text;
+    for (const auto& run : value.value("runs", json::array())) {
+        text += run.at("text").get<std::string>();
+    }
+
+    return text;
+}
+
+static std::string sync_id(std::string value) {
+    const auto separator = value.find("||");
+    if (separator == std::string::npos) return value;
+    return separator == 0 ? value.substr(2) : value.substr(0, separator);
+}
+
+static std::string response_identity(const json& response) {
+    const json::json_pointer path("/responseContext/mainAppWebResponseContext");
+    if (!response.contains(path)) return {};
+    const auto& context = response.at(path);
+    return sync_id(context.value("datasyncId", context.value("dataSyncId", std::string{})));
+}
+
+static void collect_identities(const json& node, std::string_view selected_id, std::vector<MusicIdentity>& identities) {
+    if (node.is_object() && node.contains("accountItem")) {
+        const auto& item = node.at("accountItem");
+        if (item.value("isDisabled", false) || !item.value("hasChannel", true)) {
+            return;
+        }
+
+        std::string id;
+        std::string page_id;
+
+        const json::json_pointer path("/serviceEndpoint/selectActiveIdentityEndpoint/supportedTokens");
+        if (item.contains(path)) {
+            for (const auto& token : item.at(path)) {
+                if (token.contains("datasyncIdToken") || token.contains("dataSyncIdToken")) {
+                    const auto& data = token.at(token.contains("datasyncIdToken") ? "datasyncIdToken" : "dataSyncIdToken");
+                    id =
+                        sync_id(data.value("datasyncIdToken", data.value("datasyncId", data.value("dataSyncId", std::string{}))));
+                } else if (token.contains("pageIdToken")) {
+                    page_id = token.at("pageIdToken").value("pageId", std::string{});
+                }
+            }
+        }
+        if (id.empty()) id = page_id;
+        if (id.empty() && item.value("isSelected", false)) id = selected_id;
+
+        const auto name = account_text(item.value("accountName", json::object()));
+        if (!id.empty() && !name.empty() &&
+            std::none_of(identities.begin(), identities.end(), [&](const MusicIdentity& identity) {
+                return identity.data_sync_id == id;
+            })) {
+            identities.push_back({name, account_text(item.value("channelHandle", json::object())), std::move(id)});
+        }
+
+        return;
+    }
+
+    if (node.is_structured()) {
+        for (const auto& child : node) {
+            collect_identities(child, selected_id, identities);
+        }
+    }
+}
+
+bool YoutubeMusicSession::authenticate(std::string cookies, std::string_view identity) {
     if (!has_session_cookie(cookies)) {
         return false;
     }
@@ -94,7 +163,40 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
     session.m_sapisid = cookie_sapisid(cookies);
     session.m_cookies = std::move(cookies);
 
-    const auto response = YoutubeMusicClient(session).account_menu();
+    const auto response = YoutubeMusicClient(session).accounts_list();
+    if (!response) {
+        return false;
+    }
+
+    collect_identities(*response, response_identity(*response), session.m_identities);
+
+    if (session.m_identities.empty()) {
+        LOG_ERROR("[music] no selectable YouTube channels returned");
+        return false;
+    }
+
+    if (identity.empty() && session.m_identities.size() == 1) {
+        identity = session.m_identities.front().data_sync_id;
+    }
+
+    if (!identity.empty()) {
+        session.select_identity(identity);
+    }
+
+    *this = std::move(session);
+    return true;
+}
+
+bool YoutubeMusicSession::select_identity(std::string_view identity) {
+    const auto selected = std::find_if(m_identities.begin(), m_identities.end(), [&](const MusicIdentity& item) {
+        return item.data_sync_id == identity;
+    });
+
+    if (selected == m_identities.end()) {
+        return false;
+    }
+
+    const auto response = YoutubeMusicClient(*this).account_menu(identity);
     if (!response) {
         return false;
     }
@@ -105,19 +207,21 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
             return false;
         }
 
-        MusicUser user;
-        const auto& name = header->at("accountName");
-
-        if (name.contains("simpleText")) {
-            user.name = name.at("simpleText").get<std::string>();
-        } else {
-            for (const auto& run : name.at("runs")) {
-                user.name += run.at("text").get<std::string>();
-            }
+        const auto handle = account_text(header->value("channelHandle", json::object()));
+        if (response_identity(*response) != identity && (selected->handle.empty() || selected->handle != handle)) {
+            LOG_ERROR("[music] selected channel was not confirmed");
+            return false;
         }
+
+        MusicUser user;
+        user.name = account_text(header->at("accountName"));
 
         if (user.name.empty()) {
             return false;
+        }
+
+        if (!handle.empty()) {
+            user.channel_url = std::format("https://www.youtube.com/{}", handle);
         }
 
         if (header->contains("accountPhoto")) {
@@ -135,12 +239,12 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
             }
         }
 
-        session.m_user = std::move(user);
+        m_user = std::move(user);
+        m_identity = identity;
     } catch (const json::exception&) {
         LOG_ERROR("[music] invalid account menu response");
         return false;
     }
 
-    *this = std::move(session);
     return true;
 }

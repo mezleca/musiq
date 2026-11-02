@@ -11,11 +11,15 @@ using namespace music_config;
 
 YoutubeMusicClient::YoutubeMusicClient(const YoutubeMusicSession& session) : m_session(session) {}
 
-std::optional<json> YoutubeMusicClient::account_menu() const {
-    return post("account/account_menu");
+std::optional<json> YoutubeMusicClient::account_menu(std::string_view identity) const {
+    return post("account/account_menu", json::object(), identity);
 }
 
-std::optional<json> YoutubeMusicClient::post(std::string_view endpoint, json body) const {
+std::optional<json> YoutubeMusicClient::accounts_list() const {
+    return post("account/accounts_list");
+}
+
+std::optional<json> YoutubeMusicClient::post(std::string_view endpoint, json body, std::string_view identity) const {
     auto headers = m_session.authentication_headers();
     if (!headers) {
         return std::nullopt;
@@ -33,7 +37,11 @@ std::optional<json> YoutubeMusicClient::post(std::string_view endpoint, json bod
 
     body["context"]["client"] = {{"clientName", "WEB_REMIX"}, {"clientVersion", CLIENT_VERSION}, {"hl", "en"}, {"gl", "US"}};
 
+    if (identity.empty()) identity = m_session.identity();
+    if (!identity.empty()) body["context"]["user"]["onBehalfOfUser"] = identity;
+
     auto& http = HttpClient::instance();
+
     const auto response = http.post_json(std::format("{}/{}", API_URL, endpoint), body, std::move(*headers));
     auto result = HttpClient::parse_json(response);
     if (!result) {
