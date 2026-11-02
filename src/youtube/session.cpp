@@ -1,12 +1,12 @@
-#include "ytb-music-session.hpp"
+#include "session.hpp"
+#include "client.hpp"
+#include "../http/http-client.hpp"
 #include "../utils/log.hpp"
 
 #include <boost/hash2/sha1.hpp>
 #include <chrono>
 #include <format>
 #include <utility>
-
-using namespace music_config;
 
 static std::string_view trim(std::string_view value) {
     const auto start = value.find_first_not_of(" \t");
@@ -44,7 +44,6 @@ static std::string sapisid_hash(std::string_view sapisid, int64_t timestamp) {
     boost::hash2::sha1_160 sha1;
     sha1.update(input.data(), input.size());
     const auto digest = sha1.result();
-
     std::string hash;
     hash.reserve(digest.size() * 2);
     for (const auto byte : digest) {
@@ -58,30 +57,16 @@ bool YoutubeMusicSession::has_session_cookie(std::string_view cookies) {
            !cookie_sapisid(cookies).empty();
 }
 
-std::optional<json> YoutubeMusicSession::post(std::string_view endpoint, json body, bool use_auth) const {
-    if (endpoint.empty() || !body.is_object() || (use_auth && m_sapisid.empty())) {
-        LOG_ERROR("[api] invalid request or missing youtube session");
+std::optional<cpr::Header> YoutubeMusicSession::authentication_headers() const {
+    if (m_sapisid.empty()) {
         return std::nullopt;
     }
 
-    body["context"]["client"] = {{"clientName", "WEB_REMIX"}, {"clientVersion", CLIENT_VERSION}, {"hl", "en"}, {"gl", "US"}};
-    cpr::Header headers{
-        {"Origin", "https://music.youtube.com"},
-        {"X-Origin", "https://music.youtube.com"},
-        {"Referer", std::string(HOME_URL)},
-        {"X-YouTube-Client-Name", "67"},
-        {"X-YouTube-Client-Version", std::string(CLIENT_VERSION)},
-        {"X-Goog-Api-Format-Version", "1"},
-        {"User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"}
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    return cpr::Header{
+        {"Authorization", sapisid_hash(m_sapisid, std::chrono::duration_cast<std::chrono::seconds>(now).count())},
+        {"Cookie", m_cookies}
     };
-
-    if (use_auth) {
-        const auto now = std::chrono::system_clock::now().time_since_epoch();
-        headers["Authorization"] = sapisid_hash(m_sapisid, std::chrono::duration_cast<std::chrono::seconds>(now).count());
-        headers["Cookie"] = m_cookies;
-    }
-
-    return m_api.post(endpoint, body, std::move(headers));
 }
 
 static const json* find_account_header(const json& node) {
@@ -109,7 +94,7 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
     session.m_sapisid = cookie_sapisid(cookies);
     session.m_cookies = std::move(cookies);
 
-    const auto response = session.post("account/account_menu");
+    const auto response = YoutubeMusicClient(session).account_menu();
     if (!response) {
         return false;
     }
@@ -122,6 +107,7 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
 
         MusicUser user;
         const auto& name = header->at("accountName");
+
         if (name.contains("simpleText")) {
             user.name = name.at("simpleText").get<std::string>();
         } else {
@@ -142,7 +128,11 @@ bool YoutubeMusicSession::authenticate(std::string cookies) {
         }
 
         if (!user.avatar_url.empty()) {
-            user.avatar_data = Api::download(user.avatar_url).value_or("");
+            auto& http = HttpClient::instance();
+            auto avatar = http.get(user.avatar_url);
+            if (HttpClient::successful(avatar)) {
+                user.avatar_data = std::move(avatar.text);
+            }
         }
 
         session.m_user = std::move(user);

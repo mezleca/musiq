@@ -2,9 +2,9 @@
 
 #include <imgui-ui/layout/container.hpp>
 
-class PlayerBar final : public ui::Container {
+class PlayerBarOverlay final : public ui::Container {
 public:
-    PlayerBar();
+    PlayerBarOverlay();
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;

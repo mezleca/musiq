@@ -5,12 +5,12 @@
 
 using namespace ui;
 
-SideBar::SideBar(std::function<void()> sign_in) : Container("sidebar", StackDirection::Vertical) {
-    set_type_name("SideBar");
+SideBarOverlay::SideBarOverlay(std::function<void()> sign_in) : Container("sidebar", StackDirection::Vertical) {
+    set_type_name("SideBarOverlay");
     set_size({px(280), grow()});
-    set_spacing(16.0F);
+    set_spacing(16.0f);
 
-    m_user_profile = &add<UserProfile>(std::move(sign_in));
+    m_user_profile = &add<UserProfileWidget>(std::move(sign_in));
     m_options = &add<Container>("musiq-options", StackDirection::Vertical);
     m_options->set_size({grow(), fit()});
     m_playlists = &add<Container>("user-playlists", StackDirection::Vertical);
@@ -18,7 +18,12 @@ SideBar::SideBar(std::function<void()> sign_in) : Container("sidebar", StackDire
     m_playlists->set_scrollable(true);
 }
 
-void SideBar::apply_theme_defaults(const Theme& theme) {
+void SideBarOverlay::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
-    configure_all_styles([&theme](Style& style) { style.padding({16.0F}).background_color(theme.background_secondary_color); });
+
+    configure_all_styles([&theme](Style& style) {
+        style.padding({8.0f, 12.0f, 8.0f, 12.0f});
+        style.border_radius(0.0f);
+        style.background_color(theme.background_secondary_color);
+    });
 }

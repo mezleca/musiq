@@ -3,13 +3,13 @@
 #include <imgui-ui/layout/container.hpp>
 #include <functional>
 
-class UserProfile;
+class UserProfileWidget;
 
-class SideBar final : public ui::Container {
+class SideBarOverlay final : public ui::Container {
 public:
-    explicit SideBar(std::function<void()> sign_in);
+    explicit SideBarOverlay(std::function<void()> sign_in);
 
-    UserProfile& user_profile() {
+    UserProfileWidget& user_profile() {
         return *m_user_profile;
     }
     ui::Container& options() {
@@ -23,7 +23,7 @@ protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 
 private:
-    UserProfile* m_user_profile;
+    UserProfileWidget* m_user_profile;
     ui::Container* m_options;
     ui::Container* m_playlists;
 };

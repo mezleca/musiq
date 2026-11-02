@@ -1,14 +1,13 @@
 #pragma once
 
-#include "../session/ytb-music-session.hpp"
-#include "../database/settings.hpp"
+#include "../youtube/session.hpp"
 
 #include <SDL3/SDL_video.h>
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
 #include <future>
 
-class SideBar;
+class SideBarOverlay;
 class LoadingOverlay;
 
 class MusiqApp {
@@ -25,9 +24,8 @@ private:
     void update_profile();
 
     YoutubeMusicSession m_youtube_session;
-    SideBar* m_sidebar = nullptr;
+    SideBarOverlay* m_sidebar = nullptr;
     LoadingOverlay* m_loading = nullptr;
-    std::optional<MusiqSettings> m_settings;
     std::string m_session_token;
 
     ui::Runtime m_runtime;

@@ -1,12 +1,24 @@
 #include "app/app.hpp"
+#include "database/settings.hpp"
+#include "utils/system.hpp"
+#include "utils/log.hpp"
 
 #include <SDL3/SDL.h>
+#include <exception>
 
 int main() {
 #if defined(__linux__)
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
 #endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
+        return 1;
+    }
+
+    try {
+        MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());
+    } catch (const std::exception& error) {
+        LOG_ERROR("[settings] initialization failed: {}", error.what());
+        SDL_Quit();
         return 1;
     }
 

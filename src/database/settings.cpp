@@ -1,8 +1,11 @@
 #include "settings.hpp"
 
 #include <sqlite_orm/sqlite_orm.h>
+#include <stdexcept>
 
 using namespace sqlite_orm;
+
+MusiqSettings* MusiqSettings::s_instance = nullptr;
 
 struct MusiqSetting {
     std::string key;
@@ -14,6 +17,18 @@ static auto make_musiq_storage(const std::string& path) {
         path,
         make_table("settings", make_column("key", &MusiqSetting::key, primary_key()), make_column("value", &MusiqSetting::value))
     );
+}
+
+void MusiqSettings::initialize(const std::string& path) {
+    static MusiqSettings settings(path);
+    s_instance = &settings;
+}
+
+MusiqSettings& MusiqSettings::instance() {
+    if (!s_instance) {
+        throw std::logic_error("settings must be initialized before use");
+    }
+    return *s_instance;
 }
 
 MusiqSettings::MusiqSettings(const std::string& path) : m_path(path) {

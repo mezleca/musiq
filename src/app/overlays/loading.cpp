@@ -10,9 +10,9 @@ LoadingOverlay::LoadingOverlay() : LayerContainer("loading") {
     set_type_name("LoadingOverlay");
     set_input_mode(InputMode::Blocker);
     set_content_alignment(Anchor::Center);
-    set_spacing(12.0F);
+    set_spacing(12.0f);
     add<SpinnerWidget>();
-    m_status = &add<Text>("");
+    m_status = &add<MusiqText>("");
     hide();
 }
 
@@ -31,5 +31,5 @@ void LoadingOverlay::update(std::string status) {
 
 void LoadingOverlay::apply_theme_defaults(const Theme& theme) {
     LayerContainer::apply_theme_defaults(theme);
-    configure_all_styles([](Style& style) { style.background_color(rgba(0.0F, 0.0F, 0.0F, 0.45F)); });
+    configure_all_styles([](Style& style) { style.background_color(rgba(0.0f, 0.0f, 0.0f, 0.45f)); });
 }

@@ -3,9 +3,12 @@
 #include <imgui-ui/surface.hpp>
 #include <utility>
 
-Button::Button(std::string text, ui::LayoutSize size) : ButtonWidget(std::move(text), size) {}
+MusiqButtonWidget::MusiqButtonWidget(std::string text, ui::LayoutSize size) : ui::ButtonWidget(std::move(text), size) {
+    set_type_name("MusiqButtonWidget");
+}
 
-void Button::apply_theme_defaults(const ui::Theme& theme) {
-    ButtonWidget::apply_theme_defaults(theme);
-    set_font(surface().get_font("Manrope Bold"), 14.0F);
+void MusiqButtonWidget::apply_theme_defaults(const ui::Theme& theme) {
+    ui::ButtonWidget::apply_theme_defaults(theme);
+
+    set_font(surface().get_font("Manrope Bold"), 14.0f);
 }

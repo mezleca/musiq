@@ -5,22 +5,21 @@
 #include <string_view>
 
 namespace ui {
-    class ImageWidget;
     class Texture;
 } // namespace ui
 
-class Button;
-class Text;
+class AuthButtonWidget;
+class AccountWidget;
 
-class UserProfile final : public ui::Container {
+class UserProfileWidget final : public ui::Container {
 public:
-    explicit UserProfile(std::function<void()> sign_in);
+    explicit UserProfileWidget(std::function<void()> sign_in);
+    void apply_theme_defaults(const ui::Theme& theme) override;
+
     void set_busy(bool busy);
     void set_user(std::string_view name, ui::Texture* avatar);
 
 private:
-    Button* m_sign_in;
-    ui::Container* m_account;
-    ui::ImageWidget* m_avatar;
-    Text* m_name;
+    AuthButtonWidget* m_sign_in;
+    AccountWidget* m_account;
 };
