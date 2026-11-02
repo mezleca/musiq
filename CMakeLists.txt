@@ -14,19 +14,26 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
 endif()
 
 include(cmake/dependencies.cmake)
+include(CheckIPOSupported)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX "/webview/(linux|windows)/")
+
 if(WIN32)
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/windows/impl.cpp")
-elseif(LINUX)
+else(LINUX)
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/linux/impl.cpp")
-else()
-    message(FATAL_ERROR "Webview login currently supports Linux and Windows")
 endif()
+
 file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "src/*.hpp")
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+
+check_ipo_supported(RESULT MUSIQ_IPO_SUPPORTED LANGUAGES CXX)
+if(MUSIQ_IPO_SUPPORTED)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+endif()
+message(STATUS "Release IPO/LTO supported: ${MUSIQ_IPO_SUPPORTED}")
 
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
@@ -48,12 +55,12 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 )
 
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive-)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive- /utf-8 /Zc:preprocessor)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
         -Wall -Wextra -Wpedantic -Wunused-variable -Wunused-function
         $<$<CXX_COMPILER_ID:Clang>:-Wdeprecated-copy-with-user-provided-copy -Wunused-lambda-capture>
         $<$<CONFIG:Debug>:-O0 -g3>
-        $<$<CONFIG:Release>:-O2 -DNDEBUG>
     )
 endif()
