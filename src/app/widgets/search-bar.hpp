@@ -18,9 +18,7 @@ public:
     SearchBarWidget(std::function<void(std::string)> submit, std::function<void(std::string)> edit);
     void set_suggestions(const MusicSuggestions& suggestions);
     void hide_suggestions();
-
-protected:
-    void apply_theme_defaults(const ui::Theme& theme) override;
+    void set_query(std::string query);
 
 private:
     void move_selection(int direction);
@@ -33,4 +31,5 @@ private:
     ui::LayerContainer* m_suggestions;
     std::vector<SuggestionButtonWidget*> m_choice_buttons;
     int m_selected = -1;
+    bool m_restoring_query = false;
 };

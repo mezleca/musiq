@@ -1,0 +1,40 @@
+{
+  "contents": {"twoColumnBrowseResultsRenderer": {
+    "tabs": [{"tabRenderer": {"content": {"sectionListRenderer": {"contents": [{
+      "musicResponsiveHeaderRenderer": {
+        "title": {"runs": [{"text": "Example "}, {"text": "playlist"}]},
+        "subtitle": {"runs": [{"text": "Playlist"}, {"text": " • "}, {"text": "2026"}]},
+        "straplineTextOne": {"runs": [{"text": "Example creator", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCCREATOR"}}}]},
+        "description": {"musicDescriptionShelfRenderer": {"description": {"runs": [{"text": "A short "}, {"text": "description."}]}}},
+        "secondSubtitle": {"runs": [{"text": "2,345 views"}, {"text": " • "}, {"text": "1,234 songs"}, {"text": " • "}, {"text": "6+ hours"}]},
+        "thumbnail": {"musicThumbnailRenderer": {"thumbnail": {"thumbnails": [{"url": "https://example.invalid/cover.jpg", "width": 544, "height": 544}]}}}
+      }
+    }]}}}}],
+    "secondaryContents": {"sectionListRenderer": {"contents": [{"musicPlaylistShelfRenderer": {
+      "playlistId": "PLexample",
+      "contents": [
+        {"musicResponsiveListItemRenderer": {
+          "flexColumns": [
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example song", "navigationEndpoint": {"watchEndpoint": {"videoId": "same-video", "playlistId": "PLexample"}}}]}}},
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example artist", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCARTIST"}}}]}}},
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example album", "navigationEndpoint": {"browseEndpoint": {"browseId": "MPREalbum", "browseEndpointContextSupportedConfigs": {"browseEndpointContextMusicConfig": {"pageType": "MUSIC_PAGE_TYPE_ALBUM"}}}}}]}}}
+          ],
+          "fixedColumns": [{"musicResponsiveListItemFixedColumnRenderer": {"text": {"simpleText": "3:21"}}}],
+          "playlistItemData": {"videoId": "same-video", "playlistSetVideoId": "entry-one"},
+          "thumbnail": {"musicThumbnailRenderer": {"thumbnail": {"thumbnails": [{"url": "https://example.invalid/song.jpg"}]}}}
+        }},
+        {"musicResponsiveListItemRenderer": {
+          "flexColumns": [
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example song"}]}}},
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example artist"}]}}},
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "3:21"}]}}},
+            {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example album", "navigationEndpoint": {"browseEndpoint": {"browseId": "MPREalbum"}}}]}}}
+          ],
+          "playlistItemData": {"videoId": "same-video", "playlistSetVideoId": "entry-two"},
+          "musicItemRendererDisplayPolicy": "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT"
+        }},
+        {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "next+/=", "request": "CONTINUATION_REQUEST_TYPE_BROWSE"}}}}
+      ]
+    }}]}}
+  }}
+}

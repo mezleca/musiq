@@ -8,6 +8,7 @@
 #include "overlays/search.hpp"
 #include "widgets/user-profile.hpp"
 #include "widgets/search-bar.hpp"
+#include "widgets/button.hpp"
 #include "widgets/catalog-results.hpp"
 #include "resources/avatar.hpp"
 #include "../youtube/config.hpp"
@@ -21,13 +22,40 @@
 #include <imgui-ui/layout/container.hpp>
 #include <imgui-ui/resources/font-registry.hpp>
 #include <imgui-ui/resources/texture-registry.hpp>
+#include <imgui-ui/widgets/image.hpp>
 #include <SDL3/SDL_events.h>
 #include <chrono>
 #include <exception>
+#include <filesystem>
 #include <memory>
 #include <utility>
 
 using namespace ui;
+
+class HistoryButtonWidget final : public MusiqButtonWidget {
+public:
+    explicit HistoryButtonWidget(std::string icon) : MusiqButtonWidget("", {px(36), px(36)}), m_path(std::move(icon)) {
+        set_content_alignment(Anchor::Center);
+        m_icon = &add<ImageWidget>();
+        m_icon->set_size({px(24), px(24)});
+    }
+
+protected:
+    void apply_theme_defaults(const Theme& theme) override {
+        MusiqButtonWidget::apply_theme_defaults(theme);
+        configure_all_styles([&theme](Style& style) {
+            style.padding({6.0f}).background_color(theme.transparent).border_thickness(0.0f).border_radius(8.0f);
+        });
+        style(StyleType::HOVER).background_color(theme.controls.hover_color);
+        m_icon->set_texture(surface().runtime().textures().acquire(m_path, std::filesystem::path(m_path)));
+        m_icon->configure_all_styles([&theme](Style& style) { style.color(theme.text_color); });
+        m_icon->style(StyleType::DISABLED).color(theme.text_secondary_color);
+    }
+
+private:
+    std::string m_path;
+    ImageWidget* m_icon;
+};
 
 MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     : m_runtime(RuntimeConfig{.performance_directory = {}, .texture_loader = std::make_unique<OpenGLTextureLoader>()}),
@@ -48,13 +76,34 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
 
     auto& content = main.add<Container>("content", StackDirection::Vertical);
     content.set_size({grow(), grow()});
-    m_search_bar = &content.add<SearchBarWidget>(
+    auto& navigation = content.add<Container>("navigation", StackDirection::Horizontal);
+    navigation.set_size({grow(), fit()});
+    navigation.set_content_alignment(Anchor::CenterLeft);
+    navigation.set_spacing(8.0f);
+    navigation.configure_all_styles([](Style& style) { style.padding({16.0f}); });
+
+    m_back = &navigation.add<HistoryButtonWidget>("resources/icons/chevron-left.svg");
+    m_back->set_tooltip("Back");
+    m_back->on_click([this] {
+        if (m_history.back()) show_page();
+    });
+    m_forward = &navigation.add<HistoryButtonWidget>("resources/icons/chevron-right.svg");
+    m_forward->set_tooltip("Forward");
+    m_forward->on_click([this] {
+        if (m_history.forward()) show_page();
+    });
+    m_back->set_enabled(false);
+    m_forward->set_enabled(false);
+
+    m_search_bar = &navigation.add<SearchBarWidget>(
         [this](std::string query) { submit_search(std::move(query)); },
         [this](std::string query) { m_catalog.suggest(std::move(query)); }
     );
-    m_home = &content.add<HomeOverlay>(m_thumbnails);
-    m_search = &content.add<SearchOverlay>(m_thumbnails);
-    m_settings_overlay = &content.add<SettingsOverlay>([this] { log_out(); });
+    m_pages = &content.add<Container>("pages", StackDirection::Vertical);
+    m_pages->set_size({grow(), grow()});
+    m_home = &m_pages->add<HomeOverlay>(m_thumbnails);
+    m_current_page = m_home;
+    m_settings_overlay = &m_pages->add<SettingsOverlay>([this] { log_out(); });
 
     auto& player = m_surface.root().add<Container>("player", StackDirection::Vertical);
     player.set_size({grow(), fit()});
@@ -194,7 +243,7 @@ void MusiqApp::update_session() {
 
     m_session_token.clear();
     m_sidebar->user_profile().set_busy(false);
-    if (m_page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) refresh_home();
+    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) refresh_home();
 }
 
 void MusiqApp::update_profile() {
@@ -211,26 +260,42 @@ void MusiqApp::update_profile() {
 }
 
 void MusiqApp::navigate(std::string_view page) {
-    m_page = page;
-    m_sidebar->select(page);
-    m_home->set_visible(page == "home");
-    m_search->set_visible(page == "search");
-    m_settings_overlay->set_visible(page == "settings");
-    m_search_bar->set_visible(page != "settings");
-    m_search_bar->hide_suggestions();
+    m_history.visit({std::string(page), page == "search" ? m_catalog.search_state().query : std::string{}});
+    show_page();
+}
+
+void MusiqApp::show_page() {
+    const auto& route = m_history.current();
+    m_current_page->set_visible(false);
+    m_sidebar->select(route.page);
+    m_back->set_enabled(m_history.can_back());
+    m_forward->set_enabled(m_history.can_forward());
+    m_search_bar->set_visible(route.page != "settings");
+    m_search_bar->set_query(route.query);
     m_catalog.suggest({});
 
-    if (page == "home") {
-        m_catalog.home();
-        m_home->results().show(m_catalog.home_state());
+    if (route.page == "home") {
+        if (m_catalog.home()) m_home->results().show(m_catalog.home_state());
+        m_current_page = m_home;
+    } else if (route.page == "search") {
+        const bool loading = m_catalog.search(route.query);
+        auto [entry, created] = m_searches.try_emplace(route.query, nullptr);
+        if (created) {
+            entry->second = &m_pages->add<SearchOverlay>(m_thumbnails);
+            entry->second->set_query(route.query);
+        }
+        if (created || loading) entry->second->results().show(m_catalog.search_state());
+        m_current_page = entry->second;
+    } else {
+        m_current_page = m_settings_overlay;
     }
+
+    m_current_page->set_visible(true);
 }
 
 void MusiqApp::submit_search(std::string query) {
-    m_catalog.search(std::move(query));
-    m_search->set_query(m_catalog.search_state().query);
-    m_search->results().show(m_catalog.search_state());
-    navigate("search");
+    m_history.visit({"search", std::move(query)});
+    show_page();
 }
 
 void MusiqApp::refresh_home() {
@@ -239,33 +304,32 @@ void MusiqApp::refresh_home() {
 }
 
 void MusiqApp::refresh_search() {
-    m_catalog.search(m_catalog.search_state().query, true);
-    m_search->results().show(m_catalog.search_state());
+    if (m_catalog.search(m_history.current().query, true)) {
+        m_searches.at(m_history.current().query)->results().show(m_catalog.search_state());
+    }
 }
 
 void MusiqApp::refresh_catalog() {
     m_catalog.set_session(m_youtube_session);
-    m_search_bar->hide_suggestions();
-
-    if (m_page == "home") {
-        m_catalog.home(true);
-    } else if (m_page == "search") {
-        m_catalog.search(m_catalog.search_state().query, true);
+    for (const auto& [query, view] : m_searches) {
+        view->results().show(m_catalog.search_state(query));
     }
 
     m_home->results().show(m_catalog.home_state());
-    m_search->results().show(m_catalog.search_state());
+    show_page();
 }
 
 void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
     if (changed.home) m_home->results().show(m_catalog.home_state());
-    if (changed.search) m_search->results().show(m_catalog.search_state());
+    if (!changed.search.empty()) {
+        const auto view = m_searches.find(changed.search);
+        if (view != m_searches.end()) view->second->results().show(m_catalog.search_state(changed.search));
+    }
     if (changed.suggestions) m_search_bar->set_suggestions(m_catalog.suggestions());
 }
 
 void MusiqApp::initialize() {
-    m_search->results().show(m_catalog.search_state());
     auto& settings = MusiqSettings::instance();
     auto token = settings.token();
     if (!token.empty()) {
@@ -291,9 +355,9 @@ void MusiqApp::initialize() {
 
         m_surface.begin_frame();
         if (ImGui::IsKeyPressed(ImGuiKey_F5, false) && !m_loading->visible() && !m_channel_picker->visible()) {
-            if (m_page == "home") {
+            if (m_history.current().page == "home") {
                 refresh_home();
-            } else if (m_page == "search") {
+            } else if (m_history.current().page == "search") {
                 refresh_search();
             }
         }

@@ -1,0 +1,18 @@
+{
+  "onResponseReceivedActions": [
+    {"trackingAction": {}},
+    {"appendContinuationItemsAction": {"targetId": "PLexample", "continuationItems": [
+      {"musicResponsiveListItemRenderer": {
+        "flexColumns": [
+          {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Next song", "navigationEndpoint": {"watchEndpoint": {"videoId": "next-video"}}}]}}},
+          {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Artist"}]}}}
+        ],
+        "playlistItemData": {"videoId": "next-video", "playlistSetVideoId": "entry-three"}
+      }},
+      {"continuationItemRenderer": {"continuationEndpoint": {"commandExecutorCommand": {"commands": [
+        {"playlistVotingRefreshPopupCommand": {}},
+        {"continuationCommand": {"token": "last+/=", "request": "CONTINUATION_REQUEST_TYPE_BROWSE"}}
+      ]}}}}
+    ]}}
+  ]
+}

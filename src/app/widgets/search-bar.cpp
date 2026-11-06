@@ -17,7 +17,7 @@ using namespace ui;
 class SearchInputWidget final : public TextInputWidget {
 public:
     SearchInputWidget() : TextInputWidget({}, {}, LabelPlacement::Inline, "search-query") {
-        set_size({{px(0), px(800)}, px(48)});
+        set_size({grow(), px(48)});
         set_hint("Search songs, albums, artists");
         set_flags(ImGuiInputTextFlags_EscapeClearsAll);
     }
@@ -127,7 +127,7 @@ protected:
 SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::function<void(std::string)> edit)
     : Container("search-bar", StackDirection::Vertical), m_submit(std::move(submit)), m_edit(std::move(edit)) {
     set_type_name("SearchBarWidget");
-    set_size({grow(), fit()});
+    set_size({{px(0), px(800)}, fit()});
     set_content_alignment(Anchor::TopCenter);
 
     m_input = &add<SearchInputWidget>();
@@ -140,7 +140,7 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
     m_input->on_change([this] {
         hide_suggestions();
         m_input->trailing().set_visible(!m_input->value().empty());
-        m_edit(m_input->value());
+        if (!m_restoring_query) m_edit(m_input->value());
     });
     m_input->on_submit([this] { confirm_query(); });
     m_input->on_event(EventType::KeyDown, [this](UiEvent& event) {
@@ -210,7 +210,9 @@ void SearchBarWidget::confirm_query() {
     m_submit(query.substr(start, query.find_last_not_of(" \t\r\n") - start + 1));
 }
 
-void SearchBarWidget::apply_theme_defaults(const Theme& theme) {
-    Container::apply_theme_defaults(theme);
-    configure_all_styles([](Style& style) { style.padding({16.0f}); });
+void SearchBarWidget::set_query(std::string query) {
+    m_restoring_query = true;
+    m_input->set_value(std::move(query));
+    m_restoring_query = false;
+    hide_suggestions();
 }

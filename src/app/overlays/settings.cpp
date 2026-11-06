@@ -6,7 +6,6 @@
 
 #include <imgui-ui/surface.hpp>
 #include <imgui-ui/widgets/number-input.hpp>
-#include <algorithm>
 #include <exception>
 #include <utility>
 
@@ -82,7 +81,6 @@ void SettingsOverlay::set_authenticated(bool authenticated) {
 
 void SettingsOverlay::save_volume() {
     auto& settings = MusiqSettings::instance();
-    m_volume = std::clamp(m_volume, 0, 100);
 
     try {
         settings.set_volume(m_volume);

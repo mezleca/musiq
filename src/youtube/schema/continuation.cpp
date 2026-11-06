@@ -26,6 +26,7 @@ void to_json(json& data, const MusicContinuation& value) {
         {"client", static_cast<int>(value.client)},
         {"auth", static_cast<int>(value.auth)},
         {"identity", value.identity},
-        {"visitor_data", value.visitor_data}
+        {"visitor_data", value.visitor_data},
+        {"in_body", value.in_body}
     };
 }

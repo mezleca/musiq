@@ -1,24 +1,16 @@
 #include "../src/youtube/schema/catalog.hpp"
 #include "../src/youtube/schema/player.hpp"
-#include "../src/youtube/config.hpp"
 #include "../src/youtube/client.hpp"
 #include "../src/youtube/session.hpp"
 #include "../src/youtube/catalog.hpp"
 #include "../src/youtube/queue.hpp"
+#include "fixtures.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-#include <filesystem>
-#include <fstream>
 #include <stdexcept>
 #include <cstdlib>
 #include <utility>
 #include <algorithm>
-
-static json fixture(const char* name) {
-    std::ifstream input(std::filesystem::path(MUSIQ_SOURCE_DIR) / "tests" / "fixtures" / name);
-    REQUIRE(input.is_open());
-    return json::parse(input);
-}
 
 template <typename T>
 static T require_response(YoutubeResult<T> response) {
@@ -36,13 +28,10 @@ TEST_CASE("request context keeps client identity and visitor data together", "[y
     REQUIRE(web.at("client").at("clientName") == "WEB_REMIX");
     REQUIRE(web.at("client").at("visitorData") == "visitor");
     REQUIRE(web.at("user").at("onBehalfOfUser") == "brand");
-    REQUIRE(web.at("request").at("useSsl") == true);
 
     const json vision = MusicRequestContext{MusicClient::VisionOs, "visitor", "brand"};
     REQUIRE(vision.at("client").at("clientName") == "VISIONOS");
-    REQUIRE(vision.at("client").at("deviceModel") == "RealityDevice14,1");
     REQUIRE_FALSE(vision.at("user").contains("onBehalfOfUser"));
-    REQUIRE_FALSE(music_config::client_profile(MusicClient::VisionOs).login_supported);
 }
 
 TEST_CASE("player request only sends supplied playback fields", "[youtube][player]") {

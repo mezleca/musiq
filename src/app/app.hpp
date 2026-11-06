@@ -2,12 +2,14 @@
 
 #include "../youtube/session.hpp"
 #include "catalog-browser.hpp"
+#include "page-history.hpp"
 #include "resources/thumbnails.hpp"
 
 #include <SDL3/SDL_video.h>
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
 #include <future>
+#include <unordered_map>
 
 class SideBarOverlay;
 class LoadingOverlay;
@@ -16,6 +18,11 @@ class ChannelPickerOverlay;
 class HomeOverlay;
 class SearchOverlay;
 class SearchBarWidget;
+class MusiqButtonWidget;
+
+namespace ui {
+    class Container;
+}
 
 class MusiqApp {
 public:
@@ -32,6 +39,7 @@ private:
     void update_session();
     void update_profile();
     void navigate(std::string_view page);
+    void show_page();
     void submit_search(std::string query);
     void refresh_home();
     void refresh_search();
@@ -44,10 +52,14 @@ private:
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
     std::string m_session_token;
-    std::string m_page = "home";
+    PageHistory m_history;
     CatalogBrowser m_catalog;
     HomeOverlay* m_home = nullptr;
-    SearchOverlay* m_search = nullptr;
+    std::unordered_map<std::string, SearchOverlay*> m_searches;
+    ui::Container* m_pages = nullptr;
+    ui::Container* m_current_page = nullptr;
+    MusiqButtonWidget* m_back = nullptr;
+    MusiqButtonWidget* m_forward = nullptr;
     SearchBarWidget* m_search_bar = nullptr;
     ThumbnailCache m_thumbnails;
 

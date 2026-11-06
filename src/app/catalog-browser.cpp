@@ -36,31 +36,43 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_session = session;
     ++m_generation;
     m_home = {};
-    m_search.page.reset();
-    m_search.error.clear();
-    m_search.loading = false;
+    m_searches.clear();
 
-    m_pending_page.reset();
+    m_pending_pages.clear();
     suggest({});
 }
 
-void CatalogBrowser::home(bool refresh) {
-    if (!refresh && m_home.page) return;
-
-    m_home.loading = true;
-    m_home.error.clear();
-    m_pending_page = std::string{};
+const CatalogPageState& CatalogBrowser::search_state(const std::string& query) const {
+    const auto entry = m_searches.find(query);
+    return entry == m_searches.end() ? m_empty_search : entry->second;
 }
 
-void CatalogBrowser::search(std::string query, bool refresh) {
-    if (query.empty() || (!refresh && query == m_search.query && m_search.page)) return;
+void CatalogBrowser::queue_page(std::string query) {
+    auto& state = query.empty() ? m_home : m_searches.at(query);
+    state.loading = true;
+    state.error.clear();
+    m_pending_pages.push_back(std::move(query));
+}
 
-    m_search.query = std::move(query);
-    m_search.page.reset();
-    m_search.error.clear();
-    m_search.loading = true;
-    m_pending_page = m_search.query;
+bool CatalogBrowser::home(bool refresh) {
+    if (m_home.loading || (!refresh && m_home.page)) return false;
+
+    queue_page({});
+    return true;
+}
+
+bool CatalogBrowser::search(std::string query, bool refresh) {
+    m_query = std::move(query);
+    if (m_query.empty()) return false;
+
+    auto& state = m_searches[m_query];
+    if (state.loading || (!refresh && state.page)) return false;
+
+    state.query = m_query;
+    state.page.reset();
+    queue_page(m_query);
     suggest({});
+    return true;
 }
 
 void CatalogBrowser::suggest(std::string query) {
@@ -81,9 +93,9 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
         auto result = take_result(m_page_task);
         const bool home = m_running_page.empty();
 
-        // a login change or newer search can make a completed request obsolete
-        if (m_page_generation == m_generation && (home || m_running_page == m_search.query)) {
-            auto& state = home ? m_home : m_search;
+        // completed searches stay cached even when another page is visible, but never cross sessions
+        if (m_page_generation == m_generation) {
+            auto& state = home ? m_home : m_searches.at(m_running_page);
             state.loading = false;
             if (result) {
                 state.page = std::move(*result);
@@ -98,7 +110,7 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
             }
 
             changed.home = home;
-            changed.search = !home;
+            if (!home) changed.search = m_running_page;
         }
     }
 
@@ -116,9 +128,9 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
     }
 
     // replacing an unfinished async future would block the ui until its worker exits
-    if (m_pending_page && !m_page_task.valid()) {
-        m_running_page = std::move(*m_pending_page);
-        m_pending_page.reset();
+    if (!m_pending_pages.empty() && !m_page_task.valid()) {
+        m_running_page = std::move(m_pending_pages.front());
+        m_pending_pages.pop_front();
         m_page_generation = m_generation;
         LOG_INFO("[catalog] loading {}", m_running_page.empty() ? "home" : "search");
         m_page_task =

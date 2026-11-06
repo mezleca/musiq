@@ -8,7 +8,8 @@
 enum class MusicRoute {
     Search,
     Browse,
-    Next
+    Next,
+    Playlist
 };
 
 struct MusicContinuation {
@@ -20,6 +21,7 @@ struct MusicContinuation {
     MusicAuth auth = MusicAuth::Optional;
     std::string identity;
     std::string visitor_data;
+    bool in_body = false;
 };
 
 std::optional<MusicContinuation> music_continuation(const json& data);

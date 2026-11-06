@@ -70,11 +70,16 @@ void to_json(json& data, const MusicTextRun& value) {
 
 void from_json(const json& data, MusicItem& value) {
     MusicItem item;
+    item.available = data.value("musicItemRendererDisplayPolicy", std::string{}) != "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT";
     const auto columns = data.find("flexColumns");
 
     if (columns != data.end()) {
         const auto& first = columns->at(0).at("musicResponsiveListItemFlexColumnRenderer").at("text");
         item.title = music_text(first);
+        const auto title_runs = first.find("runs");
+        if (title_runs != first.end() && !title_runs->empty()) {
+            item.endpoint = music_optional<MusicEndpoint>(title_runs->front(), "navigationEndpoint").value_or(MusicEndpoint{});
+        }
         if (columns->size() > 1) {
             const auto& text = columns->at(1).at("musicResponsiveListItemFlexColumnRenderer").at("text");
             item.subtitle = text.at("runs").get<std::vector<MusicTextRun>>();
@@ -83,6 +88,21 @@ void from_json(const json& data, MusicItem& value) {
         const auto fixed = data.find("fixedColumns");
         if (fixed != data.end() && !fixed->empty()) {
             item.duration = music_text(fixed->at(0).at("musicResponsiveListItemFixedColumnRenderer").at("text"));
+        }
+
+        for (std::size_t index = 2; index < columns->size(); ++index) {
+            const auto& text = columns->at(index).at("musicResponsiveListItemFlexColumnRenderer").at("text");
+            const auto runs = text.find("runs");
+            if (runs == text.end() || runs->empty()) continue;
+
+            auto run = runs->front().get<MusicTextRun>();
+            if (run.endpoint.page_type == "MUSIC_PAGE_TYPE_ALBUM" || run.endpoint.browse_id.starts_with("MPRE")) {
+                item.album = std::move(run);
+            } else if (
+                item.duration.empty() && run.text.contains(':') && run.text.find_first_not_of("0123456789:") == std::string::npos
+            ) {
+                item.duration = std::move(run.text);
+            }
         }
     } else {
         item.title = music_text(data.at("title"));
@@ -114,5 +134,6 @@ void from_json(const json& data, MusicItem& value) {
 void to_json(json& data, const MusicItem& value) {
     data = {{"title", value.title},       {"subtitle", value.subtitle},
             {"endpoint", value.endpoint}, {"thumbnails", value.thumbnails},
-            {"duration", value.duration}, {"playlist_set_video_id", value.playlist_set_video_id}};
+            {"duration", value.duration}, {"playlist_set_video_id", value.playlist_set_video_id},
+            {"album", value.album},       {"available", value.available}};
 }

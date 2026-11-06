@@ -24,6 +24,9 @@ YoutubeResult<MusicPage> YoutubeMusicCatalog::more(const MusicContinuation& cont
     if (continuation.route == MusicRoute::Next) {
         return youtube_error(YoutubeErrorKind::Api, "queue continuation must be read by YoutubeMusicQueue");
     }
+    if (continuation.route == MusicRoute::Playlist) {
+        return youtube_error(YoutubeErrorKind::Api, "playlist continuation must be read by YoutubeMusicPlaylists");
+    }
     if (continuation.auth != MusicAuth::Anonymous && continuation.identity != m_client.identity()) {
         return youtube_error(YoutubeErrorKind::Authentication, "continuation belongs to another channel");
     }

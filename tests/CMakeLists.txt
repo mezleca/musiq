@@ -1,8 +1,8 @@
 add_executable(tests
     youtube-account.cpp
     youtube-api.cpp
+    youtube-playlists.cpp
     utils.cpp
-    ../src/app/resources/thumbnails.cpp
     ../src/utils/thread-pool.cpp
     ../src/youtube/schema/account.cpp
     ../src/youtube/config.cpp
@@ -12,9 +12,11 @@ add_executable(tests
     ../src/youtube/schema/catalog.cpp
     ../src/youtube/schema/queue.cpp
     ../src/youtube/schema/continuation.cpp
+    ../src/youtube/schema/playlist.cpp
     ../src/youtube/client.cpp
     ../src/youtube/catalog.cpp
     ../src/youtube/queue.cpp
+    ../src/youtube/playlists.cpp
     ../src/youtube/session.cpp
     ../src/youtube/error.cpp
     ../src/http/http-client.cpp

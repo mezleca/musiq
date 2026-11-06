@@ -36,6 +36,8 @@ struct MusicItem {
     std::vector<MusicThumbnail> thumbnails;
     std::string duration;
     std::string playlist_set_video_id;
+    MusicTextRun album;
+    bool available = true;
 };
 
 std::string music_text(const json& data);
