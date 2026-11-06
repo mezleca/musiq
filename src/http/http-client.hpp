@@ -5,7 +5,6 @@
 #include <cpr/parameters.h>
 #include <cpr/response.h>
 #include <chrono>
-#include <optional>
 #include <string>
 #include <string_view>
 
@@ -44,7 +43,6 @@ public:
     post_json(std::string_view url, const json& body, cpr::Header headers = {}, cpr::Parameters parameters = {}) const;
 
     static bool successful(const cpr::Response& response);
-    static std::optional<json> parse_json(const cpr::Response& response);
 
 private:
     HttpClient() = default;

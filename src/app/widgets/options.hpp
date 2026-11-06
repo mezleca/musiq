@@ -14,7 +14,7 @@ public:
 
     bool selected() const {
         return m_selected;
-    } // namespace ui
+    }
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;

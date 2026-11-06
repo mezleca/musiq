@@ -1,0 +1,26 @@
+{
+  "responseContext": {
+    "mainAppWebResponseContext": {"datasyncId": "brand||device"}
+  },
+  "actions": [{
+    "openPopupAction": {
+      "popup": {
+        "multiPageMenuRenderer": {
+          "header": {
+            "activeAccountHeaderRenderer": {
+              "accountName": {"runs": [{"text": "Brand"}, {"text": " channel"}]},
+              "channelHandle": {"simpleText": "@brand"},
+              "accountPhoto": {
+                "thumbnails": [
+                  {"url": "https://example.invalid/small.jpg"},
+                  {"url": "https://example.invalid/large.jpg"}
+                ]
+              }
+            }
+          },
+          "sections": []
+        }
+      }
+    }
+  }]
+}

@@ -1,17 +1,13 @@
 #pragma once
 
+#include "schema/account.hpp"
+
 #include <cpr/cprtypes.h>
 
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-struct MusicIdentity {
-    std::string name;
-    std::string handle;
-    std::string data_sync_id;
-};
 
 struct MusicUser {
     std::string name;
@@ -23,11 +19,15 @@ struct MusicUser {
 class YoutubeMusicSession {
 public:
     static bool has_session_cookie(std::string_view cookies);
-    // user() remains empty until a channel is selected when several identities are available
+
     bool authenticate(std::string cookies, std::string_view identity = {});
     bool select_identity(std::string_view identity);
 
     std::optional<cpr::Header> authentication_headers() const;
+
+    bool has_credentials() const {
+        return !m_sapisid.empty();
+    }
 
     const std::string& identity() const {
         return m_identity;

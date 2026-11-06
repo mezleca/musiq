@@ -1,0 +1,12 @@
+{
+  "contents": [{"searchSuggestionsSectionRenderer": {"contents": [
+    {"searchSuggestionRenderer": {
+      "suggestion": {"runs": [{"text": "Example"}]},
+      "navigationEndpoint": {"searchEndpoint": {"query": "Example song"}}
+    }},
+    {"historySuggestionRenderer": {
+      "suggestion": {"runs": [{"text": "Earlier query"}]},
+      "navigationEndpoint": {"searchEndpoint": {"query": "Earlier query"}}
+    }}
+  ]}}]
+}

@@ -57,13 +57,15 @@ MusiqSettings::MusiqSettings(const std::string& path) : m_path(path) {
     try {
         load_database(m_path);
     } catch (const std::exception& error) {
-        LOG_WARN("[settings] failed to load database ({})\n recreating it...", error.what());
+        LOG_WARN("[settings] failed to load database: {}, recreating it", error.what());
         std::filesystem::remove(m_path);
         std::filesystem::remove(m_path + "-wal");
         std::filesystem::remove(m_path + "-shm");
         std::filesystem::remove(m_path + "-journal");
         load_database(m_path);
     }
+
+    LOG_INFO("[settings] database ready");
 }
 
 int MusiqSettings::volume() const {

@@ -49,6 +49,7 @@ SettingsOverlay::SettingsOverlay(std::function<void()> log_out) : Container("set
 
     add<MusiqText>("Settings", true);
     m_status = &add<MusiqText>("Changes are saved automatically.");
+
     auto& audio = add<SettingsSectionWidget>("audio");
     audio.add<MusiqText>("Audio", true);
 
@@ -58,8 +59,10 @@ SettingsOverlay::SettingsOverlay(std::function<void()> log_out) : Container("set
     volume.set_format("%d%%");
     volume.set_flags(ImGuiSliderFlags_AlwaysClamp);
     volume.on_change([this] { save_volume(); });
+
     m_account = &add<SettingsSectionWidget>("account");
     m_account->add<MusiqText>("Account", true);
+
     auto& logout = m_account->add<MusiqButtonWidget>("Log out");
     logout.set_id("log-out");
     logout.on_click([this, log_out = std::move(log_out)] {
@@ -80,6 +83,7 @@ void SettingsOverlay::set_authenticated(bool authenticated) {
 void SettingsOverlay::save_volume() {
     auto& settings = MusiqSettings::instance();
     m_volume = std::clamp(m_volume, 0, 100);
+
     try {
         settings.set_volume(m_volume);
         m_status->set_text("Changes are saved automatically.");

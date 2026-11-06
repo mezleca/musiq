@@ -1,0 +1,22 @@
+{
+  "contents": {"singleColumnMusicWatchNextResultsRenderer": {
+    "tabbedRenderer": {"watchNextTabbedResultsRenderer": {"tabs": [
+      {"tabRenderer": {"content": {"musicQueueRenderer": {"content": {"playlistPanelRenderer": {
+        "playlistId": "RDexample",
+        "contents": [{"playlistPanelVideoWrapperRenderer": {
+          "primaryRenderer": {"playlistPanelVideoRenderer": {
+            "videoId": "audio-id",
+            "title": {"runs": [{"text": "Example song"}]},
+            "longBylineText": {"runs": [{"text": "Example artist", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCEXAMPLE"}}}]},
+            "lengthText": {"simpleText": "3:30"},
+            "thumbnail": {"thumbnails": [{"url": "https://example.invalid/song.jpg"}]}
+          }},
+          "counterpart": [{"counterpartRenderer": {"playlistPanelVideoRenderer": {"videoId": "video-twin"}}}]
+        }}],
+        "continuations": [{"nextRadioContinuationData": {"continuation": "radio-token"}}]
+      }}}}}},
+      {"tabRenderer": {"endpoint": {"browseEndpoint": {"browseId": "MPLYexample"}}}},
+      {"tabRenderer": {"endpoint": {"browseEndpoint": {"browseId": "MPTRexample"}}}}
+    ]}}
+  }}
+}

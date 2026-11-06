@@ -56,16 +56,3 @@ HttpClient::post_json(std::string_view url, const json& body, cpr::Header header
 bool HttpClient::successful(const cpr::Response& response) {
     return response.error.code == cpr::ErrorCode::OK && response.status_code >= 200 && response.status_code < 300;
 }
-
-std::optional<json> HttpClient::parse_json(const cpr::Response& response) {
-    if (!successful(response)) {
-        return std::nullopt;
-    }
-
-    auto body = json::parse(response.text, nullptr, false);
-    if (body.is_discarded()) {
-        return std::nullopt;
-    }
-
-    return body;
-}

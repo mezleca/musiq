@@ -64,7 +64,7 @@ struct QueryState {
         value = ParseState::KEY;
         in_quotes = false;
 
-        key_start = INT_MAX; // Invalid sentinel until the first key character.
+        key_start = INT_MAX;
         op_start = 0;
         op_end = 0;
         value_end = 0;
@@ -141,7 +141,7 @@ namespace query {
             }
 
             case '=': {
-                if (c2 == '=') { // variation
+                if (c2 == '=') {
                     return {QueryOp::EQ, 2};
                 }
 
@@ -160,6 +160,7 @@ namespace query {
         }
     }
 
+    // separates key/operator/value filters from free text, quoted values may contain spaces
     inline ParsedQuery parse(std::string_view data) {
         ParsedQuery result;
         QueryState m_state;
@@ -176,7 +177,6 @@ namespace query {
                         m_state.key_start = i;
                     }
 
-                    // free text
                     if (c == ' ') {
                         result.content += data.substr(m_state.key_start, i - m_state.key_start);
                         result.content += ' ';
@@ -184,11 +184,9 @@ namespace query {
                         continue;
                     }
 
-                    // is a operator?
                     if (m_state.key_start < i && OP_START_TABLE[static_cast<unsigned char>(c)]) {
                         auto [op, size] = parse_operator(data, i);
 
-                        // invalidate duplicated op's
                         if (!is_last && c != '=' && data[i + 1] == c) {
                             result.content += data.substr(m_state.key_start, i - m_state.key_start);
                             m_state.reset();
@@ -200,7 +198,6 @@ namespace query {
                         }
                     }
 
-                    // flush last word as free text if no operator found
                     if (is_last) {
                         result.content += data.substr(m_state.key_start);
                     }
@@ -209,7 +206,6 @@ namespace query {
                     m_state.value_end = i;
                     bool is_char_quote = c == '"';
 
-                    // skip on opening quote
                     if (!m_state.in_quotes && is_char_quote) {
                         m_state.in_quotes = true;
                         continue;
@@ -231,7 +227,7 @@ namespace query {
                         value_start += 1;
                         value_length -= 1;
                     } else if (is_unquoted_last) {
-                        value_length += 1; // include last char
+                        value_length += 1;
                     }
 
                     result.tokens.push_back({

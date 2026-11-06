@@ -1,0 +1,37 @@
+{
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [{"tabRenderer": {"content": {"sectionListRenderer": {
+        "contents": [
+          {"musicCarouselShelfRenderer": {
+            "header": {"musicCarouselShelfBasicHeaderRenderer": {"title": {"runs": [{"text": "Albums"}]}}},
+            "contents": [{"musicTwoRowItemRenderer": {
+              "title": {"runs": [{"text": "Example album"}]},
+              "subtitle": {"runs": [{"text": "Example artist", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCEXAMPLE"}}}]},
+              "navigationEndpoint": {"browseEndpoint": {
+                "browseId": "MPREexample", "params": "opaque",
+                "browseEndpointContextSupportedConfigs": {"browseEndpointContextMusicConfig": {"pageType": "MUSIC_PAGE_TYPE_ALBUM"}}
+              }},
+              "thumbnailRenderer": {"musicThumbnailRenderer": {"thumbnail": {"thumbnails": [{"url": "https://example.invalid/album.jpg"}]}}}
+            }}]
+          }},
+          {"musicShelfRenderer": {
+            "title": {"simpleText": "Songs"},
+            "contents": [{"musicResponsiveListItemRenderer": {
+              "flexColumns": [
+                {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example song"}]}}},
+                {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example artist", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCEXAMPLE"}}}]}}}
+              ],
+              "fixedColumns": [{"musicResponsiveListItemFixedColumnRenderer": {"text": {"simpleText": "3:30"}}}],
+              "playlistItemData": {"videoId": "public-video", "playlistSetVideoId": "entry-1"},
+              "navigationEndpoint": {"watchEndpoint": {"videoId": "public-video", "playlistId": "PLexample"}},
+              "thumbnail": {"musicThumbnailRenderer": {"thumbnail": {"thumbnails": [{"url": "https://example.invalid/song.jpg"}]}}}
+            }}],
+            "continuations": [{"nextContinuationData": {"continuation": "shelf+/="}}]
+          }}
+        ],
+        "continuations": [{"nextContinuationData": {"continuation": "page+/="}}]
+      }}}}]
+    }
+  }
+}

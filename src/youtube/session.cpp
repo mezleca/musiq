@@ -23,7 +23,6 @@ static std::string_view cookie_sapisid(std::string_view cookies) {
         if (separator != std::string_view::npos) {
             const auto name = trim(pair.substr(0, separator));
             const auto value = trim(pair.substr(separator + 1));
-
             if (!value.empty() && (name == "SAPISID" || name == "__Secure-3PAPISID")) {
                 return value;
             }
@@ -70,90 +69,6 @@ std::optional<cpr::Header> YoutubeMusicSession::authentication_headers() const {
     };
 }
 
-static const json* find_account_header(const json& node) {
-    if (node.is_object() && node.contains("activeAccountHeaderRenderer")) {
-        return &node["activeAccountHeaderRenderer"];
-    }
-
-    if (node.is_structured()) {
-        for (const auto& child : node) {
-            if (const auto* header = find_account_header(child)) {
-                return header;
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-static std::string account_text(const json& value) {
-    if (value.is_string()) return value.get<std::string>();
-    if (value.contains("simpleText")) return value.at("simpleText").get<std::string>();
-
-    std::string text;
-    for (const auto& run : value.value("runs", json::array())) {
-        text += run.at("text").get<std::string>();
-    }
-
-    return text;
-}
-
-static std::string sync_id(std::string value) {
-    const auto separator = value.find("||");
-    if (separator == std::string::npos) return value;
-    return separator == 0 ? value.substr(2) : value.substr(0, separator);
-}
-
-static std::string response_identity(const json& response) {
-    const json::json_pointer path("/responseContext/mainAppWebResponseContext");
-    if (!response.contains(path)) return {};
-    const auto& context = response.at(path);
-    return sync_id(context.value("datasyncId", context.value("dataSyncId", std::string{})));
-}
-
-static void collect_identities(const json& node, std::string_view selected_id, std::vector<MusicIdentity>& identities) {
-    if (node.is_object() && node.contains("accountItem")) {
-        const auto& item = node.at("accountItem");
-        if (item.value("isDisabled", false) || !item.value("hasChannel", true)) {
-            return;
-        }
-
-        std::string id;
-        std::string page_id;
-
-        const json::json_pointer path("/serviceEndpoint/selectActiveIdentityEndpoint/supportedTokens");
-        if (item.contains(path)) {
-            for (const auto& token : item.at(path)) {
-                if (token.contains("datasyncIdToken") || token.contains("dataSyncIdToken")) {
-                    const auto& data = token.at(token.contains("datasyncIdToken") ? "datasyncIdToken" : "dataSyncIdToken");
-                    id =
-                        sync_id(data.value("datasyncIdToken", data.value("datasyncId", data.value("dataSyncId", std::string{}))));
-                } else if (token.contains("pageIdToken")) {
-                    page_id = token.at("pageIdToken").value("pageId", std::string{});
-                }
-            }
-        }
-        if (id.empty()) id = page_id;
-        if (id.empty() && item.value("isSelected", false)) id = selected_id;
-
-        const auto name = account_text(item.value("accountName", json::object()));
-        if (!id.empty() && !name.empty() &&
-            std::none_of(identities.begin(), identities.end(), [&](const MusicIdentity& identity) {
-                return identity.data_sync_id == id;
-            })) {
-            identities.push_back({name, account_text(item.value("channelHandle", json::object())), std::move(id)});
-        }
-
-        return;
-    }
-
-    if (node.is_structured()) {
-        for (const auto& child : node) {
-            collect_identities(child, selected_id, identities);
-        }
-    }
-}
-
 bool YoutubeMusicSession::authenticate(std::string cookies, std::string_view identity) {
     if (!has_session_cookie(cookies)) {
         return false;
@@ -163,12 +78,13 @@ bool YoutubeMusicSession::authenticate(std::string cookies, std::string_view ide
     session.m_sapisid = cookie_sapisid(cookies);
     session.m_cookies = std::move(cookies);
 
-    const auto response = YoutubeMusicClient(session).accounts_list();
+    auto response = YoutubeMusicClient(session).accounts_list();
     if (!response) {
+        LOG_ERROR("[music] accounts_list failed: {} (status={})", response.error().message, response.error().status);
         return false;
     }
 
-    collect_identities(*response, response_identity(*response), session.m_identities);
+    session.m_identities = std::move(response->identities);
 
     if (session.m_identities.empty()) {
         LOG_ERROR("[music] no selectable YouTube channels returned");
@@ -179,9 +95,7 @@ bool YoutubeMusicSession::authenticate(std::string cookies, std::string_view ide
         identity = session.m_identities.front().data_sync_id;
     }
 
-    if (!identity.empty()) {
-        session.select_identity(identity);
-    }
+    if (!identity.empty() && !session.select_identity(identity)) return false;
 
     *this = std::move(session);
     return true;
@@ -198,53 +112,32 @@ bool YoutubeMusicSession::select_identity(std::string_view identity) {
 
     const auto response = YoutubeMusicClient(*this).account_menu(identity);
     if (!response) {
+        LOG_ERROR("[music] account_menu failed: {} (status={})", response.error().message, response.error().status);
         return false;
     }
 
-    try {
-        const auto* header = find_account_header(*response);
-        if (!header) {
-            return false;
-        }
-
-        const auto handle = account_text(header->value("channelHandle", json::object()));
-        if (response_identity(*response) != identity && (selected->handle.empty() || selected->handle != handle)) {
-            LOG_ERROR("[music] selected channel was not confirmed");
-            return false;
-        }
-
-        MusicUser user;
-        user.name = account_text(header->at("accountName"));
-
-        if (user.name.empty()) {
-            return false;
-        }
-
-        if (!handle.empty()) {
-            user.channel_url = std::format("https://www.youtube.com/{}", handle);
-        }
-
-        if (header->contains("accountPhoto")) {
-            const auto& thumbnails = header->at("accountPhoto").at("thumbnails");
-            if (!thumbnails.empty()) {
-                user.avatar_url = thumbnails.back().at("url").get<std::string>();
-            }
-        }
-
-        if (!user.avatar_url.empty()) {
-            auto& http = HttpClient::instance();
-            auto avatar = http.get(user.avatar_url);
-            if (HttpClient::successful(avatar)) {
-                user.avatar_data = std::move(avatar.text);
-            }
-        }
-
-        m_user = std::move(user);
-        m_identity = identity;
-    } catch (const json::exception&) {
-        LOG_ERROR("[music] invalid account menu response");
+    if (response->data_sync_id != identity && (selected->handle.empty() || selected->handle != response->handle)) {
+        LOG_ERROR("[music] selected channel was not confirmed");
         return false;
     }
 
+    MusicUser user;
+    user.name = response->name;
+    user.avatar_url = response->avatar_url;
+
+    if (!response->handle.empty()) {
+        user.channel_url = std::format("https://www.youtube.com/{}", response->handle);
+    }
+
+    if (!user.avatar_url.empty()) {
+        auto& http = HttpClient::instance();
+        auto avatar = http.get(user.avatar_url);
+        if (HttpClient::successful(avatar)) {
+            user.avatar_data = std::move(avatar.text);
+        }
+    }
+
+    m_user = std::move(user);
+    m_identity = identity;
     return true;
 }

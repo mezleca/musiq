@@ -11,6 +11,7 @@ class OptionsWidget;
 class SideBarOverlay final : public ui::Container {
 public:
     explicit SideBarOverlay(std::function<void()> sign_in, std::function<void(std::string_view)> navigate = {});
+    void select(std::string_view id);
 
     UserProfileWidget& user_profile() {
         return *m_user_profile;

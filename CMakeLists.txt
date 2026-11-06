@@ -35,6 +35,15 @@ if(MUSIQ_IPO_SUPPORTED)
 endif()
 message(STATUS "Release IPO/LTO supported: ${MUSIQ_IPO_SUPPORTED}")
 
+option(MUSIQ_BUILD_TESTS "Build musiq tests" OFF)
+if(MUSIQ_BUILD_TESTS)
+    include(cmake/dependencies/catch2.cmake)
+    list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+    include(Catch)
+    include(CTest)
+    add_subdirectory(tests)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
 install(DIRECTORY resources/fonts resources/icons

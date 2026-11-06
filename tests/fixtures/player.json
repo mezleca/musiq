@@ -1,0 +1,43 @@
+{
+  "responseContext": {"visitorData": "CgtSANITIZED"},
+  "playabilityStatus": {"status": "OK"},
+  "streamingData": {
+    "expiresInSeconds": "21540",
+    "adaptiveFormats": [
+      {
+        "itag": 251,
+        "mimeType": "audio/webm; codecs=\"opus\"",
+        "bitrate": "160000",
+        "contentLength": "42000000",
+        "approxDurationMs": "210000",
+        "audioChannels": 2,
+        "url": "https://example.invalid/audio",
+        "audioTrack": {"id": "en.original", "displayName": "Original", "audioIsDefault": true}
+      },
+      {
+        "itag": 140,
+        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+        "bitrate": 128000,
+        "signatureCipher": "s=REDACTED&sp=sig&url=https%3A%2F%2Fexample.invalid%2Faudio"
+      },
+      {
+        "itag": 137,
+        "mimeType": "video/mp4; codecs=\"avc1.640028\"",
+        "bitrate": 2000000,
+        "width": 1920,
+        "height": 1080,
+        "drmFamilies": ["WIDEVINE"]
+      }
+    ]
+  },
+  "videoDetails": {
+    "videoId": "public-video",
+    "title": "Example track",
+    "author": "Example artist",
+    "channelId": "UCEXAMPLE",
+    "lengthSeconds": "210",
+    "isLiveContent": false,
+    "thumbnail": {"thumbnails": [{"url": "https://example.invalid/cover.jpg", "width": 120, "height": 120}]}
+  },
+  "playbackTracking": {"videostatsPlaybackUrl": {"baseUrl": "https://example.invalid/tracking"}}
+}

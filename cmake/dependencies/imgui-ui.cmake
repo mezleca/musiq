@@ -15,6 +15,6 @@ set(IMGUI_UI_BUILD_TESTS OFF)
 FetchContent_Declare(
     imgui-ui
     GIT_REPOSITORY https://github.com/mezleca/imgui-ui
-    GIT_TAG e4143248ca846efd0f5d39cc655bed9ee2dc4884
+    GIT_TAG 9748bff57e358c31f06dfd2564c59e22e150f6fc
 )
 FetchContent_MakeAvailable(imgui-ui)

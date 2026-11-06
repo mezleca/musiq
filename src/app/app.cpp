@@ -4,7 +4,11 @@
 #include "overlays/loading.hpp"
 #include "overlays/settings.hpp"
 #include "overlays/channel-picker.hpp"
+#include "overlays/home.hpp"
+#include "overlays/search.hpp"
 #include "widgets/user-profile.hpp"
+#include "widgets/search-bar.hpp"
+#include "widgets/catalog-results.hpp"
 #include "resources/avatar.hpp"
 #include "../youtube/config.hpp"
 #include "../database/settings.hpp"
@@ -40,12 +44,16 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     auto& main = m_surface.root().add<Container>("main", StackDirection::Horizontal);
     main.set_size({grow(), grow()});
 
-    m_sidebar = &main.add<SideBarOverlay>(
-        [this] { sign_in(); }, [this](std::string_view option) { m_settings_overlay->set_visible(option == "settings"); }
-    );
+    m_sidebar = &main.add<SideBarOverlay>([this] { sign_in(); }, [this](std::string_view option) { navigate(option); });
 
     auto& content = main.add<Container>("content", StackDirection::Vertical);
     content.set_size({grow(), grow()});
+    m_search_bar = &content.add<SearchBarWidget>(
+        [this](std::string query) { submit_search(std::move(query)); },
+        [this](std::string query) { m_catalog.suggest(std::move(query)); }
+    );
+    m_home = &content.add<HomeOverlay>(m_thumbnails);
+    m_search = &content.add<SearchOverlay>(m_thumbnails);
     m_settings_overlay = &content.add<SettingsOverlay>([this] { log_out(); });
 
     auto& player = m_surface.root().add<Container>("player", StackDirection::Vertical);
@@ -122,6 +130,7 @@ void MusiqApp::log_out() {
     m_youtube_session = YoutubeMusicSession{};
     m_session_token.clear();
     update_profile();
+    LOG_INFO("[login] logged out");
 }
 
 void MusiqApp::authenticate(std::string token, std::string identity) {
@@ -141,6 +150,7 @@ void MusiqApp::authenticate(std::string token, std::string identity) {
         m_sidebar->user_profile().set_busy(true);
         m_loading->show();
         m_loading->update("Signing in...");
+        LOG_INFO("[login] starting authentication");
     } catch (std::exception& error) {
         LOG_ERROR("[login] could not start authentication: {}", error.what());
         m_sidebar->user_profile().set_busy(false);
@@ -152,6 +162,8 @@ void MusiqApp::cancel_channel_selection() {
     m_youtube_session = YoutubeMusicSession{};
     m_session_token.clear();
     m_sidebar->user_profile().set_busy(false);
+    update_profile();
+    LOG_INFO("[login] channel selection cancelled");
 }
 
 void MusiqApp::update_session() {
@@ -182,9 +194,11 @@ void MusiqApp::update_session() {
 
     m_session_token.clear();
     m_sidebar->user_profile().set_busy(false);
+    if (m_page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) refresh_home();
 }
 
 void MusiqApp::update_profile() {
+    refresh_catalog();
     auto& profile = m_sidebar->user_profile();
     m_settings_overlay->set_authenticated(m_youtube_session.user().has_value());
     if (!m_youtube_session.user()) {
@@ -196,7 +210,62 @@ void MusiqApp::update_profile() {
     profile.set_user(user.name, load_avatar(m_runtime.textures(), user.avatar_url, user.avatar_data), user.channel_url);
 }
 
+void MusiqApp::navigate(std::string_view page) {
+    m_page = page;
+    m_sidebar->select(page);
+    m_home->set_visible(page == "home");
+    m_search->set_visible(page == "search");
+    m_settings_overlay->set_visible(page == "settings");
+    m_search_bar->set_visible(page != "settings");
+    m_search_bar->hide_suggestions();
+    m_catalog.suggest({});
+
+    if (page == "home") {
+        m_catalog.home();
+        m_home->results().show(m_catalog.home_state());
+    }
+}
+
+void MusiqApp::submit_search(std::string query) {
+    m_catalog.search(std::move(query));
+    m_search->set_query(m_catalog.search_state().query);
+    m_search->results().show(m_catalog.search_state());
+    navigate("search");
+}
+
+void MusiqApp::refresh_home() {
+    m_catalog.home(true);
+    m_home->results().show(m_catalog.home_state());
+}
+
+void MusiqApp::refresh_search() {
+    m_catalog.search(m_catalog.search_state().query, true);
+    m_search->results().show(m_catalog.search_state());
+}
+
+void MusiqApp::refresh_catalog() {
+    m_catalog.set_session(m_youtube_session);
+    m_search_bar->hide_suggestions();
+
+    if (m_page == "home") {
+        m_catalog.home(true);
+    } else if (m_page == "search") {
+        m_catalog.search(m_catalog.search_state().query, true);
+    }
+
+    m_home->results().show(m_catalog.home_state());
+    m_search->results().show(m_catalog.search_state());
+}
+
+void MusiqApp::update_catalog() {
+    const auto changed = m_catalog.update();
+    if (changed.home) m_home->results().show(m_catalog.home_state());
+    if (changed.search) m_search->results().show(m_catalog.search_state());
+    if (changed.suggestions) m_search_bar->set_suggestions(m_catalog.suggestions());
+}
+
 void MusiqApp::initialize() {
+    m_search->results().show(m_catalog.search_state());
     auto& settings = MusiqSettings::instance();
     auto token = settings.token();
     if (!token.empty()) {
@@ -208,9 +277,30 @@ void MusiqApp::initialize() {
         }
     }
 
+    if (m_session.valid()) {
+        CatalogPageState waiting;
+        waiting.loading = true;
+        m_home->results().show(waiting);
+    } else {
+        navigate("home");
+    }
+
     while (!m_surface.is_done()) {
         m_surface.process_events();
         update_session();
-        m_surface.frame();
+
+        m_surface.begin_frame();
+        if (ImGui::IsKeyPressed(ImGuiKey_F5, false) && !m_loading->visible() && !m_channel_picker->visible()) {
+            if (m_page == "home") {
+                refresh_home();
+            } else if (m_page == "search") {
+                refresh_search();
+            }
+        }
+
+        update_catalog();
+        m_surface.update(ImGui::GetIO().DeltaTime);
+        m_surface.draw();
+        m_surface.end_frame();
     }
 }
