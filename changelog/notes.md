@@ -1,3 +1,7 @@
+# v0.1.1
+
+- Fix appimage packaging
+
 # v0.1.0
 
 ## Initial release

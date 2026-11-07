@@ -6,21 +6,11 @@ on:
         paths:
             - "src/**"
             - "tests/**"
-            - "resources/**"
-            - "cmake/**"
-            - "CMakeLists.txt"
-            - "ez"
-            - ".github/workflows/test.yml"
     push:
         branches: [master]
         paths:
             - "src/**"
             - "tests/**"
-            - "resources/**"
-            - "cmake/**"
-            - "CMakeLists.txt"
-            - "ez"
-            - ".github/workflows/test.yml"
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

@@ -10,18 +10,29 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-RELEASE_VERSION = "v0.1.0"
+RELEASE_VERSION = "v0.1.1"
 CWD = Path(__file__).resolve().parent
 RESOURCES_DIR = CWD / "resources"
 BUILD_DIR = CWD / "build"
 SYSTEM = platform.system()
+NOTES_FILE = CWD / "changelog" / "notes.md"
 PACKAGING_DIR = RESOURCES_DIR / "packaging"
 APPIMAGE_BUILD_DIR = CWD / "dist" / "appimage"
 APPIMAGE_APPDIR = APPIMAGE_BUILD_DIR / "AppDir"
 APPIMAGE_PATH = CWD / "dist" / f"musiq-{platform.machine()}.AppImage"
 LINUXDEPLOY_TOOL = CWD / f"linuxdeploy-{platform.machine()}.AppImage"
 LINUXDEPLOY_URL = f"https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/{LINUXDEPLOY_TOOL.name}"
-NOTES_FILE = CWD / "changelog" / "notes.md"
+
+APPIMAGE_SYSTEM_LIBRARIES = (
+    "libwebkit2gtk-4.1.so.*", "libjavascriptcoregtk-4.1.so.*",
+    "libglib-2.0.so.*", "libgobject-2.0.so.*", "libgio-2.0.so.*",
+    "libgmodule-2.0.so.*", "libgthread-2.0.so.*",
+    "libgtk-3.so.*", "libgdk-3.so.*", "libgdk_pixbuf-2.0.so.*", "libglycin-*.so.*",
+    "libpango*.so.*", "libcairo*.so.*", "libatk*.so.*", "libatspi.so.*",
+    "libsoup-3.0.so.*", "libgst*.so.*", "libgudev-1.0.so.*", "libsecret-1.so.*",
+    "librsvg-2.so.*", "libtinysparql-*.so.*", "libcloudproviders.so.*", "libjson-glib-1.0.so.*",
+    "libenchant-2.so.*", "libmanette-0.2.so.*", "libharfbuzz-icu.so.*", "libhyphen.so.*",
+)
 
 def run(
     command: str | list[str], check: bool = True, env: Mapping[str, str] | None = None, capture: bool = False
@@ -187,8 +198,7 @@ def package_appimage() -> None:
         "--icon-file", str(RESOURCES_DIR / "icons" / "app" / "musiq.png"),
         "--icon-filename", "org.mezleca.musiq",
         "--custom-apprun", str(PACKAGING_DIR / "AppRun"),
-        "--exclude-library", "libwebkit2gtk-4.1.so.*",
-        "--exclude-library", "libjavascriptcoregtk-4.1.so.*",
+        *[argument for library in APPIMAGE_SYSTEM_LIBRARIES for argument in ("--exclude-library", library)],
         "--output", "appimage",
     ], env=environment)
     print(f"[ez] AppImage created: {APPIMAGE_PATH}")
