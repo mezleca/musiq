@@ -105,7 +105,6 @@ def link_compile_commands(build_dir: Path) -> None:
         link.unlink()
     link.symlink_to(database.relative_to(CWD))
 
-
 def build(build_type: str) -> Path:
     build_dir = configure(build_type)
     link_compile_commands(build_dir)
@@ -117,7 +116,6 @@ def format_code() -> None:
 
 def print_release_version() -> None:
     print(RELEASE_VERSION)
-
 
 def parse_release_note(version: str, dest: str) -> None:
     content = NOTES_FILE.read_text()

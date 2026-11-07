@@ -1,8 +1,8 @@
 # v0.1.0
 
-## initial release
+## Initial release
 
-- YouTube Music home, search and playlist browsing
+- Home, Search and playlist browsing
 - queue and radio playback through libmpv
-- account login using its system webview
+- Login using the system webview
 - Linux AppImage packaging
