@@ -1,0 +1,24 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "secondaryContents": {
+        "sectionListRenderer": {
+          "contents": [{
+            "musicShelfRenderer": {
+              "contents": [{
+                "musicResponsiveListItemRenderer": {
+                  "flexColumns": [
+                    {"musicResponsiveListItemFlexColumnRenderer": {"text": {"runs": [{"text": "Example single"}]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer": {"text": {}}}
+                  ],
+                  "fixedColumns": [{"musicResponsiveListItemFixedColumnRenderer": {"text": {"runs": [{"text": "3:22"}]}}}],
+                  "playlistItemData": {"videoId": "single-track"}
+                }
+              }]
+            }
+          }]
+        }
+      }
+    }
+  }
+}

@@ -20,7 +20,13 @@ find_package(SQLite3 REQUIRED)
 
 FetchContent_Declare(
     sqlite_orm
-    GIT_REPOSITORY https://github.com/fnc12/sqlite_orm
-    GIT_TAG 69917bd09a84970881d755828d60d8edf79728c6
+    URL https://codeload.github.com/fnc12/sqlite_orm/tar.gz/69917bd09a84970881d755828d60d8edf79728c6
+    URL_HASH SHA256=39e0d489f72146c7c950cde3a91f03b6ef8dec7883c195dcbcaef75995eab035
+    DOWNLOAD_EXTRACT_TIMESTAMP FALSE
 )
 FetchContent_MakeAvailable(sqlite_orm)
+
+# vendored dependency, do not surface its warnings in the build or clangd
+set_target_properties(sqlite_orm PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+    "$<TARGET_PROPERTY:sqlite_orm,INTERFACE_INCLUDE_DIRECTORIES>"
+)

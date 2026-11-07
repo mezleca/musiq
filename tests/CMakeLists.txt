@@ -3,7 +3,19 @@ add_executable(tests
     youtube-api.cpp
     youtube-playlists.cpp
     utils.cpp
+    thumbnails.cpp
+    playback.cpp
+    mpv-player.cpp
+    ../src/playback/mpv-player.cpp
+    ../src/playback/controller.cpp
+    ../src/playback/audio-stream.cpp
+    ../src/youtube/stream.cpp
+    ../src/youtube/yt-dlp.cpp
+    ../src/youtube/dlp-manager.cpp
+    ../src/utils/system.cpp
+    ../src/playback/queue.cpp
     ../src/utils/thread-pool.cpp
+    ../src/app/resources/thumbnails.cpp
     ../src/youtube/schema/account.cpp
     ../src/youtube/config.cpp
     ../src/youtube/schema/common.cpp
@@ -27,6 +39,10 @@ target_link_libraries(tests PRIVATE
     Catch2::Catch2WithMain
     cpr
     Boost::hash2
+    Boost::process
+    mpv::mpv
+    miniz
+    imgui-ui::sdl
 )
 
 target_compile_definitions(tests PRIVATE

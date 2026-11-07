@@ -1,13 +1,14 @@
 #include "settings.hpp"
 #include "../widgets/text.hpp"
 #include "../widgets/button.hpp"
+#include "../widgets/slider.hpp"
 #include "../../database/settings.hpp"
 #include "../../utils/log.hpp"
 
-#include <imgui-ui/surface.hpp>
-#include <imgui-ui/widgets/number-input.hpp>
 #include <exception>
 #include <utility>
+#include <cmath>
+#include <format>
 
 using namespace ui;
 
@@ -25,13 +26,16 @@ protected:
         configure_all_styles([&theme](Style& style) {
             style.padding({12.0f});
             style.background_color(theme.background_secondary_color);
-            style.border_radius(6.0f);
+            style.border_radius(theme.controls.rounding);
             style.border_thickness(0.0f);
         });
     }
 };
 
-SettingsOverlay::SettingsOverlay(std::function<void()> log_out) : Container("settings", StackDirection::Vertical) {
+SettingsOverlay::SettingsOverlay(
+    std::function<void()> log_out, std::function<void(int)> volume_changed, std::function<void()> clear_cookies
+)
+    : Container("settings", StackDirection::Vertical), m_volume_changed(std::move(volume_changed)) {
     set_type_name("SettingsOverlay");
     set_size({grow(), grow()});
     set_spacing(12.0f);
@@ -52,11 +56,13 @@ SettingsOverlay::SettingsOverlay(std::function<void()> log_out) : Container("set
     auto& audio = add<SettingsSectionWidget>("audio");
     audio.add<MusiqText>("Audio", true);
 
-    auto& volume = audio.add<NumberInputWidget<int>>(m_volume, "Volume", LabelPlacement::Above, "volume");
-    volume.set_size({grow(), fit()});
-    volume.set_range(0, 100);
-    volume.set_format("%d%%");
-    volume.set_flags(ImGuiSliderFlags_AlwaysClamp);
+    audio.add<MusiqText>("Volume");
+    auto& row = audio.add<Container>("volume", StackDirection::Horizontal);
+    row.set_size({grow(), fit()});
+    row.set_spacing(12.0f);
+    row.set_content_alignment(Anchor::CenterLeft);
+    auto& volume = row.add<MusiqSliderWidget>(m_volume);
+    m_volume_text = &row.add<MusiqText>(std::format("{}%", static_cast<int>(m_volume)));
     volume.on_change([this] { save_volume(); });
 
     m_account = &add<SettingsSectionWidget>("account");
@@ -73,6 +79,18 @@ SettingsOverlay::SettingsOverlay(std::function<void()> log_out) : Container("set
         }
     });
     set_authenticated(false);
+
+    auto& browser = add<SettingsSectionWidget>("browser");
+    browser.add<MusiqText>("Webview", true);
+    browser.add<MusiqButtonWidget>("Clear cookies").on_click([this, clear_cookies = std::move(clear_cookies)] {
+        try {
+            clear_cookies();
+            m_status->set_text("Webview cookies cleared.");
+        } catch (const std::exception& error) {
+            LOG_ERROR("[settings] could not clear browser cookies: {}", error.what());
+            m_status->set_text("Could not clear browser cookies. Try again.");
+        }
+    });
 }
 
 void SettingsOverlay::set_authenticated(bool authenticated) {
@@ -83,12 +101,20 @@ void SettingsOverlay::save_volume() {
     auto& settings = MusiqSettings::instance();
 
     try {
-        settings.set_volume(m_volume);
+        const auto volume = static_cast<int>(std::lround(m_volume));
+        settings.set_volume(volume);
+        m_volume_changed(volume);
+        m_volume_text->set_text(std::format("{}%", volume));
         m_status->set_text("Changes are saved automatically.");
     } catch (const std::exception& error) {
         LOG_ERROR("[settings] could not save volume: {}", error.what());
         m_status->set_text("Could not save changes. Try again.");
     }
+}
+
+void SettingsOverlay::set_volume(int volume) {
+    m_volume = volume;
+    save_volume();
 }
 
 void SettingsOverlay::apply_theme_defaults(const Theme& theme) {

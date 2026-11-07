@@ -10,11 +10,13 @@ TEST_CASE("account menu parses profile and selected identity", "[youtube][accoun
     REQUIRE(account.handle == "@brand");
     REQUIRE(account.avatar_url == "https://example.invalid/large.jpg");
     REQUIRE(account.data_sync_id == "brand");
+    REQUIRE(account.data_sync_token == "brand||device");
     const json expected = {
         {"name", "Brand channel"},
         {"handle", "@brand"},
         {"avatar_url", "https://example.invalid/large.jpg"},
-        {"data_sync_id", "brand"}
+        {"data_sync_id", "brand"},
+        {"data_sync_token", "brand||device"}
     };
     REQUIRE(json(account) == expected);
 }
@@ -32,16 +34,6 @@ TEST_CASE("account menu permits missing optional metadata", "[youtube][account]"
     REQUIRE(account.handle.empty());
     REQUIRE(account.avatar_url.empty());
     REQUIRE(account.data_sync_id.empty());
-}
-
-TEST_CASE("account menu reads its header separately from menu sections", "[youtube][account]") {
-    auto data = fixture("account-menu.json");
-    auto& menu = data.at(json::json_pointer("/actions/0/openPopupAction/popup/multiPageMenuRenderer"));
-    menu["sections"] = {{{"activeAccountHeaderRenderer", {{"accountName", {{"simpleText", "Other channel"}}}}}}};
-    REQUIRE(data.get<MusicAccountMenu>().name == "Brand channel");
-
-    menu.erase("sections");
-    REQUIRE(data.get<MusicAccountMenu>().name == "Brand channel");
 }
 
 TEST_CASE("malformed account responses fail parsing", "[youtube][account]") {

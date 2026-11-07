@@ -33,6 +33,18 @@ std::unique_ptr<WebView> WebView::create(std::string_view title) {
 
 WebViewImpl::WebViewImpl(std::string_view title) : WebView(title) {}
 
+void WebViewImpl::clear_cookies() {
+    ShowWindow(static_cast<HWND>(m_window.window().value()), SW_HIDE);
+    auto* controller = static_cast<ICoreWebView2Controller*>(m_window.browser_controller().value());
+    ComPtr<ICoreWebView2> browser;
+    ComPtr<ICoreWebView2_2> browser2;
+    ComPtr<ICoreWebView2CookieManager> manager;
+    if (FAILED(controller->get_CoreWebView2(&browser)) || FAILED(browser.As(&browser2)) ||
+        FAILED(browser2->get_CookieManager(&manager)) || FAILED(manager->DeleteAllCookies())) {
+        throw std::runtime_error("could not clear browser cookies");
+    }
+}
+
 void CALLBACK WebViewImpl::poll(HWND handle, UINT, UINT_PTR, DWORD) {
     auto* view = static_cast<WebViewImpl*>(GetPropW(handle, L"musiq.webview"));
     if (view) {

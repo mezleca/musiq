@@ -1,12 +1,9 @@
 #include "user-profile.hpp"
 #include "button.hpp"
 #include "text.hpp"
-#include "../../utils/log.hpp"
 
 #include <imgui-ui/widgets/image.hpp>
 #include <imgui-ui/style/theme.hpp>
-#include <SDL3/SDL_error.h>
-#include <SDL3/SDL_misc.h>
 #include <string>
 #include <utility>
 
@@ -31,11 +28,12 @@ protected:
 
 class AccountWidget final : public Widget {
 public:
-    AccountWidget() : Widget("account", StackDirection::Horizontal, "AccountWidget", InputMode::None) {
-        set_size({grow(), fit()});
+    AccountWidget() : Widget("account", StackDirection::Horizontal, "AccountWidget", InputMode::Target) {
+        set_size({fit(), fit()});
         set_content_alignment(Anchor::Center);
         set_spacing(12.0f);
         set_visible(false);
+        configure_all_styles([](Style& style) { style.cursor(ImGuiMouseCursor_Hand); });
 
         m_avatar = &add<ImageWidget>();
         m_avatar->set_size({px(40), px(40)});
@@ -43,36 +41,24 @@ public:
         m_avatar->configure_all_styles([](Style& style) { style.border_radius(20.0f); });
 
         m_name = &add<MusiqText>("", true);
-        m_name->set_size({grow(), fit()});
+        m_name->set_size({fit(), fit()});
         m_name->set_overflow(TextOverflow::Ellipsis);
     }
 
-    void update_data(std::string_view name, Texture* texture, std::string_view channel_url) {
+    void update_data(std::string_view name, Texture* texture) {
         m_name->set_text(std::string(name));
         m_avatar->set_texture(texture);
-        m_channel_url = channel_url;
-        set_input_mode(m_channel_url.empty() ? InputMode::None : InputMode::Target);
-        configure_all_styles([this](Style& style) {
-            style.cursor(m_channel_url.empty() ? ImGuiMouseCursor_Arrow : ImGuiMouseCursor_Hand);
-        });
-    }
-
-protected:
-    void click_event(UiEvent&) override {
-        if (!m_channel_url.empty() && !SDL_OpenURL(m_channel_url.c_str())) {
-            LOG_WARN("[account] could not open channel: {}", SDL_GetError());
-        }
     }
 
 private:
     ImageWidget* m_avatar;
     MusiqText* m_name;
-    std::string m_channel_url;
 };
 
-UserProfileWidget::UserProfileWidget(std::function<void()> sign_in) : Container("user-profile", StackDirection::Vertical) {
+UserProfileWidget::UserProfileWidget(std::function<void()> sign_in, std::function<void()> choose_account)
+    : Container("user-profile", StackDirection::Vertical) {
     set_type_name("UserProfileWidget");
-    set_size({grow(), fit()});
+    set_size({fit(), fit()});
 
     m_sign_in = &add<AuthButtonWidget>();
     m_sign_in->on_click([this, sign_in = std::move(sign_in)] {
@@ -81,6 +67,7 @@ UserProfileWidget::UserProfileWidget(std::function<void()> sign_in) : Container(
     });
 
     m_account = &add<AccountWidget>();
+    m_account->on_event(EventType::Click, [choose_account = std::move(choose_account)](UiEvent&) { choose_account(); });
 }
 
 void UserProfileWidget::apply_theme_defaults(const ui::Theme& theme) {
@@ -88,21 +75,18 @@ void UserProfileWidget::apply_theme_defaults(const ui::Theme& theme) {
     TransitionSpec transition(0.10f);
 
     configure_all_styles([theme, transition](Style& style) {
-        style.background_color(theme.background_color, transition);
+        style.background_color(theme.background_secondary_color, transition);
         style.border(BorderEdge{.size = 1.0f, .type = BorderType::Solid});
         style.border_color(theme.background_secondary_color, transition);
         style.padding({8.0f, 4.0f, 8.0f, 4.0f});
     });
 
-    auto apply_active_border = [this, theme, transition](StyleType type) {
+    for (const auto type : {StyleType::HOVER, StyleType::ACTIVE}) {
         style(type)
             .border_color(theme.border_color, transition)
             .background_color(theme.accent_color)
             .cursor(ImGuiMouseCursor_Hand);
-    };
-
-    apply_active_border(StyleType::HOVER);
-    apply_active_border(StyleType::ACTIVE);
+    }
 }
 
 void UserProfileWidget::set_busy(bool busy) {
@@ -110,14 +94,14 @@ void UserProfileWidget::set_busy(bool busy) {
     m_sign_in->set_text(busy ? "Signing in..." : "Sign in");
 }
 
-void UserProfileWidget::set_user(std::string_view name, Texture* avatar, std::string_view channel_url) {
-    m_account->update_data(name, avatar, channel_url);
+void UserProfileWidget::set_user(std::string_view name, Texture* avatar) {
+    m_account->update_data(name, avatar);
     m_sign_in->set_visible(false);
     m_account->set_visible(true);
 }
 
 void UserProfileWidget::clear_user() {
-    m_account->update_data("", nullptr, "");
+    m_account->update_data("", nullptr);
     m_account->set_visible(false);
     m_sign_in->set_visible(true);
     set_busy(false);

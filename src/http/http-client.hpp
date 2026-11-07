@@ -7,6 +7,7 @@
 #include <chrono>
 #include <string>
 #include <string_view>
+#include <stop_token>
 
 enum class HttpMethod {
     Get,
@@ -26,6 +27,8 @@ struct HttpRequest {
     std::chrono::milliseconds timeout{30000};
     std::chrono::milliseconds connect_timeout{10000};
     bool follow_redirects{false};
+    std::stop_token stop;
+    std::size_t response_limit = 0;
 };
 
 class HttpClient {

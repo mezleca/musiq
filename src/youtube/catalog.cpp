@@ -7,7 +7,7 @@ YoutubeMusicCatalog::YoutubeMusicCatalog(const YoutubeMusicClient& client) : m_c
 
 YoutubeResult<MusicPage>
 YoutubeMusicCatalog::search(const MusicSearchRequest& request, const MusicRequestOptions& options) const {
-    return page("search", request, options);
+    return page(MusicRoute::Search, "search", request, options);
 }
 
 YoutubeResult<MusicSuggestions>
@@ -17,7 +17,7 @@ YoutubeMusicCatalog::suggestions(std::string_view input, const MusicRequestOptio
 
 YoutubeResult<MusicPage>
 YoutubeMusicCatalog::browse(const MusicBrowseRequest& request, const MusicRequestOptions& options) const {
-    return page("browse", request, options);
+    return page(MusicRoute::Browse, "browse", request, options);
 }
 
 YoutubeResult<MusicPage> YoutubeMusicCatalog::more(const MusicContinuation& continuation) const {
@@ -27,21 +27,20 @@ YoutubeResult<MusicPage> YoutubeMusicCatalog::more(const MusicContinuation& cont
     if (continuation.route == MusicRoute::Playlist) {
         return youtube_error(YoutubeErrorKind::Api, "playlist continuation must be read by YoutubeMusicPlaylists");
     }
-    if (continuation.auth != MusicAuth::Anonymous && continuation.identity != m_client.identity()) {
+    if (!continuation.owned_by(m_client.identity())) {
         return youtube_error(YoutubeErrorKind::Authentication, "continuation belongs to another channel");
     }
     return page(
-        continuation.route == MusicRoute::Search ? "search" : "browse", json::object(),
-        {continuation.client, continuation.auth, continuation.visitor_data},
-        {{"ctoken", continuation.token}, {"continuation", continuation.token}, {"type", "next"}}
+        continuation.route, continuation.route == MusicRoute::Search ? "search" : "browse", json::object(),
+        continuation.request_options(), {{"ctoken", continuation.token}, {"continuation", continuation.token}, {"type", "next"}}
     );
 }
 
 YoutubeResult<MusicPage> YoutubeMusicCatalog::page(
-    std::string_view endpoint, json body, const MusicRequestOptions& options, cpr::Parameters parameters
+    MusicRoute route, std::string_view endpoint, json body, const MusicRequestOptions& options, cpr::Parameters parameters
 ) const {
     const auto resolved = m_client.request_options(options);
     auto result = youtube_parse<MusicPage>(m_client.post(endpoint, std::move(body), resolved, {}, std::move(parameters)));
-    if (result) result->set_scope(endpoint == "search" ? MusicRoute::Search : MusicRoute::Browse, resolved, m_client.identity());
+    if (result) result->set_scope(route, resolved, m_client.identity());
     return result;
 }

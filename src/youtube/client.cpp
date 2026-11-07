@@ -12,7 +12,7 @@ static YoutubeResult<YoutubeResponse> read_response(const cpr::Response& respons
     if (response.error.code != cpr::ErrorCode::OK) {
         return youtube_transport_error(response.status_code, static_cast<int>(response.error.code));
     }
-    if (response.status_code < 200 || response.status_code >= 300) {
+    if (!HttpClient::successful(response)) {
         return youtube_error(YoutubeErrorKind::Http, "HTTP request failed", response.status_code);
     }
 

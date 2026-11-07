@@ -100,6 +100,7 @@ void from_json(const json& data, MusicPage& value) {
         const auto continuation = music_continuation(section);
         if (continuation) page.continuation = continuation;
     }
+
     static const auto continuation_paths = {
         json::json_pointer("/continuationContents/musicShelfContinuation"),
         json::json_pointer("/continuationContents/musicPlaylistShelfContinuation"),
@@ -115,6 +116,7 @@ void from_json(const json& data, MusicPage& value) {
         page.continuation = shelf.continuation;
         page.shelves.push_back(std::move(shelf));
     }
+
     if (!found) throw std::invalid_argument("unsupported catalog page layout");
     value = std::move(page);
 }
@@ -135,7 +137,6 @@ void from_json(const json& data, MusicSuggestions& value) {
         const auto section = entry.find("searchSuggestionsSectionRenderer");
         if (section == entry.end()) continue;
         for (const auto& item : section->at("contents")) {
-            if (append_catalog_item(item, suggestions.items)) continue;
             const auto history = item.find("historySuggestionRenderer");
             const auto query = item.find("searchSuggestionRenderer");
             if (history != item.end() || query != item.end()) {
@@ -153,5 +154,5 @@ void to_json(json& data, const MusicQuerySuggestion& value) {
 }
 
 void to_json(json& data, const MusicSuggestions& value) {
-    data = {{"queries", value.queries}, {"items", value.items}};
+    data = {{"queries", value.queries}};
 }

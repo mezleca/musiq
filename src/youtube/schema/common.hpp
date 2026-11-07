@@ -40,8 +40,18 @@ struct MusicItem {
     bool available = true;
 };
 
+inline bool is_playable(const MusicItem& item) {
+    return item.available && !item.endpoint.video_id.empty();
+}
+
+inline bool is_album(const MusicEndpoint& endpoint) {
+    return endpoint.page_type == "MUSIC_PAGE_TYPE_ALBUM" || endpoint.browse_id.starts_with("MPRE");
+}
+
 std::string music_text(const json& data);
+std::vector<MusicTextRun> music_text_runs(const json& data);
 std::int64_t music_number(const json& data);
+std::optional<std::int64_t> music_optional_number(const json& data, std::string_view key);
 
 template <typename T>
 std::optional<T> music_optional(const json& data, std::string_view key) {

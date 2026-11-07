@@ -15,6 +15,7 @@ static std::string_view trim(std::string_view value) {
 }
 
 static std::string_view cookie_sapisid(std::string_view cookies) {
+    // cookies are ';'-separated name=value pairs, SAPISID or __Secure-3PAPISID signs authenticated requests
     while (!cookies.empty()) {
         const auto end = cookies.find(';');
         const auto pair = cookies.substr(0, end);
@@ -53,6 +54,7 @@ static std::string sapisid_hash(std::string_view sapisid, int64_t timestamp) {
 }
 
 bool YoutubeMusicSession::has_session_cookie(std::string_view cookies) {
+    // reject newline and nul bytes so the cookie header cannot be split
     return cookies.find_first_of("\r\n") == std::string_view::npos && cookies.find('\0') == std::string_view::npos &&
            !cookie_sapisid(cookies).empty();
 }
@@ -62,6 +64,7 @@ std::optional<cpr::Header> YoutubeMusicSession::authentication_headers() const {
         return std::nullopt;
     }
 
+    // the timestamp is part of the signature, so the header is rebuilt for every request
     const auto now = std::chrono::system_clock::now().time_since_epoch();
     return cpr::Header{
         {"Authorization", sapisid_hash(m_sapisid, std::chrono::duration_cast<std::chrono::seconds>(now).count())},
@@ -70,12 +73,14 @@ std::optional<cpr::Header> YoutubeMusicSession::authentication_headers() const {
 }
 
 bool YoutubeMusicSession::authenticate(std::string cookies, std::string_view identity) {
-    if (!has_session_cookie(cookies)) {
+    if (cookies.find_first_of("\r\n") != std::string_view::npos || cookies.find('\0') != std::string_view::npos) {
         return false;
     }
 
     YoutubeMusicSession session;
     session.m_sapisid = cookie_sapisid(cookies);
+    if (session.m_sapisid.empty()) return false;
+
     session.m_cookies = std::move(cookies);
 
     auto response = YoutubeMusicClient(session).accounts_list();
@@ -125,10 +130,6 @@ bool YoutubeMusicSession::select_identity(std::string_view identity) {
     user.name = response->name;
     user.avatar_url = response->avatar_url;
 
-    if (!response->handle.empty()) {
-        user.channel_url = std::format("https://www.youtube.com/{}", response->handle);
-    }
-
     if (!user.avatar_url.empty()) {
         auto& http = HttpClient::instance();
         auto avatar = http.get(user.avatar_url);
@@ -139,5 +140,6 @@ bool YoutubeMusicSession::select_identity(std::string_view identity) {
 
     m_user = std::move(user);
     m_identity = identity;
+    m_data_sync_token = response->data_sync_token;
     return true;
 }

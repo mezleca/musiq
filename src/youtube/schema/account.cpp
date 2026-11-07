@@ -11,6 +11,7 @@ static std::string optional_text(const json& data, std::string_view key) {
     return field == data.end() ? std::string{} : music_text(*field);
 }
 
+// datasync ids arrive as "<id>||<channel>" or "||<id>", the account id is the part before or after the separator
 static std::string sync_id(std::string value) {
     const auto separator = value.find("||");
     if (separator == std::string::npos) return value;
@@ -71,7 +72,11 @@ void from_json(const json& data, MusicAccountMenu& value) {
     MusicAccountMenu account;
     account.name = music_text(header.at("accountName"));
     account.handle = optional_text(header, "channelHandle");
-    account.data_sync_id = response_identity(data);
+
+    // the raw datasync id keeps the channel suffix, data_sync_id is the account part
+    account.data_sync_token =
+        data.value(json::json_pointer("/responseContext/mainAppWebResponseContext/datasyncId"), std::string{});
+    account.data_sync_id = sync_id(account.data_sync_token);
 
     const auto photo = header.find("accountPhoto");
     if (photo != header.end()) {
@@ -86,7 +91,11 @@ void from_json(const json& data, MusicAccountMenu& value) {
 
 void to_json(json& data, const MusicAccountMenu& value) {
     data = {
-        {"name", value.name}, {"handle", value.handle}, {"avatar_url", value.avatar_url}, {"data_sync_id", value.data_sync_id}
+        {"name", value.name},
+        {"handle", value.handle},
+        {"avatar_url", value.avatar_url},
+        {"data_sync_id", value.data_sync_id},
+        {"data_sync_token", value.data_sync_token}
     };
 }
 

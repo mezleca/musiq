@@ -18,6 +18,7 @@ struct MusicAccountMenu {
     std::string handle;
     std::string avatar_url;
     std::string data_sync_id;
+    std::string data_sync_token;
 };
 
 struct MusicAccountsList {

@@ -98,8 +98,12 @@ void to_json(json& data, const MusicPlaylistPage& value) {
 static const json* playlist_header(const json& data, MusicPlaylist& playlist) {
     static const auto paths = {
         json::json_pointer("/header"),
-        json::json_pointer("/contents/twoColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer/contents/0")
+        json::json_pointer("/contents/twoColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer/contents/0"),
+        json::json_pointer(
+            "/contents/singleColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer/contents/0"
+        )
     };
+
     for (const auto& path : paths) {
         if (!data.contains(path)) continue;
         const auto& entry = data.at(path);
@@ -153,8 +157,11 @@ static void playlist_author(const json& header, MusicPlaylist& playlist) {
 
     const json::json_pointer facepile("/facepile/avatarStackViewModel");
     if (!header.contains(facepile)) return;
+
+    // collaboration playlists expose their author only through the facepile context
     const auto& avatars = header.at(facepile);
     const auto& context = avatars.at("rendererContext");
+
     const json::json_pointer command("/commandContext/onTap/innertubeCommand/browseEndpoint/browseId");
     if (context.contains(command)) {
         playlist.author.text = avatars.at("text").at("content").get<std::string>();

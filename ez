@@ -3,12 +3,14 @@
 import argparse
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+RELEASE_VERSION = "v0.1.0"
 CWD = Path(__file__).resolve().parent
 RESOURCES_DIR = CWD / "resources"
 BUILD_DIR = CWD / "build"
@@ -19,6 +21,7 @@ APPIMAGE_APPDIR = APPIMAGE_BUILD_DIR / "AppDir"
 APPIMAGE_PATH = CWD / "dist" / f"musiq-{platform.machine()}.AppImage"
 LINUXDEPLOY_TOOL = CWD / f"linuxdeploy-{platform.machine()}.AppImage"
 LINUXDEPLOY_URL = f"https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/{LINUXDEPLOY_TOOL.name}"
+NOTES_FILE = CWD / "changelog" / "notes.md"
 
 def run(
     command: str | list[str], check: bool = True, env: Mapping[str, str] | None = None, capture: bool = False
@@ -60,28 +63,83 @@ def init() -> None:
     run(["git", "submodule", "update", "--init", "--recursive"])
 
 def configure(build_type: str) -> Path:
-    cache_file = BUILD_DIR / "CMakeCache.txt"
-    if cache_file.is_file() and (BUILD_DIR / "build.ninja").is_file():
-        for line in cache_file.read_text().splitlines():
-            if line.startswith("CMAKE_BUILD_TYPE:") and line.partition("=")[2] == build_type:
-                return BUILD_DIR
+    build_dir = BUILD_DIR / build_type.lower()
+    cache_file = build_dir / "CMakeCache.txt"
+    sccache = shutil.which("sccache") or ""
+    if cache_file.is_file() and (build_dir / "build.ninja").is_file():
+        lines = cache_file.read_text().splitlines()
+        build_matches = any(
+            line.startswith("CMAKE_BUILD_TYPE:") and line.partition("=")[2] == build_type for line in lines
+        )
+        launcher_matches = any(
+            line.startswith("CMAKE_CXX_COMPILER_LAUNCHER:") and line.partition("=")[2] == sccache for line in lines
+        )
+        if build_matches and launcher_matches:
+            return build_dir
 
+    cxx = os.environ.get("CXX", "clang++")
+    cc = os.environ.get("CC", "clang")
     command = [
-        "cmake", "-S", str(CWD), "-B", str(BUILD_DIR), "-G", "Ninja",
+        "cmake", "-S", str(CWD), "-B", str(build_dir), "-G", "Ninja",
         f"-DCMAKE_BUILD_TYPE={build_type}",
-        "-DCMAKE_CXX_COMPILER=clang++",
-        "-DCMAKE_C_COMPILER=clang"
+        f"-DCMAKE_CXX_COMPILER={cxx}",
+        f"-DCMAKE_C_COMPILER={cc}"
     ]
+
+    if sccache:
+        command += [
+            f"-DCMAKE_C_COMPILER_LAUNCHER={sccache}",
+            f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache}"
+        ]
+
     run(command)
-    return BUILD_DIR
+    return build_dir
+
+def link_compile_commands(build_dir: Path) -> None:
+    database = build_dir / "compile_commands.json"
+    if not database.is_file():
+        return
+
+    link = CWD / "compile_commands.json"
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(database.relative_to(CWD))
+
 
 def build(build_type: str) -> Path:
     build_dir = configure(build_type)
+    link_compile_commands(build_dir)
     run(["cmake", "--build", str(build_dir), "--parallel"])
     return build_dir
 
 def format_code() -> None:
     run("clang-format -i $(rg --files -g '*.{h,hpp,cpp,cc,cxx}' src)")
+
+def print_release_version() -> None:
+    print(RELEASE_VERSION)
+
+
+def parse_release_note(version: str, dest: str) -> None:
+    content = NOTES_FILE.read_text()
+    regex = re.compile(r'^#+\s+(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\s*$', re.MULTILINE)
+    matches = list(regex.finditer(content))
+
+    for index, match in enumerate(matches):
+        if match.group(1) != version:
+            continue
+
+        note_end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        note = content[match.end():note_end].strip()
+
+        if dest:
+            Path(dest).write_text(note)
+        else:
+            print(note)
+        return
+
+    print(f"[ez] failed to find section({version}) in {str(NOTES_FILE)!r}")
+    sys.exit(1)
+
 
 def find_linuxdeploy() -> Path | None:
     configured = os.environ.get("LINUXDEPLOY")
@@ -123,11 +181,13 @@ def package_appimage() -> None:
 
     environment = os.environ.copy()
     environment["LDAI_OUTPUT"] = str(APPIMAGE_PATH)
+    environment["VERSION"] = RELEASE_VERSION.removeprefix("v")
     environment.setdefault("APPIMAGE_EXTRACT_AND_RUN", "1")
     run([
         str(linuxdeploy), "--appdir", str(APPIMAGE_APPDIR),
         "--desktop-file", str(PACKAGING_DIR / "org.mezleca.musiq.desktop"),
-        "--icon-file", str(PACKAGING_DIR / "org.mezleca.musiq.svg"),
+        "--icon-file", str(RESOURCES_DIR / "icons" / "app" / "musiq.png"),
+        "--icon-filename", "org.mezleca.musiq",
         "--custom-apprun", str(PACKAGING_DIR / "AppRun"),
         "--exclude-library", "libwebkit2gtk-4.1.so.*",
         "--exclude-library", "libjavascriptcoregtk-4.1.so.*",
@@ -151,6 +211,12 @@ def main() -> None:
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--type", choices=("debug", "release"), default="debug")
 
+    subparsers.add_parser("release-version")
+
+    note_parser = subparsers.add_parser("parse-note")
+    note_parser.add_argument("--version", required=True)
+    note_parser.add_argument("--dest", default="")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -163,6 +229,14 @@ def main() -> None:
 
     if args.command == "package":
         package_appimage()
+        return
+
+    if args.command == "release-version":
+        print_release_version()
+        return
+
+    if args.command == "parse-note":
+        parse_release_note(args.version, args.dest)
         return
 
     build_type = args.type.capitalize()

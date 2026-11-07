@@ -7,18 +7,19 @@
 
 using namespace ui;
 
-ChannelPickerOverlay::ChannelPickerOverlay(std::function<void(std::string)> select, std::function<void()> cancel)
-    : ModalOverlay("channel-picker"), m_select(std::move(select)) {
+ChannelPickerOverlay::ChannelPickerOverlay(std::function<void(std::string)> select)
+    : LayerContainer("channel-picker", LayerMode::Popup), m_select(std::move(select)) {
     set_type_name("ChannelPickerOverlay");
-    auto& panel = content();
-    panel.add<MusiqText>("Choose your YouTube channel", true);
-    m_status = &panel.add<MusiqText>("Select the channel to use in musiq.");
-    m_channels = &panel.add<Container>("identities", StackDirection::Vertical);
+    set_size({px(320), fit()});
+    set_spacing(8.0f);
+    set_visible(false);
+
+    add<MusiqText>("Choose your YouTube channel", true);
+    m_status = &add<MusiqText>("Could not open this channel. Try again.");
+    m_status->set_visible(false);
+    m_channels = &add<Container>("identities", StackDirection::Vertical);
     m_channels->set_size({grow(), fit()});
     m_channels->set_spacing(8.0f);
-    auto& close = panel.add<MusiqButtonWidget>("Cancel");
-    close.set_id("cancel");
-    close.on_click(std::move(cancel));
 }
 
 void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bool failed) {
@@ -34,6 +35,18 @@ void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bo
         button.on_click([this, id = identity.data_sync_id] { m_select(id); });
     }
 
-    m_status->set_text(failed ? "Could not open this channel. Try again." : "Select the channel to use in musiq.");
+    m_status->set_visible(failed);
     set_visible(true);
+    open_popup();
+}
+
+void ChannelPickerOverlay::apply_theme_defaults(const Theme& theme) {
+    LayerContainer::apply_theme_defaults(theme);
+    configure_all_styles([&theme](Style& style) {
+        style.padding({12.0f});
+        style.background_color(theme.background_secondary_color);
+        style.border_radius(theme.metrics.popup_rounding);
+        style.border_thickness(1.0f);
+        style.border_color(theme.border_color);
+    });
 }

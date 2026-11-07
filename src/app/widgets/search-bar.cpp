@@ -32,7 +32,7 @@ protected:
         frame().configure_all_styles([&theme](Style& style) {
             style.padding({8.0f, 6.0f, 8.0f, 6.0f});
             style.background_color(theme.background_secondary_color);
-            style.border_radius(10.0f);
+            style.border_radius(theme.controls.rounding);
             style.border_thickness(1.0f);
             style.border_color(theme.border_color);
         });
@@ -68,7 +68,7 @@ protected:
         configure_all_styles([&theme](Style& style) {
             style.padding({8.0f});
             style.background_color(theme.background_secondary_color);
-            style.border_radius(10.0f);
+            style.border_radius(theme.controls.rounding);
             style.border_thickness(1.0f);
             style.border_color(theme.border_color);
         });
@@ -106,24 +106,6 @@ private:
     bool m_selected = false;
 };
 
-class ClearSearchButtonWidget final : public MusiqButtonWidget {
-public:
-    ClearSearchButtonWidget() : MusiqButtonWidget("×", {px(32), px(32)}) {
-        set_id("clear-search");
-    }
-
-protected:
-    void apply_theme_defaults(const Theme& theme) override {
-        MusiqButtonWidget::apply_theme_defaults(theme);
-        configure_all_styles([&theme](Style& style) {
-            style.background_color(theme.transparent);
-            style.border_thickness(0.0f);
-            style.border_radius(8.0f);
-        });
-        style(StyleType::HOVER).background_color(theme.controls.hover_color);
-    }
-};
-
 SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::function<void(std::string)> edit)
     : Container("search-bar", StackDirection::Vertical), m_submit(std::move(submit)), m_edit(std::move(edit)) {
     set_type_name("SearchBarWidget");
@@ -131,17 +113,22 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
     set_content_alignment(Anchor::TopCenter);
 
     m_input = &add<SearchInputWidget>();
-    m_input->trailing().add<ClearSearchButtonWidget>().on_click([this] {
+
+    auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("resources/icons/close.svg");
+    clear.set_id("clear-search");
+    clear.set_tooltip("Clear search");
+    clear.on_click([this] {
         replace_query({});
         m_input->focus();
     });
-    m_input->trailing().set_visible(false);
 
+    m_input->trailing().set_visible(false);
     m_input->on_change([this] {
         hide_suggestions();
         m_input->trailing().set_visible(!m_input->value().empty());
         if (!m_restoring_query) m_edit(m_input->value());
     });
+
     m_input->on_submit([this] { confirm_query(); });
     m_input->on_event(EventType::KeyDown, [this](UiEvent& event) {
         if (event.key == Key::Up || event.key == Key::Down) {
@@ -185,27 +172,34 @@ void SearchBarWidget::set_suggestions(const MusicSuggestions& suggestions) {
 }
 
 void SearchBarWidget::move_selection(int direction) {
-    if (m_choice_buttons.empty()) return;
+    if (m_choice_buttons.empty()) {
+        return;
+    }
 
     const int count = static_cast<int>(m_choice_buttons.size());
-    if (m_selected >= 0) m_choice_buttons[m_selected]->set_selected(false);
-    m_selected = m_selected < 0 ? (direction > 0 ? 0 : count - 1) : (m_selected + direction + count) % count;
+    if (m_selected < 0) {
+        m_selected = direction > 0 ? 0 : count - 1;
+    } else {
+        m_choice_buttons[m_selected]->set_selected(false);
+        m_selected = (m_selected + direction + count) % count;
+    }
+
     m_choice_buttons[m_selected]->set_selected(true);
 }
 
 void SearchBarWidget::replace_query(std::string query) {
-    // accepting unchanged text must still clear the list and request fresh suggestions
-    if (!m_input->set_value(std::move(query))) {
-        hide_suggestions();
-        m_edit(m_input->value());
-    }
+    set_query(std::move(query));
+    m_edit(m_input->value());
 }
 
 void SearchBarWidget::confirm_query() {
     hide_suggestions();
+
     const auto& query = m_input->value();
     const auto start = query.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) return;
+    if (start == std::string::npos) {
+        return;
+    }
 
     m_submit(query.substr(start, query.find_last_not_of(" \t\r\n") - start + 1));
 }

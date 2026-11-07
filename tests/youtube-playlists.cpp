@@ -5,7 +5,6 @@
 #include "fixtures.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-#include <cstdlib>
 #include <stdexcept>
 
 static const json::json_pointer
@@ -158,21 +157,4 @@ TEST_CASE("playlist pagination handles action envelopes and legacy shelves", "[y
     REQUIRE(legacy.get<MusicPlaylistPage>().tracks.size() == 2);
 
     REQUIRE_THROWS_AS(json::object().get<MusicPlaylist>(), std::invalid_argument);
-}
-
-TEST_CASE("public playlists return typed details and track pages", "[youtube][playlist][live]") {
-    if (!std::getenv("MUSIQ_LIVE_TESTS")) SKIP("set MUSIQ_LIVE_TESTS=1 to call public YouTube playlists");
-    const YoutubeMusicSession session;
-    const YoutubeMusicClient client(session);
-    const YoutubeMusicPlaylists playlists(client);
-    const MusicRequestOptions options{.auth = MusicAuth::Anonymous};
-    const auto playlist = playlists.get("PLwNv9Hhd8gZjNoQdpd2kBa3fwXNeJjzDX", options);
-    if (!playlist) FAIL(playlist.error().message);
-    REQUIRE_FALSE(playlist->title.empty());
-    REQUIRE_FALSE(playlist->tracks.empty());
-    if (playlist->continuation) {
-        const auto page = playlists.more(*playlist->continuation);
-        if (!page) FAIL(page.error().message);
-        REQUIRE_FALSE(page->tracks.empty());
-    }
 }

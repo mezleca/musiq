@@ -1,0 +1,70 @@
+name: test
+
+on:
+    workflow_dispatch:
+    pull_request:
+        paths:
+            - "src/**"
+            - "tests/**"
+            - "resources/**"
+            - "cmake/**"
+            - "CMakeLists.txt"
+            - "ez"
+            - ".github/workflows/test.yml"
+    push:
+        branches: [master]
+        paths:
+            - "src/**"
+            - "tests/**"
+            - "resources/**"
+            - "cmake/**"
+            - "CMakeLists.txt"
+            - "ez"
+            - ".github/workflows/test.yml"
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+env:
+    SCCACHE_GHA_ENABLED: "true"
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout
+              uses: actions/checkout@v7
+
+            - name: setup sccache
+              uses: mozilla-actions/sccache-action@v0.0.10
+
+            - name: install system dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                      build-essential cmake ninja-build clang-20 pkg-config \
+                      libmpv-dev libwebkit2gtk-4.1-dev libsqlite3-dev \
+                      libssl-dev libcurl4-openssl-dev libgl1-mesa-dev \
+                      libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev \
+                      libwayland-dev libxkbcommon-dev libegl1-mesa-dev libdecor-0-dev libxtst-dev \
+                      libfreetype-dev libfontconfig1-dev
+
+            - name: configure
+              run: |
+                  cmake -S . -B build/ci -G Ninja \
+                      -DCMAKE_BUILD_TYPE=Debug \
+                      -DCMAKE_CXX_COMPILER=clang++-20 \
+                      -DCMAKE_C_COMPILER=clang-20 \
+                      -DMUSIQ_BUILD_TESTS=ON
+
+            - name: build
+              run: cmake --build build/ci --parallel
+
+            - name: test
+              run: ctest --test-dir build/ci --output-on-failure
+
+            - name: sccache stats
+              if: always()
+              run: sccache --show-stats

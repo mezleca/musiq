@@ -1,7 +1,9 @@
 #include "impl.hpp"
 #include "../../utils/system.hpp"
+#include "../../utils/log.hpp"
 
 #include <utility>
+#include <stdexcept>
 
 std::unique_ptr<WebView> WebView::create(std::string_view title) {
     return std::make_unique<WebViewImpl>(title);
@@ -31,10 +33,36 @@ void WebViewImpl::start_poll() {
         },
         this
     );
+    if (m_timer == 0) throw std::runtime_error("could not start the browser timer");
+}
+
+void WebViewImpl::clear_cookies() {
+    gtk_widget_hide(GTK_WIDGET(m_window.window().value()));
+    auto* browser = static_cast<WebKitWebView*>(m_window.browser_controller().value());
+    auto* manager = webkit_web_context_get_website_data_manager(webkit_web_view_get_context(browser));
+    auto* loop = g_main_loop_new(nullptr, false);
+    GError* error = nullptr;
+    std::pair<GMainLoop*, GError**> completion{loop, &error};
+    webkit_website_data_manager_clear(
+        manager, WEBKIT_WEBSITE_DATA_COOKIES, 0, nullptr,
+        [](GObject* source, GAsyncResult* result, gpointer data) {
+            auto& [loop, error] = *static_cast<std::pair<GMainLoop*, GError**>*>(data);
+            webkit_website_data_manager_clear_finish(WEBKIT_WEBSITE_DATA_MANAGER(source), result, error);
+            g_main_loop_quit(loop);
+        },
+        &completion
+    );
+    g_main_loop_run(loop);
+    g_main_loop_unref(loop);
+    if (error) {
+        const std::string message = error->message;
+        g_error_free(error);
+        throw std::runtime_error(message);
+    }
 }
 
 void WebViewImpl::stop_poll() {
-    g_source_remove(m_timer);
+    if (m_timer != 0) g_source_remove(m_timer);
     m_timer = 0;
 }
 
@@ -68,7 +96,10 @@ void WebViewImpl::read_cookies(const std::string& url, std::function<void(std::s
                 header += soup_cookie_get_value(cookie);
             }
             g_list_free_full(cookies, reinterpret_cast<GDestroyNotify>(soup_cookie_free));
-            g_clear_error(&error);
+            if (error) {
+                LOG_ERROR("[login] could not read browser cookies: {}", error->message);
+                g_clear_error(&error);
+            }
             (*complete)(std::move(header));
         },
         completion

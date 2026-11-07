@@ -21,6 +21,7 @@ public:
     void close();
 
     virtual std::string url() = 0;
+    virtual void clear_cookies() = 0;
 
     void cookies(std::string_view url, std::function<void(std::string)> callback);
 

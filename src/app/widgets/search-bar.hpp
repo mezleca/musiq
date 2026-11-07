@@ -17,10 +17,10 @@ class SearchBarWidget final : public ui::Container {
 public:
     SearchBarWidget(std::function<void(std::string)> submit, std::function<void(std::string)> edit);
     void set_suggestions(const MusicSuggestions& suggestions);
-    void hide_suggestions();
     void set_query(std::string query);
 
 private:
+    void hide_suggestions();
     void move_selection(int direction);
     void replace_query(std::string query);
     void confirm_query();

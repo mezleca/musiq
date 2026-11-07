@@ -6,6 +6,7 @@ class WebViewImpl final : public WebView {
 public:
     explicit WebViewImpl(std::string_view title);
     std::string url() override;
+    void clear_cookies() override;
 
 private:
     static void CALLBACK poll(HWND handle, UINT, UINT_PTR, DWORD);

@@ -37,7 +37,6 @@ struct MusicQuerySuggestion {
 // ref: https://ytmusicapi.readthedocs.io/en/stable/reference/search.html#ytmusicapi.YTMusic.get_search_suggestions
 struct MusicSuggestions {
     std::vector<MusicQuerySuggestion> queries;
-    std::vector<MusicItem> items;
 };
 
 void to_json(json& data, const MusicSearchRequest& value);

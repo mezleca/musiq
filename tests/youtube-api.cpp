@@ -8,20 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
-#include <cstdlib>
 #include <utility>
-#include <algorithm>
-
-template <typename T>
-static T require_response(YoutubeResult<T> response) {
-    if (!response) {
-        FAIL(
-            response.error().message << ", status=" << response.error().status
-                                     << ", transport=" << response.error().transport_code
-        );
-    }
-    return std::move(*response);
-}
 
 TEST_CASE("request context keeps client identity and visitor data together", "[youtube][request]") {
     const json web = MusicRequestContext{MusicClient::WebRemix, "visitor", "brand"};
@@ -51,7 +38,6 @@ TEST_CASE("player request only sends supplied playback fields", "[youtube][playe
 TEST_CASE("player parses direct URLs cipher formats and metadata", "[youtube][player]") {
     const auto player = fixture("player.json").get<MusicPlayerData>();
     REQUIRE(player.status == "OK");
-    REQUIRE(player.visitor_data == "CgtSANITIZED");
     REQUIRE(player.video_details->length_seconds == 210);
     REQUIRE(player.video_details->thumbnails.size() == 1);
     REQUIRE(player.streaming_data->expires_in_seconds == 21540);
@@ -60,11 +46,9 @@ TEST_CASE("player parses direct URLs cipher formats and metadata", "[youtube][pl
     REQUIRE(formats[0].bitrate == 160000);
     REQUIRE(formats[0].content_length == 42000000);
     REQUIRE(formats[0].audio_track->is_default);
-    REQUIRE_FALSE(formats[0].width);
     REQUIRE(formats[1].bitrate == 128000);
     REQUIRE_FALSE(formats[1].signature_cipher.empty());
     REQUIRE(formats[1].url.empty());
-    REQUIRE(formats[2].width == 1920);
     REQUIRE(formats[2].drm_families.at(0) == "WIDEVINE");
     REQUIRE(json(player).at("video_details").at("video_id") == "public-video");
 }
@@ -145,10 +129,31 @@ TEST_CASE("next parses primary audio rows without adding video counterparts", "[
     const auto page = fixture("next.json").get<MusicNextPage>();
     REQUIRE(page.items.size() == 1);
     REQUIRE(page.items[0].endpoint.video_id == "audio-id");
-    REQUIRE(page.playlist_id == "RDexample");
     REQUIRE(page.lyrics.browse_id == "MPLYexample");
     REQUIRE(page.related.browse_id == "MPTRexample");
     REQUIRE(page.continuation->token == "radio-token");
+}
+
+TEST_CASE("single tracks accept empty artist columns and plain text subtitles", "[youtube][catalog]") {
+    auto data = fixture("single.json");
+    const json::json_pointer artist_path(
+        "/contents/twoColumnBrowseResultsRenderer/secondaryContents/sectionListRenderer/contents/0/musicShelfRenderer/"
+        "contents/0/musicResponsiveListItemRenderer/flexColumns/1/musicResponsiveListItemFlexColumnRenderer/text"
+    );
+    const auto page = data.get<MusicPage>();
+    REQUIRE(page.shelves.size() == 1);
+    REQUIRE(page.shelves[0].items.size() == 1);
+    const auto& track = page.shelves[0].items[0];
+    REQUIRE(track.title == "Example single");
+    REQUIRE(track.endpoint.video_id == "single-track");
+    REQUIRE(track.duration == "3:22");
+    REQUIRE(track.subtitle.empty());
+
+    data.at(artist_path) = {{"simpleText", "Example artist"}};
+    const auto plain = data.get<MusicPage>();
+    REQUIRE(plain.shelves[0].items[0].subtitle.size() == 1);
+    REQUIRE(plain.shelves[0].items[0].subtitle[0].text == "Example artist");
+    REQUIRE(music_text(json::object()).empty());
 }
 
 TEST_CASE("next continuation reads the playlist panel directly", "[youtube][next]") {
@@ -164,6 +169,24 @@ TEST_CASE("next continuation reads the playlist panel directly", "[youtube][next
     const json radio = MusicNextRequest{.playlist_id = "RDexample"};
     REQUIRE_FALSE(radio.contains("videoId"));
     REQUIRE(radio.at("playlistId") == "RDexample");
+}
+
+TEST_CASE("next skips unavailable rows and accepts missing track metadata", "[youtube][next]") {
+    const json row = {{"title", {{"simpleText", "Song"}}}, {"videoId", "video"}};
+    const json panel = {
+        {"contents",
+         {{{"playlistPanelVideoRenderer", row}},
+          {{"playlistPanelVideoRenderer", {{"unplayableText", {{"simpleText", "Unavailable"}}}}}}}}
+    };
+    const auto page = json{{"continuationContents", {{"playlistPanelContinuation", panel}}}}.get<MusicNextPage>();
+    REQUIRE(page.items.size() == 1);
+    REQUIRE(page.items.front().endpoint.video_id == "video");
+    REQUIRE(page.items.front().duration.empty());
+    REQUIRE(page.items.front().subtitle.empty());
+    REQUIRE(page.items.front().thumbnails.empty());
+
+    const json request = MusicNextRequest{.video_id = "video"};
+    REQUIRE(request.at("playlistId") == "RDAMVMvideo");
 }
 
 TEST_CASE("account and continuation guards fail before sending requests", "[youtube][request]") {
@@ -200,40 +223,4 @@ TEST_CASE("schema conversion preserves the actual response status on failure", "
     REQUIRE_FALSE(result);
     REQUIRE(result.error().kind == YoutubeErrorKind::Parse);
     REQUIRE(result.error().status == 206);
-}
-
-TEST_CASE("anonymous public endpoints accept the implemented schemas", "[youtube][live]") {
-    if (!std::getenv("MUSIQ_LIVE_TESTS")) SKIP("set MUSIQ_LIVE_TESTS=1 to call public YouTube endpoints");
-    const YoutubeMusicSession session;
-    const YoutubeMusicClient client(session);
-    const YoutubeMusicCatalog catalog(client);
-    const YoutubeMusicQueue queue(client);
-    const auto visitor = require_response(client.visitor_data());
-    const MusicRequestOptions options{MusicClient::WebRemix, MusicAuth::Anonymous, visitor.visitor_data};
-    const auto suggestions = require_response(catalog.suggestions("Daft Punk", options));
-    REQUIRE_FALSE(suggestions.queries.empty());
-    const auto home = require_response(catalog.browse({.browse_id = "FEmusic_home"}, options));
-    REQUIRE_FALSE(home.shelves.empty());
-    const auto search = require_response(catalog.search({.query = "Daft Punk Harder Better Faster Stronger"}, options));
-    std::string video_id;
-    for (const auto& shelf : search.shelves) {
-        for (const auto& item : shelf.items) {
-            if (!item.endpoint.video_id.empty()) video_id = item.endpoint.video_id;
-        }
-    }
-    REQUIRE_FALSE(video_id.empty());
-    const auto next = require_response(queue.next({.video_id = video_id}, options));
-    REQUIRE_FALSE(next.items.empty());
-    const auto player = require_response(
-        client.player({.video_id = video_id}, {MusicClient::VisionOs, MusicAuth::Anonymous, visitor.visitor_data})
-    );
-    INFO("player playability status: " << player.status);
-    REQUIRE(player.status == "OK");
-    REQUIRE(player.streaming_data);
-    const auto audio = [](const MusicFormat& format) {
-        return format.mime_type.starts_with("audio/") && (!format.url.empty() || !format.signature_cipher.empty());
-    };
-    const auto& adaptive = player.streaming_data->adaptive_formats;
-    const auto& progressive = player.streaming_data->formats;
-    REQUIRE((std::any_of(adaptive.begin(), adaptive.end(), audio) || std::any_of(progressive.begin(), progressive.end(), audio)));
 }

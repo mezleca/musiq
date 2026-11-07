@@ -14,6 +14,8 @@ enum class MusicRoute {
 
 struct MusicContinuation {
     void set_scope(MusicRoute route, const MusicRequestOptions& options, std::string_view identity);
+    MusicRequestOptions request_options() const;
+    bool owned_by(std::string_view other) const;
 
     std::string token;
     MusicRoute route = MusicRoute::Browse;

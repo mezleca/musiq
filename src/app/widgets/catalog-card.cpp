@@ -1,85 +1,14 @@
 #include "catalog-card.hpp"
 #include "text.hpp"
-#include "spinner.hpp"
-#include "../resources/thumbnails.hpp"
+#include "media-cover.hpp"
 #include "../../youtube/schema/common.hpp"
-#include "../../utils/log.hpp"
-
-#include <imgui-ui/widgets/image.hpp>
-#include <imgui-ui/resources/texture-registry.hpp>
-#include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
-#include <algorithm>
 
 using namespace ui;
 
-class CatalogCoverWidget final : public ImageWidget {
-public:
-    CatalogCoverWidget(const MusicItem& item, ThumbnailCache& thumbnails, float size) {
-        set_type_name("CatalogCoverWidget");
-        set_id("cover");
-        set_size({px(size), px(size)});
-        set_fit(ImageFit::Cover);
-
-        if (!item.thumbnails.empty()) {
-            const auto& image = *std::ranges::max_element(item.thumbnails, {}, &MusicThumbnail::width);
-            if (!image.url.empty()) {
-                m_url = image.url;
-                m_download = thumbnails.request(m_url);
-            }
-        }
-
-        m_spinner = &add<SpinnerWidget>();
-        m_spinner->set_layout(
-            {.size = {px(24), px(24)},
-             .placement = {.anchor = Anchor::Center, .origin = Anchor::Center, .offset = {}},
-             .in_flow = false}
-        );
-        m_spinner->set_visible(m_download.valid());
-    }
-
-protected:
-    void apply_theme_defaults(const Theme& theme) override {
-        ImageWidget::apply_theme_defaults(theme);
-        configure_all_styles([](Style& style) { style.color(rgba(255, 255, 255, 255)).border_radius(6.0f); });
-
-        if (!m_loaded && !m_download.valid()) {
-            set_texture(
-                surface().runtime().textures().acquire("missing-artwork", std::filesystem::path("resources/icons/missing.svg"))
-            );
-        }
-    }
-
-    void on_update(float) override {
-        if (!m_download.valid() || m_download.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
-
-        try {
-            const auto& bytes = m_download.get();
-            if (!bytes.empty()) {
-                auto image = surface().runtime().textures().acquire("thumbnail:" + m_url, std::string_view(bytes));
-                m_loaded = image != nullptr;
-                set_texture(std::move(image));
-            }
-        } catch (const std::exception& error) {
-            LOG_ERROR("[artwork] thumbnail failed: {} ({})", error.what(), m_url);
-        }
-
-        m_download = {};
-        m_spinner->set_visible(false);
-        apply_theme_defaults(surface().theme());
-    }
-
-private:
-    std::string m_url;
-    std::shared_future<std::string> m_download;
-    SpinnerWidget* m_spinner;
-    bool m_loaded = false;
-};
-
 bool is_playlist_card(const MusicItem& item) {
-    return item.endpoint.video_id.empty() &&
-           (item.endpoint.page_type == "MUSIC_PAGE_TYPE_ALBUM" || item.endpoint.page_type == "MUSIC_PAGE_TYPE_PLAYLIST" ||
-            item.endpoint.browse_id.starts_with("MPRE") || item.endpoint.browse_id.starts_with("VL"));
+    return item.endpoint.video_id.empty() && (is_album(item.endpoint) || item.endpoint.page_type == "MUSIC_PAGE_TYPE_PLAYLIST" ||
+                                              item.endpoint.browse_id.starts_with("VL"));
 }
 
 static std::string subtitle_part(const MusicItem& item, int index = 0) {
@@ -97,7 +26,7 @@ static std::string subtitle_part(const MusicItem& item, int index = 0) {
 }
 
 // prefer linked creators, falling back to the artist segment when the response has no channel link
-static std::string card_artist(const MusicItem& item) {
+std::string media_artist(const MusicItem& item) {
     std::string artist;
     for (const auto& run : item.subtitle) {
         if (!run.endpoint.browse_id.starts_with("UC")) continue;
@@ -116,11 +45,11 @@ static std::string card_artist(const MusicItem& item) {
 }
 
 static std::string playlist_subtitle(const MusicItem& item) {
-    const bool album = item.endpoint.page_type == "MUSIC_PAGE_TYPE_ALBUM" || item.endpoint.browse_id.starts_with("MPRE");
+    const bool album = is_album(item.endpoint);
     auto type = subtitle_part(item);
     if (type != "EP" && type != "Single") type = album ? "Album" : "Playlist";
 
-    const auto artist = card_artist(item);
+    const auto artist = media_artist(item);
     return artist.empty() ? type : type + " by " + artist;
 }
 
@@ -131,37 +60,52 @@ static void add_card_text(Container& container, std::string text, bool bold, std
     label.set_overflow(TextOverflow::Ellipsis);
 }
 
-MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails) : Container("", StackDirection::Horizontal) {
+MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails) : MusiqButtonWidget("", {grow(), fit()}) {
     set_type_name("MediaCardWidget");
-    set_size({grow(), fit()});
+    set_direction(StackDirection::Horizontal);
     set_spacing(10.0f);
     set_content_alignment(Anchor::CenterLeft);
-    add<CatalogCoverWidget>(item, thumbnails, 48.0f);
+    add<MediaCoverWidget>(item, thumbnails, 48.0f);
 
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
     add_card_text(details, item.title, true, "title");
-    add_card_text(details, card_artist(item), false, "artist");
+    add_card_text(details, media_artist(item), false, "artist");
 }
 
 void MediaCardWidget::apply_theme_defaults(const Theme& theme) {
-    Container::apply_theme_defaults(theme);
-    configure_all_styles([&theme](Style& style) {
-        style.padding({8.0f}).background_color(theme.background_secondary_color).border_radius(8.0f);
+    MusiqButtonWidget::apply_theme_defaults(theme);
+    configure_all_styles([this, &theme](Style& style) {
+        style.padding({8.0f}).background_color(theme.background_secondary_color).border_radius(theme.controls.rounding);
+        style.border_thickness(m_selected ? 1.0f : 0.0f).border_color(theme.accent_color);
     });
+    style(StyleType::HOVER).background_color(theme.controls.hover_color);
+}
+
+void MediaCardWidget::set_selected(bool selected) {
+    if (m_selected == selected) return;
+    m_selected = selected;
+    apply_theme_defaults(surface().theme());
 }
 
 PlaylistCardWidget::PlaylistCardWidget(const MusicItem& item, ThumbnailCache& thumbnails)
-    : Container("", StackDirection::Vertical) {
+    : MusiqButtonWidget("", {px(176), fit()}) {
     set_type_name("PlaylistCardWidget");
-    set_size({px(176), fit()});
+    set_direction(StackDirection::Vertical);
     set_spacing(8.0f);
-    add<CatalogCoverWidget>(item, thumbnails, 176.0f);
+    add<MediaCoverWidget>(item, thumbnails, 176.0f);
 
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
     add_card_text(details, item.title, true, "title");
     add_card_text(details, playlist_subtitle(item), false, "metadata");
+}
+
+void PlaylistCardWidget::apply_theme_defaults(const Theme& theme) {
+    MusiqButtonWidget::apply_theme_defaults(theme);
+    configure_all_styles([&theme](Style& style) {
+        style.padding({}).background_color(theme.transparent).border_thickness(0.0f);
+    });
 }

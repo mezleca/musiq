@@ -9,10 +9,13 @@
 #include <deque>
 #include <future>
 #include <unordered_map>
+#include <memory>
+
+class ThreadPool;
 
 struct CatalogPageState {
     std::string query;
-    std::optional<MusicPage> page;
+    std::shared_ptr<const MusicPage> page;
     std::string error;
     bool loading = false;
 };
@@ -25,13 +28,14 @@ struct CatalogChanges {
 
 class CatalogBrowser {
 public:
-    // keeps the search text while clearing cached pages, results from the previous session are ignored
+    explicit CatalogBrowser(ThreadPool& workers);
+    // drops cached pages and pending futures so responses from the previous session cannot be installed
     void set_session(const YoutubeMusicSession& session);
     bool home(bool refresh = false);
     bool search(std::string query, bool refresh = false);
     void suggest(std::string query);
 
-    // returns which views need rebuilding after collecting completed requests and starting queued work
+    // collects a finished page or suggestion task and starts the next queued request
     CatalogChanges update(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
 
     const CatalogPageState& home_state() const {
@@ -51,20 +55,17 @@ public:
 private:
     void queue_page(std::string query);
 
-    YoutubeMusicSession m_session;
+    std::shared_ptr<const YoutubeMusicSession> m_session;
+    ThreadPool& m_workers;
     CatalogPageState m_home;
     std::unordered_map<std::string, CatalogPageState> m_searches;
-    CatalogPageState m_empty_search;
     std::string m_query;
     MusicSuggestions m_suggestions;
     std::future<YoutubeResult<MusicPage>> m_page_task;
     std::future<YoutubeResult<MusicSuggestions>> m_suggestions_task;
-    std::deque<std::string> m_pending_pages;
-    std::string m_running_page;
+    // the front stays queued until its request finishes
+    std::deque<std::string> m_pages;
     std::string m_suggestion_query;
     std::string m_running_suggestion;
     Debounce m_suggestions_debounce{std::chrono::milliseconds(300)};
-    unsigned m_generation = 0;
-    unsigned m_page_generation = 0;
-    unsigned m_suggestions_generation = 0;
 };

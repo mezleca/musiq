@@ -10,7 +10,8 @@ endif()
 
 FetchContent_Declare(
     cpr
-    GIT_REPOSITORY https://github.com/libcpr/cpr
-    GIT_TAG cdbbd90fb01c29dd52ed3e19f606bb4980e71541
+    URL https://codeload.github.com/libcpr/cpr/tar.gz/cdbbd90fb01c29dd52ed3e19f606bb4980e71541
+    URL_HASH SHA256=781368d0e9b5297c35ac9b1e511e5fb52fe01be4632a7c2bbbea369e056992c1
+    DOWNLOAD_EXTRACT_TIMESTAMP FALSE
 )
 FetchContent_MakeAvailable(cpr)

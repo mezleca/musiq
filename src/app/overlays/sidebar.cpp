@@ -1,18 +1,15 @@
 #include "sidebar.hpp"
-#include "../widgets/user-profile.hpp"
 #include "../widgets/options.hpp"
 
 #include <utility>
 
 using namespace ui;
 
-SideBarOverlay::SideBarOverlay(std::function<void()> sign_in, std::function<void(std::string_view)> navigate)
+SideBarOverlay::SideBarOverlay(std::function<void(std::string_view)> navigate)
     : Container("sidebar", StackDirection::Vertical), m_navigate(std::move(navigate)) {
     set_type_name("SideBarOverlay");
     set_size({px(280), grow()});
     set_spacing(16.0f);
-
-    m_user_profile = &add<UserProfileWidget>(std::move(sign_in));
 
     m_options = &add<Container>("musiq-options", StackDirection::Vertical);
     m_options->set_size({grow(), fit()});

@@ -21,5 +21,4 @@ private:
     explicit MusiqSettings(const std::string& path);
 
     static MusiqSettings* s_instance;
-    std::string m_path;
 };

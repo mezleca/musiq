@@ -5,6 +5,7 @@
 #include <utility>
 
 std::string music_text(const json& data) {
+    if (data.empty()) return {};
     const auto simple = data.find("simpleText");
     if (simple != data.end()) return simple->get<std::string>();
     std::string text;
@@ -14,6 +15,14 @@ std::string music_text(const json& data) {
     return text;
 }
 
+std::vector<MusicTextRun> music_text_runs(const json& data) {
+    const auto runs = data.find("runs");
+    if (runs != data.end()) return runs->get<std::vector<MusicTextRun>>();
+    auto text = music_text(data);
+    if (text.empty()) return {};
+    return {{std::move(text), {}}};
+}
+
 std::int64_t music_number(const json& data) {
     if (data.is_number_integer()) return data.get<std::int64_t>();
     const auto& text = data.get_ref<const std::string&>();
@@ -21,6 +30,12 @@ std::int64_t music_number(const json& data) {
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), number);
     if (error != std::errc{} || end != text.data() + text.size()) throw std::invalid_argument("invalid numeric field");
     return number;
+}
+
+std::optional<std::int64_t> music_optional_number(const json& data, std::string_view key) {
+    const auto field = data.find(key);
+    if (field == data.end() || field->is_null()) return std::nullopt;
+    return music_number(*field);
 }
 
 void from_json(const json& data, MusicThumbnail& value) {
@@ -82,7 +97,7 @@ void from_json(const json& data, MusicItem& value) {
         }
         if (columns->size() > 1) {
             const auto& text = columns->at(1).at("musicResponsiveListItemFlexColumnRenderer").at("text");
-            item.subtitle = text.at("runs").get<std::vector<MusicTextRun>>();
+            item.subtitle = music_text_runs(text);
         }
 
         const auto fixed = data.find("fixedColumns");
@@ -96,7 +111,7 @@ void from_json(const json& data, MusicItem& value) {
             if (runs == text.end() || runs->empty()) continue;
 
             auto run = runs->front().get<MusicTextRun>();
-            if (run.endpoint.page_type == "MUSIC_PAGE_TYPE_ALBUM" || run.endpoint.browse_id.starts_with("MPRE")) {
+            if (is_album(run.endpoint)) {
                 item.album = std::move(run);
             } else if (
                 item.duration.empty() && run.text.contains(':') && run.text.find_first_not_of("0123456789:") == std::string::npos
@@ -105,10 +120,11 @@ void from_json(const json& data, MusicItem& value) {
             }
         }
     } else {
+        // two-row cards for albums and playlists use title, subtitle and thumbnailRenderer
         item.title = music_text(data.at("title"));
         const auto subtitle = data.find("subtitle");
         if (subtitle != data.end()) {
-            item.subtitle = subtitle->at("runs").get<std::vector<MusicTextRun>>();
+            item.subtitle = music_text_runs(*subtitle);
         }
     }
 

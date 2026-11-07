@@ -56,6 +56,7 @@ int main() {
         app.initialize();
     } catch (const std::exception& error) {
         LOG_ERROR("failed to initialize: {}", error.what());
+        SDL_GL_DestroyContext(context);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;

@@ -3,18 +3,26 @@
 #include <utility>
 
 void to_json(json& data, const MusicNextRequest& value) {
-    data = {{"isAudioOnly", true}};
+    data = {{"isAudioOnly", true}, {"enablePersistentPlaylistPanel", true}, {"tunerSettingValue", "AUTOMIX_SETTING_NORMAL"}};
     if (!value.video_id.empty()) data["videoId"] = value.video_id;
-    if (!value.playlist_id.empty()) data["playlistId"] = value.playlist_id;
+    if (!value.playlist_id.empty()) {
+        data["playlistId"] = value.playlist_id;
+    } else if (!value.video_id.empty()) {
+        data["playlistId"] = "RDAMVM" + value.video_id;
+    }
 }
 
 static MusicItem panel_item(const json& data) {
     MusicItem item;
     item.title = music_text(data.at("title"));
     item.endpoint.video_id = data.at("videoId").get<std::string>();
-    item.duration = music_text(data.at("lengthText"));
-    item.subtitle = data.at("longBylineText").at("runs").get<std::vector<MusicTextRun>>();
-    item.thumbnails = data.at("thumbnail").at("thumbnails").get<std::vector<MusicThumbnail>>();
+    if (const auto duration = data.find("lengthText"); duration != data.end()) item.duration = music_text(*duration);
+    if (const auto byline = data.find("longBylineText"); byline != data.end()) {
+        item.subtitle = music_text_runs(*byline);
+    }
+    if (const auto thumbnail = data.find("thumbnail"); thumbnail != data.end()) {
+        item.thumbnails = thumbnail->at("thumbnails").get<std::vector<MusicThumbnail>>();
+    }
     item.playlist_set_video_id = data.value("playlistSetVideoId", std::string{});
     return item;
 }
@@ -41,22 +49,24 @@ void from_json(const json& data, MusicNextPage& value) {
         }
     }
 
-    page.playlist_id = panel->value("playlistId", std::string{});
     page.continuation = music_continuation(*panel);
     for (const auto& row : panel->at("contents")) {
+        const json* item = nullptr;
         const auto direct = row.find("playlistPanelVideoRenderer");
-        const auto wrapper = row.find("playlistPanelVideoWrapperRenderer");
         if (direct != row.end()) {
-            page.items.push_back(panel_item(*direct));
-        } else if (wrapper != row.end()) {
-            page.items.push_back(panel_item(wrapper->at("primaryRenderer").at("playlistPanelVideoRenderer")));
+            item = &*direct;
+        } else {
+            const auto wrapper = row.find("playlistPanelVideoWrapperRenderer");
+            if (wrapper == row.end()) continue;
+            item = &wrapper->at("primaryRenderer").at("playlistPanelVideoRenderer");
         }
+        if (!item->contains("unplayableText")) page.items.push_back(panel_item(*item));
     }
 
     value = std::move(page);
 }
 
 void to_json(json& data, const MusicNextPage& value) {
-    data = {{"items", value.items}, {"playlist_id", value.playlist_id}, {"lyrics", value.lyrics}, {"related", value.related}};
+    data = {{"items", value.items}, {"lyrics", value.lyrics}, {"related", value.related}};
     if (value.continuation) data["continuation"] = *value.continuation;
 }

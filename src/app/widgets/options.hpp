@@ -12,10 +12,6 @@ public:
     OptionsWidget(std::string id, std::string text, std::string icon_path, bool selected = false);
     void set_selected(bool selected);
 
-    bool selected() const {
-        return m_selected;
-    }
-
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 

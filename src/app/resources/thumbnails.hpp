@@ -1,22 +1,36 @@
 #pragma once
 
-#include "../../utils/thread-pool.hpp"
-
-#include <functional>
+#include <imgui-ui/resources/texture.hpp>
+#include <future>
+#include <memory>
+#include <span>
 #include <string>
 #include <unordered_map>
 
-using ThumbnailFetcher = std::function<std::string(const std::string&)>;
+struct MusicThumbnail;
+class ThreadPool;
+namespace ui {
+    class TextureRegistry;
+}
+
+// choose the smallest variant that fills a square in physical pixels, or the largest available
+const MusicThumbnail* select_thumbnail(std::span<const MusicThumbnail> thumbnails, float pixel_size);
+
+struct ThumbnailRequest {
+    std::shared_future<std::string> result;
+};
 
 class ThumbnailCache {
 public:
-    explicit ThumbnailCache(ThumbnailFetcher fetch = {});
+    explicit ThumbnailCache(ThreadPool& workers);
 
-    // repeated urls share one pending or completed download, an empty result means no image was downloaded
-    std::shared_future<std::string> request(const std::string& url);
+    // callers keep pending downloads alive, abandoned queued requests skip network io
+    std::shared_ptr<ThumbnailRequest> request(const std::string& url);
+    // a nonempty pending request means the image is still loading, failures use the shared placeholder
+    ui::TextureHandle resolve(ui::TextureRegistry& textures, const std::string& url, std::shared_ptr<ThumbnailRequest>& pending);
+    void collect();
 
 private:
-    ThumbnailFetcher m_fetch;
-    std::unordered_map<std::string, std::shared_future<std::string>> m_requests;
-    ThreadPool m_workers;
+    std::unordered_map<std::string, std::weak_ptr<ThumbnailRequest>> m_requests;
+    ThreadPool& m_workers;
 };

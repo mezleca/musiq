@@ -16,8 +16,10 @@ public:
     YoutubeResult<MusicPage> more(const MusicContinuation& continuation) const;
 
 private:
-    YoutubeResult<MusicPage>
-    page(std::string_view endpoint, json body, const MusicRequestOptions& options, cpr::Parameters parameters = {}) const;
+    YoutubeResult<MusicPage> page(
+        MusicRoute route, std::string_view endpoint, json body, const MusicRequestOptions& options,
+        cpr::Parameters parameters = {}
+    ) const;
 
     const YoutubeMusicClient& m_client;
 };

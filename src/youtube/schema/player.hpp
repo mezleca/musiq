@@ -11,8 +11,6 @@ struct MusicPlayerRequest {
 };
 
 struct MusicAudioTrack {
-    std::string id;
-    std::string name;
     bool is_auto_dubbed = false;
     bool is_default = false;
 };
@@ -25,10 +23,6 @@ struct MusicFormat {
     std::string url;
     std::string signature_cipher;
     std::optional<std::int64_t> content_length;
-    std::optional<std::int64_t> duration_ms;
-    std::optional<int> width;
-    std::optional<int> height;
-    std::optional<int> audio_channels;
     std::optional<MusicAudioTrack> audio_track;
     std::vector<std::string> drm_families;
     std::string drm_track_type;
@@ -38,9 +32,6 @@ struct MusicStreamingData {
     std::optional<std::int64_t> expires_in_seconds;
     std::vector<MusicFormat> formats;
     std::vector<MusicFormat> adaptive_formats;
-    std::string hls_manifest_url;
-    std::string dash_manifest_url;
-    std::string server_abr_streaming_url;
 };
 
 struct MusicVideoDetails {
@@ -57,10 +48,8 @@ struct MusicVideoDetails {
 struct MusicPlayerData {
     std::string status;
     std::string reason;
-    std::string visitor_data;
     std::optional<MusicStreamingData> streaming_data;
     std::optional<MusicVideoDetails> video_details;
-    std::string playback_tracking_url;
 };
 
 struct MusicVisitorData {

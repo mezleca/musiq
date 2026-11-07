@@ -12,7 +12,6 @@ struct MusicNextRequest {
 // ref: https://ytmusicapi.readthedocs.io/en/stable/reference/watch.html#ytmusicapi.YTMusic.get_watch_playlist
 struct MusicNextPage {
     std::vector<MusicItem> items;
-    std::string playlist_id;
     MusicEndpoint lyrics;
     MusicEndpoint related;
     std::optional<MusicContinuation> continuation;

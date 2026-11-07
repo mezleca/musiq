@@ -13,7 +13,6 @@ struct MusicUser {
     std::string name;
     std::string avatar_url;
     std::string avatar_data;
-    std::string channel_url;
 };
 
 class YoutubeMusicSession {
@@ -32,6 +31,9 @@ public:
     const std::string& identity() const {
         return m_identity;
     }
+    const std::string& data_sync_token() const {
+        return m_data_sync_token;
+    }
 
     const std::vector<MusicIdentity>& identities() const {
         return m_identities;
@@ -45,6 +47,7 @@ private:
     std::string m_cookies;
     std::string m_sapisid;
     std::string m_identity;
+    std::string m_data_sync_token;
     std::vector<MusicIdentity> m_identities;
     std::optional<MusicUser> m_user;
 };

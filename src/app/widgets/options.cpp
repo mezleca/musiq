@@ -36,13 +36,15 @@ void OptionsWidget::set_selected(bool selected) {
 
 void OptionsWidget::apply_theme_defaults(const Theme& theme) {
     Widget::apply_theme_defaults(theme);
+
     configure_all_styles([this, &theme](Style& style) {
         style.padding({8.0f, 4.0f, 8.0f, 4.0f});
         style.border_thickness(0.0f);
-        style.border_radius(8.0f);
+        style.border_radius(theme.controls.rounding);
         style.background_color(m_selected ? theme.header_background_color : theme.transparent);
         style.cursor(ImGuiMouseCursor_Hand);
     });
+
     style(StyleType::HOVER).background_color(theme.controls.hover_color);
     style(StyleType::ACTIVE).background_color(theme.controls.active_color);
 

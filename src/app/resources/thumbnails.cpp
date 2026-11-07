@@ -1,8 +1,27 @@
 #include "thumbnails.hpp"
 #include "../../http/http-client.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/future.hpp"
+#include "../../utils/thread-pool.hpp"
+#include "../../youtube/schema/common.hpp"
 
+#include <imgui-ui/resources/texture-registry.hpp>
+#include <algorithm>
 #include <utility>
+
+const MusicThumbnail* select_thumbnail(std::span<const MusicThumbnail> thumbnails, float pixel_size) {
+    const MusicThumbnail* selected = nullptr;
+    for (const auto& candidate : thumbnails) {
+        if (candidate.url.empty()) continue;
+        const int extent = std::min(candidate.width, candidate.height);
+        const int selected_extent = selected ? std::min(selected->width, selected->height) : 0;
+        if (!selected || (selected_extent < pixel_size && extent > selected_extent) ||
+            (extent >= pixel_size && extent < selected_extent)) {
+            selected = &candidate;
+        }
+    }
+    return selected;
+}
 
 static std::string fetch_thumbnail(const std::string& url) {
     auto& http = HttpClient::instance();
@@ -24,14 +43,53 @@ static std::string fetch_thumbnail(const std::string& url) {
     return std::move(response.text);
 }
 
-ThumbnailCache::ThumbnailCache(ThumbnailFetcher fetch) : m_fetch(fetch ? std::move(fetch) : fetch_thumbnail) {}
+ThumbnailCache::ThumbnailCache(ThreadPool& workers) : m_workers(workers) {}
 
-std::shared_future<std::string> ThumbnailCache::request(const std::string& url) {
-    auto [entry, inserted] = m_requests.try_emplace(url);
-    if (inserted) {
-        auto task = m_workers.enqueue([fetch = m_fetch, url] { return fetch(url); });
-        entry->second = task.share();
+std::shared_ptr<ThumbnailRequest> ThumbnailCache::request(const std::string& url) {
+    auto& entry = m_requests[url];
+    if (auto pending = entry.lock()) return pending;
+
+    auto pending = std::make_shared<ThumbnailRequest>();
+    entry = pending;
+    auto task = m_workers.enqueue(
+        [url, interest = std::weak_ptr(pending)] {
+            const auto active = interest.lock();
+            if (!active) return std::string{};
+            return fetch_thumbnail(url);
+        },
+        TaskPriority::Background
+    );
+    pending->result = task.share();
+    return pending;
+}
+
+ui::TextureHandle
+ThumbnailCache::resolve(ui::TextureRegistry& textures, const std::string& url, std::shared_ptr<ThumbnailRequest>& pending) {
+    if (!url.empty()) {
+        if (pending && !future_ready(pending->result)) return {};
+
+        auto image = textures.find_handle("thumbnail:" + url);
+        if (image) {
+            pending.reset();
+            return image;
+        }
+
+        if (!pending) pending = request(url);
+        if (!future_ready(pending->result)) return {};
+
+        try {
+            const auto& bytes = pending->result.get();
+            if (!bytes.empty()) image = textures.acquire("thumbnail:" + url, std::string_view(bytes));
+        } catch (const std::exception& error) {
+            LOG_ERROR("[artwork] thumbnail failed: {} ({})", error.what(), url);
+        }
+        pending.reset();
+        if (image) return image;
     }
 
-    return entry->second;
+    return textures.acquire("missing-artwork", std::filesystem::path("resources/icons/missing.svg"));
+}
+
+void ThumbnailCache::collect() {
+    std::erase_if(m_requests, [](const auto& entry) { return entry.second.expired(); });
 }

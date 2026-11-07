@@ -25,11 +25,11 @@ YoutubeResult<MusicPlaylist> YoutubeMusicPlaylists::get(std::string_view playlis
 
 YoutubeResult<MusicPlaylistPage> YoutubeMusicPlaylists::more(const MusicContinuation& continuation) const {
     if (continuation.route != MusicRoute::Playlist) return youtube_error(YoutubeErrorKind::Api, "not a playlist continuation");
-    if (continuation.auth != MusicAuth::Anonymous && continuation.identity != m_client.identity()) {
+    if (!continuation.owned_by(m_client.identity())) {
         return youtube_error(YoutubeErrorKind::Authentication, "continuation belongs to another channel");
     }
 
-    const MusicRequestOptions options{continuation.client, continuation.auth, continuation.visitor_data};
+    const auto options = continuation.request_options();
     auto response = continuation.in_body
                         ? m_client.post("browse", {{"continuation", continuation.token}}, options)
                         : m_client.post(

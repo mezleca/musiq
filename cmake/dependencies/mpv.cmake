@@ -1,0 +1,7 @@
+if(NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+    add_library(mpv::mpv ALIAS PkgConfig::MPV)
+else()
+    include("${CMAKE_CURRENT_LIST_DIR}/mpv-windows.cmake")
+endif()

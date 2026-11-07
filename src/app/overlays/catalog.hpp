@@ -2,16 +2,19 @@
 
 #include <imgui-ui/layout/container.hpp>
 
+#include <string>
+
 class CatalogResultsWidget;
 class ThumbnailCache;
 
-class HomeOverlay final : public ui::Container {
+class CatalogOverlay final : public ui::Container {
 public:
-    explicit HomeOverlay(ThumbnailCache& thumbnails);
-
+    CatalogOverlay(std::string id, std::string title, ThumbnailCache& thumbnails);
     CatalogResultsWidget& results() {
         return *m_results;
     }
+
+    void set_title(std::string title);
 
 private:
     CatalogResultsWidget* m_results;

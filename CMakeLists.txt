@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.25)
-project(musiq VERSION 0.0.1 LANGUAGES C CXX)
+project(musiq LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(WIN32)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 if(NOT DEFINED OUTPUT_NAME OR OUTPUT_NAME STREQUAL "")
     set(OUTPUT_NAME "${PROJECT_NAME}")
@@ -45,11 +49,20 @@ if(MUSIQ_BUILD_TESTS)
 endif()
 
 include(GNUInstallDirs)
+
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
-install(DIRECTORY resources/fonts resources/icons
+install(DIRECTORY resources/fonts
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/resources
     COMPONENT Runtime
 )
+
+# the ico is only used by the Windows executable and is not needed in Linux packages
+install(DIRECTORY resources/icons
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/resources
+    COMPONENT Runtime
+    FILES_MATCHING PATTERN "*.svg" PATTERN "musiq.png"
+)
+
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME} COMPONENT Runtime)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
@@ -61,6 +74,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     nlohmann_json
     webview::core
     sqlite_orm::sqlite_orm
+    mpv::mpv
+    miniz
 )
 
 if(MSVC)

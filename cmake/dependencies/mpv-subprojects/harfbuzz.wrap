@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/harfbuzz/harfbuzz.git
+revision = 10.2.0
+depth = 1
+
+[provide]
+harfbuzz = libharfbuzz_dep

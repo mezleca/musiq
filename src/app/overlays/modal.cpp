@@ -27,6 +27,6 @@ void ModalOverlay::apply_theme_defaults(const Theme& theme) {
     m_content->configure_all_styles([&theme](Style& style) {
         style.padding({16.0f});
         style.background_color(theme.background_secondary_color);
-        style.border_radius(8.0f);
+        style.border_radius(theme.metrics.popup_rounding);
     });
 }

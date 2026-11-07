@@ -11,7 +11,10 @@ YoutubeResult<MusicNextPage> YoutubeMusicQueue::next(const MusicNextRequest& req
 
 YoutubeResult<MusicNextPage> YoutubeMusicQueue::more(const MusicContinuation& continuation) const {
     if (continuation.route != MusicRoute::Next) return youtube_error(YoutubeErrorKind::Api, "not a queue continuation");
-    return read({{"continuation", continuation.token}}, {continuation.client, continuation.auth, continuation.visitor_data});
+    if (!continuation.owned_by(m_client.identity())) {
+        return youtube_error(YoutubeErrorKind::Authentication, "continuation belongs to another channel");
+    }
+    return read({{"continuation", continuation.token}}, continuation.request_options());
 }
 
 YoutubeResult<MusicNextPage> YoutubeMusicQueue::read(json body, const MusicRequestOptions& options) const {

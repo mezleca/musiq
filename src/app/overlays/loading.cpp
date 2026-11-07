@@ -13,20 +13,12 @@ LoadingOverlay::LoadingOverlay() : LayerContainer("loading") {
     set_spacing(12.0f);
     add<SpinnerWidget>();
     m_status = &add<MusiqText>("");
-    hide();
-}
-
-void LoadingOverlay::show() {
-    set_visible(true);
-}
-
-void LoadingOverlay::hide() {
     set_visible(false);
 }
 
-void LoadingOverlay::update(std::string status) {
-    if (!visible()) return;
+void LoadingOverlay::show(std::string status) {
     m_status->set_text(std::move(status));
+    set_visible(true);
 }
 
 void LoadingOverlay::apply_theme_defaults(const Theme& theme) {

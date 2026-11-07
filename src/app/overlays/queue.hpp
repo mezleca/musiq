@@ -1,0 +1,34 @@
+#pragma once
+
+#include "modal.hpp"
+#include <cstdint>
+#include <unordered_map>
+
+class PlaybackController;
+class ThumbnailCache;
+class MusiqText;
+class MusiqButtonWidget;
+class MediaCardWidget;
+namespace ui {
+    class VirtualLayout;
+}
+
+class QueueOverlay final : public ModalOverlay {
+public:
+    QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbnails);
+    void show();
+    void refresh();
+
+protected:
+    void event(ui::UiEvent& event) override;
+
+private:
+    PlaybackController& m_playback;
+    ThumbnailCache& m_thumbnails;
+    ui::VirtualLayout* m_tracks;
+    MusiqText* m_status;
+    MusiqButtonWidget* m_more;
+    bool m_autoplay = true;
+    std::uint64_t m_revision = 0;
+    std::unordered_map<std::uint64_t, MediaCardWidget*> m_rows;
+};
