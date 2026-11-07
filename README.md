@@ -4,7 +4,12 @@
 > Musiq is still in **VERY** early stages of development.
 
 <p align="center">
-    <img src="https://raw.githubusercontent.com/mezleca/musiq/refs/heads/master/resources/preview.png" width="500"/>
+    <table>
+        <tr>
+            <td><img src="https://raw.githubusercontent.com/mezleca/musiq/refs/heads/master/resources/preview/1.png" width="400"/></td>
+            <td><img src="https://raw.githubusercontent.com/mezleca/musiq/refs/heads/master/resources/preview/2.png" width="400"/></td>
+        </tr>
+    </table>
 </p>
 
 ## download
