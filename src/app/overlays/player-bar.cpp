@@ -84,9 +84,10 @@ PlayerBarOverlay::PlayerBarOverlay(
     controls.set_content_alignment(Anchor::Center);
     controls.set_spacing(8.0f);
 
-    auto& shuffle = controls.add<MusiqIconButtonWidget>("resources/icons/shuffle.svg");
-    shuffle.set_enabled(false);
-    shuffle.set_tooltip("Shuffle is not implemented yet");
+    m_random = &controls.add<MusiqIconButtonWidget>("resources/icons/shuffle.svg");
+    m_random->set_tooltip("Random");
+    m_random->set_enabled(false);
+    m_random->on_click([this] { m_playback.queue().set_random(!m_playback.queue().random()); });
 
     m_previous = &controls.add<MusiqIconButtonWidget>("resources/icons/skip-previous.svg");
     m_previous->set_tooltip("Previous track");
@@ -109,9 +110,10 @@ PlayerBarOverlay::PlayerBarOverlay(
     m_next->on_click([this] { m_playback.queue().advance(); });
     m_next->set_enabled(false);
 
-    auto& repeat = controls.add<MusiqIconButtonWidget>("resources/icons/repeat.svg");
-    repeat.set_enabled(false);
-    repeat.set_tooltip("Repeat is not implemented yet");
+    m_repeat = &controls.add<MusiqIconButtonWidget>("resources/icons/repeat.svg");
+    m_repeat->set_enabled(false);
+    m_repeat->set_tooltip("Repeat this track once");
+    m_repeat->on_click([this] { m_playback.queue().set_repeat(!m_playback.queue().repeat()); });
 
     auto& progress = center.add<Container>("progress", StackDirection::Horizontal);
     progress.set_size({percent(75), fit()});
@@ -157,7 +159,11 @@ void PlayerBarOverlay::refresh() {
     }
 
     m_previous->set_enabled(queue.position() > 0);
-    m_next->set_enabled(queue.remaining() > 0);
+    m_next->set_enabled(queue.can_advance());
+    m_random->set_enabled(queue.entries().size() > 1);
+    m_random->set_selected(queue.random());
+    m_repeat->set_enabled(current != nullptr);
+    m_repeat->set_selected(queue.repeat());
 
     const auto& state = m_player.state();
     const bool loading = m_playback.resolving() || state.buffering;

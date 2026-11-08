@@ -17,7 +17,13 @@ protected:
 class MusiqIconButtonWidget : public MusiqButtonWidget {
 public:
     explicit MusiqIconButtonWidget(std::string icon_path, float size = 32.0f);
+
     void set_icon(std::string path);
+    void set_selected(bool value);
+
+    bool selected() const {
+        return m_selected;
+    }
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -25,4 +31,5 @@ protected:
 private:
     std::string m_path;
     ui::ImageWidget* m_icon;
+    bool m_selected = false;
 };

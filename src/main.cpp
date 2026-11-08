@@ -1,6 +1,7 @@
 #include "app/app.hpp"
 #include "database/settings.hpp"
 #include "utils/system.hpp"
+#include "utils/random.hpp"
 #include "utils/log.hpp"
 
 #include <SDL3/SDL.h>
@@ -8,6 +9,7 @@
 
 int main() {
     LOG_INFO("[app] starting musiq");
+
     SDL_SetHint(SDL_HINT_APP_ID, "org.mezleca.musiq");
 #if defined(__linux__)
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
@@ -49,6 +51,8 @@ int main() {
 
     SDL_GL_MakeCurrent(window, context);
     SDL_GL_SetSwapInterval(1);
+
+    musiq::random::initialize();
 
     try {
         MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());

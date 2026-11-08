@@ -13,6 +13,7 @@ add_executable(tests
     ../src/youtube/yt-dlp.cpp
     ../src/youtube/dlp-manager.cpp
     ../src/utils/system.cpp
+    ../src/utils/random.cpp
     ../src/playback/queue.cpp
     ../src/utils/thread-pool.cpp
     ../src/app/resources/thumbnails.cpp

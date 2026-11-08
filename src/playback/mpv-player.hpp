@@ -23,6 +23,7 @@ public:
     explicit MpvPlayer(bool silent = false);
     void load(AudioSource source);
     void load_file(const std::string& path);
+    void restart();
     void stop();
     void pause(bool paused);
     void seek(double seconds);
@@ -35,6 +36,7 @@ public:
 
 private:
     void command(const char** arguments);
+    void load_command(const char** arguments);
 
     PlayerState m_state;
     std::int64_t m_entry_id = -1;

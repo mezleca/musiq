@@ -1,5 +1,6 @@
 # Unreleased
 
+- Implemented Random & Repeat
 - Fix cursor flicking on disabled items
 - Disable UI debugger on release builds
 

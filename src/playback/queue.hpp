@@ -3,7 +3,6 @@
 #include "../youtube/schema/common.hpp"
 
 struct QueueEntry {
-    // identifies this occurrence so repeated videos can be selected and removed independently
     std::uint64_t id;
     MusicItem media;
 };
@@ -17,7 +16,19 @@ public:
     bool move(std::uint64_t id, std::size_t position);
     void select(std::uint64_t id);
     bool advance();
+    bool can_advance() const;
     void previous();
+    void set_random(bool enabled);
+    void set_repeat(bool enabled);
+    bool take_repeat();
+
+    bool random() const {
+        return m_random;
+    }
+
+    bool repeat() const {
+        return m_repeat_id != 0;
+    }
 
     const QueueEntry* current() const;
     std::size_t remaining() const;
@@ -40,8 +51,11 @@ public:
 
 private:
     std::vector<QueueEntry> m_entries;
+
     std::string m_source;
     std::size_t m_position = 0;
     std::uint64_t m_next_id = 1;
     std::uint64_t m_revision = 0;
+    std::uint64_t m_repeat_id = 0;
+    bool m_random = false;
 };

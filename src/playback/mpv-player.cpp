@@ -42,10 +42,19 @@ void MpvPlayer::load(AudioSource source) {
 }
 
 void MpvPlayer::load_file(const std::string& path) {
+    const char* arguments[] = {"loadfile", path.c_str(), "replace", nullptr};
+    load_command(arguments);
+}
+
+void MpvPlayer::restart() {
+    const char* arguments[] = {"playlist-play-index", "0", nullptr};
+    load_command(arguments);
+}
+
+void MpvPlayer::load_command(const char** arguments) {
     m_state = {};
     m_state.buffering = true;
     m_entry_id = -1;
-    const char* arguments[] = {"loadfile", path.c_str(), "replace", nullptr};
     command(arguments);
     pause(false);
 }

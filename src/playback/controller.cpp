@@ -195,6 +195,14 @@ void PlaybackController::update_player() {
         m_at_end = true;
     }
 
+    if (m_at_end && m_queue.take_repeat()) {
+        m_at_end = false;
+        m_retried = false;
+        m_player.restart();
+        m_changed = true;
+        return;
+    }
+
     if (m_at_end && m_queue.advance()) {
         m_at_end = false;
         m_changed = true;

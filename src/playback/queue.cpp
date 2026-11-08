@@ -1,10 +1,12 @@
 #include "queue.hpp"
+#include "../utils/random.hpp"
 
 #include <algorithm>
 #include <utility>
 
 void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source) {
     m_source = std::move(source);
+    m_repeat_id = 0;
     m_entries.clear();
     m_entries.reserve(tracks.size());
 
@@ -45,6 +47,7 @@ void PlaybackQueue::select(std::uint64_t id) {
     if (position == m_position) return;
 
     m_position = position;
+    if (id != m_repeat_id) m_repeat_id = 0;
     ++m_revision;
 }
 
@@ -55,6 +58,7 @@ bool PlaybackQueue::remove(std::uint64_t id) {
     const auto position = static_cast<std::size_t>(entry - m_entries.begin());
     m_source.clear();
     m_entries.erase(entry);
+    if (id == m_repeat_id) m_repeat_id = 0;
 
     // removing a row before the cursor shifts it down, removing the last row moves the cursor back
     if (m_position > 0 && (position < m_position || m_position == m_entries.size())) {
@@ -90,14 +94,47 @@ bool PlaybackQueue::move(std::uint64_t id, std::size_t position) {
 }
 
 bool PlaybackQueue::advance() {
-    if (remaining() == 0) return false;
-    ++m_position;
+    if (!can_advance()) return false;
+
+    if (m_random) {
+        auto position = musiq::random::random_index(m_entries.size() - 1);
+        if (position >= m_position) ++position;
+        m_position = position;
+    } else {
+        ++m_position;
+    }
+
+    m_repeat_id = 0;
     ++m_revision;
     return true;
+}
+
+bool PlaybackQueue::can_advance() const {
+    return m_random ? m_entries.size() > 1 : remaining() > 0;
 }
 
 void PlaybackQueue::previous() {
     if (m_position == 0) return;
     --m_position;
+    m_repeat_id = 0;
     ++m_revision;
+}
+
+void PlaybackQueue::set_random(bool enabled) {
+    m_random = enabled;
+    ++m_revision;
+}
+
+void PlaybackQueue::set_repeat(bool enabled) {
+    const auto* entry = current();
+    m_repeat_id = enabled && entry ? entry->id : 0;
+    ++m_revision;
+}
+
+bool PlaybackQueue::take_repeat() {
+    if (!m_repeat_id) return false;
+
+    m_repeat_id = 0;
+    ++m_revision;
+    return true;
 }

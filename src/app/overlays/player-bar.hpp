@@ -46,6 +46,8 @@ private:
     MediaCoverWidget* m_cover;
     MusiqButtonWidget* m_previous;
     MusiqButtonWidget* m_next;
+    MusiqIconButtonWidget* m_random;
+    MusiqIconButtonWidget* m_repeat;
     MusiqIconButtonWidget* m_play;
     SpinnerWidget* m_spinner;
     MusiqSliderWidget* m_seek;
