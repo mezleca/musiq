@@ -1,48 +1,12 @@
 #include "catalog-card.hpp"
 #include "text.hpp"
 #include "media-cover.hpp"
+#include "../../utils/media.hpp"
 #include "../../youtube/schema/common.hpp"
 #include <imgui-ui/surface.hpp>
 
 using namespace ui;
-
-bool is_playlist_card(const MusicItem& item) {
-    return item.endpoint.video_id.empty() && (is_album(item.endpoint) || item.endpoint.page_type == "MUSIC_PAGE_TYPE_PLAYLIST" ||
-                                              item.endpoint.browse_id.starts_with("VL"));
-}
-
-static std::string subtitle_part(const MusicItem& item, int index = 0) {
-    std::string text;
-    for (const auto& run : item.subtitle) {
-        if (run.text == " • " || run.text == " · ") {
-            if (index == 0) break;
-            --index;
-        } else if (index == 0) {
-            text += run.text;
-        }
-    }
-
-    return text;
-}
-
-// prefer linked creators, falling back to the artist segment when the response has no channel link
-std::string media_artist(const MusicItem& item) {
-    std::string artist;
-    for (const auto& run : item.subtitle) {
-        if (!run.endpoint.browse_id.starts_with("UC")) continue;
-        if (!artist.empty()) artist += ", ";
-        artist += run.text;
-    }
-
-    if (!artist.empty()) return artist;
-
-    auto first = subtitle_part(item);
-    if (first == "Song" || first == "Video" || first == "Album" || first == "EP" || first == "Single" || first == "Playlist") {
-        return subtitle_part(item, 1);
-    }
-
-    return first;
-}
+using namespace media;
 
 static std::string playlist_subtitle(const MusicItem& item) {
     const bool album = is_album(item.endpoint);

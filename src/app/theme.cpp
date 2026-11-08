@@ -1,7 +1,8 @@
 #include "theme.hpp"
 
-ui::Theme musiq_theme() {
-    using namespace ui;
+using namespace ui;
+
+Theme musiq_theme() {
     Theme theme;
     theme.background_color = rgb(3, 3, 3);
     theme.background_secondary_color = rgb(15, 15, 15);

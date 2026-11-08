@@ -1,21 +1,15 @@
 #pragma once
 
 #include <filesystem>
-#include <mutex>
-#include <string>
 
-struct YoutubeDLPTools {
-    std::filesystem::path executable;
-    std::filesystem::path runtime;
-};
+namespace dlp {
 
-class YoutubeDLPManager {
-public:
-    static YoutubeDLPManager& instance();
+    struct Tools {
+        std::filesystem::path executable;
+        std::filesystem::path runtime;
+    };
+
     // called from a worker, checks the latest release once per launch and reuses the installed version when the update fails
-    YoutubeDLPTools prepare();
+    Tools prepare();
 
-private:
-    std::mutex m_mutex;
-    YoutubeDLPTools m_tools;
-};
+} // namespace dlp

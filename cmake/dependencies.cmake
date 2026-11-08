@@ -1,8 +1,8 @@
 include(FetchContent)
 
-if(WIN32)
-    set(BUILD_SHARED_LIBS OFF)
-endif()
+set(FETCHCONTENT_QUIET OFF)
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build bundled dependencies as static libraries" FORCE)
 
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/boost.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/sqlite.cmake")

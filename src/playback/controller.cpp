@@ -42,7 +42,8 @@ static YoutubeResult<PlaybackPage> read_more(const YoutubeMusicSession& session,
 }
 
 PlaybackController::PlaybackController(ThreadPool& workers, MpvPlayer& player)
-    : m_workers(workers), m_player(player), m_session(std::make_shared<const YoutubeMusicSession>()) {}
+    : m_workers(workers), m_player(player), m_session(std::make_shared<const YoutubeMusicSession>()),
+      m_media_stream(std::make_shared<YoutubeMediaStream>()) {}
 
 void PlaybackController::reset_source() {
     // the request may still finish, but its result must not enter the replacement queue
@@ -153,8 +154,9 @@ void PlaybackController::resolve_current() {
     m_audio_error.clear();
     LOG_INFO("[player] resolving {}", track.media.endpoint.video_id);
 
-    m_stream_task = m_workers.enqueue([session = m_session, video = track.media.endpoint.video_id] {
-        return resolve_audio(*session, video);
+    // keep the resolver and its visitor cache alive until this job finishes
+    m_stream_task = m_workers.enqueue([stream = m_media_stream, session = m_session, video = track.media.endpoint.video_id] {
+        return stream->resolve(*session, video);
     });
     m_changed = true;
 }

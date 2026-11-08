@@ -1,7 +1,8 @@
 #include "catalog-results.hpp"
 #include "text.hpp"
 #include "catalog-card.hpp"
-#include "../catalog-browser.hpp"
+#include "../../youtube/catalog-browser.hpp"
+#include "../../utils/media.hpp"
 
 #include <imgui-ui/widgets/context-menu.hpp>
 #include <imgui-ui/layout/virtual-layout.hpp>
@@ -11,6 +12,7 @@
 #include <unordered_map>
 
 using namespace ui;
+using namespace media;
 
 class CatalogTracksWidget final : public VirtualLayout {
 public:
@@ -101,8 +103,8 @@ private:
     std::size_t m_columns = 0;
 };
 
-CatalogResultsWidget::CatalogResultsWidget(std::string title, ThumbnailCache& thumbnails)
-    : Container("catalog-results", StackDirection::Vertical), m_thumbnails(thumbnails) {
+CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails)
+    : Container(std::move(id), StackDirection::Vertical), m_thumbnails(thumbnails) {
     set_type_name("CatalogResultsWidget");
     set_size({grow(), grow()});
     set_spacing(16.0f);
@@ -116,10 +118,6 @@ CatalogResultsWidget::CatalogResultsWidget(std::string title, ThumbnailCache& th
     m_rows->set_size({grow(), grow()});
     m_rows->set_spacing(20.0f);
     m_rows->set_scrollable(true);
-}
-
-void CatalogResultsWidget::set_title(std::string title) {
-    m_title->set_text(std::move(title));
 }
 
 void CatalogResultsWidget::set_actions(CatalogActions actions) {

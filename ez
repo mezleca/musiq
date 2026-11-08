@@ -38,7 +38,7 @@ def run(
     command: str | list[str], check: bool = True, env: Mapping[str, str] | None = None, capture: bool = False
 ) -> tuple[int, str]:
     display = command if isinstance(command, str) else subprocess.list2cmdline(list(command))
-    print(f"exec: {display}")
+    print(f"exec: {display}", flush=True)
     result = subprocess.run(
         command,
         shell=isinstance(command, str),

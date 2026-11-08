@@ -4,7 +4,9 @@
 #include <string>
 #include <utility>
 
-ui::Texture* load_avatar(ui::TextureRegistry& textures, std::string_view id, std::string_view image) {
+using namespace ui;
+
+Texture* load_avatar(TextureRegistry& textures, std::string_view id, std::string_view image) {
     if (image.empty()) {
         return nullptr;
     }

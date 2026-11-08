@@ -1,12 +1,10 @@
 #include "client.hpp"
 #include "session.hpp"
-#include "config.hpp"
+#include "../constants.hpp"
 #include "../http/http-client.hpp"
 
 #include <format>
 #include <utility>
-
-using namespace music_config;
 
 static YoutubeResult<YoutubeResponse> read_response(const cpr::Response& response) {
     if (response.error.code != cpr::ErrorCode::OK) {
@@ -36,7 +34,8 @@ YoutubeResult<MusicAccountsList> YoutubeMusicClient::accounts_list() const {
 YoutubeResult<MusicVisitorData> YoutubeMusicClient::visitor_data() const {
     auto& http = HttpClient::instance();
     auto response = http.get(
-        "https://music.youtube.com/sw.js_data", {{"User-Agent", std::string(client_profile(MusicClient::WebRemix).user_agent)}}
+        "https://music.youtube.com/sw.js_data",
+        {{"User-Agent", std::string(music_client_profile(MusicClient::WebRemix).user_agent)}}
     );
     const auto start = response.text.find('[');
 
@@ -56,14 +55,14 @@ const std::string& YoutubeMusicClient::identity() const {
 
 MusicRequestOptions YoutubeMusicClient::request_options(MusicRequestOptions options) const {
     if (options.auth == MusicAuth::Optional) {
-        options.auth = client_profile(options.client).login_supported && m_session.has_credentials() ? MusicAuth::Required
-                                                                                                     : MusicAuth::Anonymous;
+        options.auth = music_client_profile(options.client).login_supported && m_session.has_credentials() ? MusicAuth::Required
+                                                                                                           : MusicAuth::Anonymous;
     }
     return options;
 }
 
 YoutubeResult<cpr::Header> YoutubeMusicClient::headers(const MusicRequestOptions& options) const {
-    const auto& profile = client_profile(options.client);
+    const auto& profile = music_client_profile(options.client);
     cpr::Header headers;
     if (options.auth == MusicAuth::Required) {
         if (!profile.login_supported) return youtube_error(YoutubeErrorKind::Authentication, "client does not support login");
@@ -74,7 +73,7 @@ YoutubeResult<cpr::Header> YoutubeMusicClient::headers(const MusicRequestOptions
     headers.insert(
         {{"Origin", "https://music.youtube.com"},
          {"X-Origin", "https://music.youtube.com"},
-         {"Referer", std::string(HOME_URL)},
+         {"Referer", std::string(MUSIC_HOME_URL)},
          {"X-YouTube-Client-Name", std::string(profile.id)},
          {"X-YouTube-Client-Version", std::string(profile.version)},
          {"X-Goog-Api-Format-Version", "1"},
@@ -102,6 +101,6 @@ YoutubeResult<YoutubeResponse> YoutubeMusicClient::post(
 
     auto& http = HttpClient::instance();
     return read_response(
-        http.post_json(std::format("{}/{}", API_URL, endpoint), body, std::move(*request_headers), std::move(parameters))
+        http.post_json(std::format("{}/{}", MUSIC_API_URL, endpoint), body, std::move(*request_headers), std::move(parameters))
     );
 }

@@ -1,12 +1,14 @@
 #include "media-cover.hpp"
 #include "spinner.hpp"
 #include "../resources/thumbnails.hpp"
+#include "../../utils/media.hpp"
 
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
 #include <algorithm>
 
 using namespace ui;
+using namespace media;
 
 MediaCoverWidget::MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbnails, float size) : m_thumbnails(thumbnails) {
     set_type_name("MediaCoverWidget");

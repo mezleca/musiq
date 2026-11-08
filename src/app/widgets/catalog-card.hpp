@@ -5,9 +5,6 @@
 struct MusicItem;
 class ThumbnailCache;
 
-bool is_playlist_card(const MusicItem& item);
-std::string media_artist(const MusicItem& item);
-
 class MediaCardWidget final : public MusiqButtonWidget {
 public:
     MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails);

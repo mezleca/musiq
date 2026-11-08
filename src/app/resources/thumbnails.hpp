@@ -3,18 +3,13 @@
 #include <imgui-ui/resources/texture.hpp>
 #include <future>
 #include <memory>
-#include <span>
 #include <string>
 #include <unordered_map>
 
-struct MusicThumbnail;
 class ThreadPool;
 namespace ui {
     class TextureRegistry;
 }
-
-// choose the smallest variant that fills a square in physical pixels, or the largest available
-const MusicThumbnail* select_thumbnail(std::span<const MusicThumbnail> thumbnails, float pixel_size);
 
 struct ThumbnailRequest {
     std::shared_future<std::string> result;

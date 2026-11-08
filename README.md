@@ -21,7 +21,7 @@
 - python >= 3.10, git, cmake >= 3.25, ninja, clang >= 20, clang-format
 
 ### linux
-- boost >= 1.88 (`process`, `hash2`), sqlite3, libmpv, gtk3 and webkit2gtk 4.1, sdl3 >= 3.2
+- sqlite3, libmpv, gtk3, webkit2gtk 4.1, sdl3 >= 3.2, freetype2, curl / OpenSSL
 
 ### windows
 - clang/llvm (clang-cl), meson, pkgconf and nasm

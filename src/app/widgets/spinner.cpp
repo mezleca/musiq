@@ -3,13 +3,15 @@
 #include <cmath>
 #include <numbers>
 
+using namespace ui;
+
 constexpr float pi = std::numbers::pi_v<float>;
 
-SpinnerWidget::SpinnerWidget() : Widget("spinner", "SpinnerWidget", ui::InputMode::None) {
-    set_size({ui::px(24), ui::px(24)});
+SpinnerWidget::SpinnerWidget() : Widget("spinner", "SpinnerWidget", InputMode::None) {
+    set_size({px(24), px(24)});
 }
 
-void SpinnerWidget::paint_content(const ui::PaintContext& context) {
+void SpinnerWidget::paint_content(const PaintContext& context) {
     const float angle = static_cast<float>(std::fmod(ImGui::GetTime(), 0.75) / 0.75) * 2.0f * pi;
     const ImVec2 center = {
         (context.content_rect.min.x + context.content_rect.max.x) * 0.5f,

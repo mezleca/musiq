@@ -26,7 +26,6 @@ cpr::Response HttpClient::request(const HttpRequest& request) const {
     }
     std::string bytes;
     if (request.response_limit != 0) {
-        bytes.reserve(request.response_limit);
         // returning false aborts the transfer once the body exceeds response_limit
         session.SetWriteCallback(cpr::WriteCallback{[&bytes, limit = request.response_limit](std::string_view data, intptr_t) {
             if (data.size() > limit - bytes.size()) return false;

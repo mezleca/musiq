@@ -44,13 +44,7 @@ static std::string sapisid_hash(std::string_view sapisid, int64_t timestamp) {
     const auto input = std::format("{} {} https://music.youtube.com", timestamp, sapisid);
     boost::hash2::sha1_160 sha1;
     sha1.update(input.data(), input.size());
-    const auto digest = sha1.result();
-    std::string hash;
-    hash.reserve(digest.size() * 2);
-    for (const auto byte : digest) {
-        hash += std::format("{:02x}", byte);
-    }
-    return std::format("SAPISIDHASH {}_{}", timestamp, hash);
+    return std::format("SAPISIDHASH {}_{}", timestamp, boost::hash2::to_string(sha1.result()));
 }
 
 bool YoutubeMusicSession::has_session_cookie(std::string_view cookies) {
@@ -131,8 +125,7 @@ bool YoutubeMusicSession::select_identity(std::string_view identity) {
     user.avatar_url = response->avatar_url;
 
     if (!user.avatar_url.empty()) {
-        auto& http = HttpClient::instance();
-        auto avatar = http.get(user.avatar_url);
+        auto avatar = HttpClient::instance().get(user.avatar_url);
         if (HttpClient::successful(avatar)) {
             user.avatar_data = std::move(avatar.text);
         }

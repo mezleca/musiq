@@ -20,15 +20,14 @@ void to_json(json& data, const MusicBrowseRequest& value) {
     if (!value.params.empty()) data["params"] = value.params;
 }
 
-static bool append_catalog_item(const json& entry, std::vector<MusicItem>& items) {
+static void append_catalog_item(const json& entry, std::vector<MusicItem>& items) {
     for (const auto key : {"musicResponsiveListItemRenderer", "musicTwoRowItemRenderer"}) {
         const auto item = entry.find(key);
         if (item != entry.end()) {
             items.push_back(item->get<MusicItem>());
-            return true;
+            return;
         }
     }
-    return false;
 }
 
 static std::vector<MusicItem> catalog_items(const json& contents) {

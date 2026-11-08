@@ -7,14 +7,14 @@
 #include "overlays/loading.hpp"
 #include "overlays/settings.hpp"
 #include "overlays/channel-picker.hpp"
-#include "overlays/catalog.hpp"
 #include "widgets/user-profile.hpp"
 #include "widgets/search-bar.hpp"
 #include "widgets/button.hpp"
 #include "widgets/catalog-results.hpp"
 #include "widgets/catalog-card.hpp"
 #include "resources/avatar.hpp"
-#include "../youtube/config.hpp"
+#include "../utils/media.hpp"
+#include "../constants.hpp"
 #include "../database/settings.hpp"
 #include "../utils/future.hpp"
 #include "../utils/json.hpp"
@@ -33,6 +33,7 @@
 #include <utility>
 
 using namespace ui;
+using namespace media;
 
 MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     : m_catalog(m_workers), m_thumbnails(m_workers), m_playback(m_workers, m_player),
@@ -44,10 +45,13 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
           }
       ),
       m_surface(
-          m_runtime,
-          SurfaceConfig{
-              .backend = std::make_unique<SdlBackend>(window, context), .enable_debugger = true, .file_dialog_backend = nullptr
-          }
+          m_runtime, SurfaceConfig{
+                         .backend = std::make_unique<SdlBackend>(window, context),
+#ifndef NDEBUG
+                         .enable_debugger = true,
+#endif
+                         .file_dialog_backend = nullptr
+                     }
       ) {
     m_surface.set_theme(musiq_theme());
     auto* font = m_runtime.fonts().add("Manrope Regular", "resources/fonts/manrope-regular.ttf");
@@ -66,9 +70,11 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     build_player();
 
     m_loading = &m_surface.root().add<LoadingOverlay>();
-    m_channel_picker = &m_surface.root().add<ChannelPickerOverlay>([this](std::string identity) {
+    m_channel_picker = &m_surface.root().add<ChannelPickerOverlay>(*m_profile, [this](std::string identity) {
         authenticate(m_session_token, std::move(identity));
     });
+
+    m_shortcuts.bind(ImGuiKey_F5, [this] { refresh_page(); });
 }
 
 void MusiqApp::build_navigation(Container& content) {
@@ -107,8 +113,8 @@ void MusiqApp::build_pages(Container& content) {
     m_pages = &content.add<Container>("pages", StackDirection::Vertical);
     m_pages->set_size({grow(), grow()});
 
-    m_home = &m_pages->add<CatalogOverlay>("home", "Home", m_thumbnails);
-    m_home->results().set_actions(catalog_actions());
+    m_home = &m_pages->add<CatalogResultsWidget>("home", "Home", m_thumbnails);
+    m_home->set_actions(catalog_actions());
     m_current_page = m_home;
 
     m_settings_overlay = &m_pages->add<SettingsOverlay>(
@@ -142,12 +148,12 @@ std::string MusiqApp::open_sign_in() {
         bool reading = false;
 
         auto window = WebView::create("Sign in");
-        window->run(music_config::LOGIN_URL, [&] {
-            if (reading || !token.empty() || !window->url().starts_with(music_config::HOME_URL)) {
+        window->run(MUSIC_LOGIN_URL, [&] {
+            if (reading || !token.empty() || !window->url().starts_with(MUSIC_HOME_URL)) {
                 return;
             }
             reading = true;
-            window->cookies(music_config::HOME_URL, [&](std::string cookies) {
+            window->cookies(MUSIC_HOME_URL, [&](std::string cookies) {
                 reading = false;
                 if (!YoutubeMusicSession::has_session_cookie(cookies)) {
                     return;
@@ -257,6 +263,7 @@ void MusiqApp::cancel_channel_selection() {
 }
 
 void MusiqApp::update_session() {
+    if (m_channel_picker->take_dismissed() && !m_session.valid()) cancel_channel_selection();
     if (!future_ready(m_session)) return;
 
     auto& settings = MusiqSettings::instance();
@@ -321,21 +328,21 @@ void MusiqApp::show_page() {
     m_search_bar->set_query(route.page == "search" ? route.query : std::string{});
     m_catalog.suggest({});
 
-    ui::Container* next = nullptr;
+    Container* next = nullptr;
     if (route.page == "home") {
         m_catalog.home();
-        m_home->results().show(m_catalog.home_state());
+        m_home->show(m_catalog.home_state());
         next = m_home;
     } else if (route.page == "search") {
         m_catalog.search(route.query);
         auto [entry, created] = m_searches.try_emplace(route.query, nullptr);
         if (created) {
             const auto title = route.query.empty() ? "Search" : "Results for: " + route.query;
-            entry->second = &m_pages->add<CatalogOverlay>("search-" + route.query, title, m_thumbnails);
-            entry->second->results().set_actions(catalog_actions());
+            entry->second = &m_pages->add<CatalogResultsWidget>("search-" + route.query, title, m_thumbnails);
+            entry->second->set_actions(catalog_actions());
         }
 
-        entry->second->results().show(m_catalog.search_state());
+        entry->second->show(m_catalog.search_state());
         next = entry->second;
     } else if (route.page == "playlist") {
         auto* view = m_playlists.at(route.query);
@@ -374,10 +381,10 @@ void MusiqApp::refresh_page() {
 void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
 
-    if (changed.home) m_home->results().show(m_catalog.home_state());
+    if (changed.home) m_home->show(m_catalog.home_state());
     if (!changed.search.empty()) {
         const auto view = m_searches.find(changed.search);
-        if (view != m_searches.end()) view->second->results().show(m_catalog.search_state(changed.search));
+        if (view != m_searches.end()) view->second->show(m_catalog.search_state(changed.search));
     }
     if (changed.suggestions) m_search_bar->set_suggestions(m_catalog.suggestions());
 }
@@ -423,9 +430,15 @@ void MusiqApp::update_playback() {
     }
 }
 
+void MusiqApp::update_shortcuts() {
+    if (m_loading->visible() || m_channel_picker->native_popup_open() || m_queue_overlay->visible()) return;
+    m_shortcuts.update();
+}
+
 void MusiqApp::initialize() {
     auto& settings = MusiqSettings::instance();
     auto token = settings.token();
+
     if (!token.empty()) {
         const auto saved = json::parse(token, nullptr, false);
         if (saved.is_object() && saved.contains("cookies")) {
@@ -438,7 +451,7 @@ void MusiqApp::initialize() {
     if (m_session.valid()) {
         CatalogPageState waiting;
         waiting.loading = true;
-        m_home->results().show(waiting);
+        m_home->show(waiting);
     } else {
         navigate("home");
     }
@@ -448,21 +461,15 @@ void MusiqApp::initialize() {
         update_session();
 
         m_surface.begin_frame();
-        const auto profile = m_profile->layout().visual_rect();
-        m_channel_picker->set_popup_position({profile.max.x - 320.0f, profile.max.y + 4.0f});
-        if (ImGui::IsKeyPressed(ImGuiKey_F5, false) && !m_loading->visible() && !m_channel_picker->native_popup_open() &&
-            !m_queue_overlay->visible()) {
-            refresh_page();
-        }
+        {
+            update_shortcuts();
+            update_catalog();
+            update_playback();
 
-        update_catalog();
-        update_playback();
-        m_surface.update(ImGui::GetIO().DeltaTime);
-        m_surface.draw();
-        m_thumbnails.collect();
-        if (m_channel_picker->visible() && !m_channel_picker->native_popup_open()) {
-            m_channel_picker->set_visible(false);
-            if (!m_session.valid()) cancel_channel_selection();
+            m_surface.update(ImGui::GetIO().DeltaTime);
+            m_surface.draw();
+
+            m_thumbnails.collect();
         }
         m_surface.end_frame();
     }

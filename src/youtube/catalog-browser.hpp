@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../youtube/session.hpp"
-#include "../youtube/schema/catalog.hpp"
-#include "../youtube/error.hpp"
+#include "session.hpp"
+#include "schema/catalog.hpp"
+#include "error.hpp"
 #include "../utils/debounce.hpp"
 
 #include <chrono>
@@ -63,7 +63,6 @@ private:
     MusicSuggestions m_suggestions;
     std::future<YoutubeResult<MusicPage>> m_page_task;
     std::future<YoutubeResult<MusicSuggestions>> m_suggestions_task;
-    // the front stays queued until its request finishes
     std::deque<std::string> m_pages;
     std::string m_suggestion_query;
     std::string m_running_suggestion;

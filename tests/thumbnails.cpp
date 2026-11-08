@@ -1,8 +1,11 @@
 #include "../src/app/resources/thumbnails.hpp"
+#include "../src/utils/media.hpp"
 #include "../src/youtube/schema/common.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <vector>
+
+using namespace media;
 
 TEST_CASE("covers choose the smallest variant that fills their physical size", "[thumbnails]") {
     const std::vector<MusicThumbnail> sources{{"large", 544, 544}, {"small", 60, 60}, {"medium", 120, 120}, {"card", 226, 226}};

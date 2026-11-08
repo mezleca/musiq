@@ -1,4 +1,5 @@
 #include "player-bar.hpp"
+#include "../../utils/media.hpp"
 #include "../widgets/catalog-card.hpp"
 #include "../widgets/text.hpp"
 #include "../widgets/media-cover.hpp"
@@ -15,6 +16,7 @@
 #include <cmath>
 
 using namespace ui;
+using namespace media;
 
 static std::string playback_time(double seconds) {
     const auto total = static_cast<int>(std::max(0.0, seconds));

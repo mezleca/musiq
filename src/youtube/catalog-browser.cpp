@@ -1,6 +1,6 @@
 #include "catalog-browser.hpp"
-#include "../youtube/catalog.hpp"
-#include "../youtube/client.hpp"
+#include "catalog.hpp"
+#include "client.hpp"
 #include "../utils/future.hpp"
 #include "../utils/log.hpp"
 #include "../utils/thread-pool.hpp"

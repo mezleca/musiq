@@ -83,21 +83,17 @@ void QueueOverlay::refresh() {
     // rows stay mapped by entry id, so a removal only drops the matching card
     if (queue.revision() != m_revision) {
         m_revision = queue.revision();
-        for (auto row = m_rows.begin(); row != m_rows.end();) {
-            const bool present = std::ranges::find(entries, row->first, &QueueEntry::id) != entries.end();
-            if (present) {
-                ++row;
-                continue;
+        std::erase_if(m_rows, [&](const auto& row) {
+            if (std::ranges::find(entries, row.first, &QueueEntry::id) != entries.end()) {
+                row.second->set_selected(current->id == row.first);
+                return false;
             }
 
-            m_tracks->remove(*row->second);
-            row = m_rows.erase(row);
-        }
+            m_tracks->remove(*row.second);
+            return true;
+        });
 
         m_tracks->set_items(entries.size());
-        for (const auto& [id, row] : m_rows) {
-            row->set_selected(current && current->id == id);
-        }
     }
 
     std::string status;
@@ -105,10 +101,10 @@ void QueueOverlay::refresh() {
         status = m_playback.error();
     } else if (m_playback.loading()) {
         status = "Loading tracks...";
-    } else if (queue.entries().empty()) {
+    } else if (entries.empty()) {
         status = "The queue is empty.";
     } else {
-        status = std::format("{} tracks", queue.entries().size());
+        status = std::format("{} tracks", entries.size());
     }
     m_status->set_text(std::move(status));
 

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "../youtube/session.hpp"
-#include "catalog-browser.hpp"
+#include "../youtube/catalog-browser.hpp"
 #include "page-history.hpp"
+#include "shortcuts.hpp"
 #include "resources/thumbnails.hpp"
 #include "../playback/controller.hpp"
 #include "../playback/mpv-player.hpp"
@@ -18,7 +19,7 @@ class SideBarOverlay;
 class LoadingOverlay;
 class SettingsOverlay;
 class ChannelPickerOverlay;
-class CatalogOverlay;
+class CatalogResultsWidget;
 class SearchBarWidget;
 class MusiqButtonWidget;
 class PlayerBarOverlay;
@@ -49,6 +50,7 @@ private:
     void authenticate(std::string token, std::string identity = {});
     void cancel_channel_selection();
     void update_session();
+    void update_shortcuts();
     void update_profile();
     void navigate(std::string_view page);
     void show_page();
@@ -67,10 +69,11 @@ private:
     ChannelPickerOverlay* m_channel_picker = nullptr;
     std::string m_session_token;
     PageHistory m_history;
+    AppShortcuts m_shortcuts;
     ThreadPool m_workers;
     CatalogBrowser m_catalog;
-    CatalogOverlay* m_home = nullptr;
-    std::unordered_map<std::string, CatalogOverlay*> m_searches;
+    CatalogResultsWidget* m_home = nullptr;
+    std::unordered_map<std::string, CatalogResultsWidget*> m_searches;
     std::unordered_map<std::string, PlaylistOverlay*> m_playlists;
     ui::Container* m_pages = nullptr;
     ui::Container* m_current_page = nullptr;

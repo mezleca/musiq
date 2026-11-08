@@ -18,8 +18,7 @@ struct CatalogActions {
 
 class CatalogResultsWidget final : public ui::Container {
 public:
-    CatalogResultsWidget(std::string title, ThumbnailCache& thumbnails);
-    void set_title(std::string title);
+    CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails);
     void show(const CatalogPageState& state);
     void set_actions(CatalogActions actions);
 

@@ -7,8 +7,8 @@
 
 using namespace ui;
 
-ChannelPickerOverlay::ChannelPickerOverlay(std::function<void(std::string)> select)
-    : LayerContainer("channel-picker", LayerMode::Popup), m_select(std::move(select)) {
+ChannelPickerOverlay::ChannelPickerOverlay(Node& anchor, std::function<void(std::string)> select)
+    : LayerContainer("channel-picker", LayerMode::Popup), m_anchor(anchor), m_select(std::move(select)) {
     set_type_name("ChannelPickerOverlay");
     set_size({px(320), fit()});
     set_spacing(8.0f);
@@ -36,8 +36,23 @@ void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bo
     }
 
     m_status->set_visible(failed);
+    m_dismissed = false;
     set_visible(true);
     open_popup();
+}
+
+bool ChannelPickerOverlay::take_dismissed() {
+    return std::exchange(m_dismissed, false);
+}
+
+bool ChannelPickerOverlay::paint() {
+    const auto anchor = m_anchor.layout().visual_rect();
+    set_popup_position({anchor.max.x - layout().size().x, anchor.max.y + 4.0f});
+    if (LayerContainer::paint()) return true;
+
+    set_visible(false);
+    m_dismissed = true;
+    return false;
 }
 
 void ChannelPickerOverlay::apply_theme_defaults(const Theme& theme) {

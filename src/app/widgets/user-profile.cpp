@@ -70,7 +70,7 @@ UserProfileWidget::UserProfileWidget(std::function<void()> sign_in, std::functio
     m_account->on_event(EventType::Click, [choose_account = std::move(choose_account)](UiEvent&) { choose_account(); });
 }
 
-void UserProfileWidget::apply_theme_defaults(const ui::Theme& theme) {
+void UserProfileWidget::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
     TransitionSpec transition(0.10f);
 

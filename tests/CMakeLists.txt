@@ -16,8 +16,8 @@ add_executable(tests
     ../src/playback/queue.cpp
     ../src/utils/thread-pool.cpp
     ../src/app/resources/thumbnails.cpp
+    ../src/utils/media.cpp
     ../src/youtube/schema/account.cpp
-    ../src/youtube/config.cpp
     ../src/youtube/schema/common.cpp
     ../src/youtube/schema/request.cpp
     ../src/youtube/schema/player.cpp

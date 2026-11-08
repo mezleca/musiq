@@ -3,8 +3,10 @@
 #include <algorithm>
 
 ThreadPool::ThreadPool() {
-    // worker 0 serves foreground requests first, the others fall back to background artwork when the request queue is empty
+    // worker 0 serves foreground requests first
+    // the others fall back to background artwork when the request queue is empty
     const auto count = std::clamp(std::thread::hardware_concurrency(), 1u, 4u);
+
     for (unsigned index = 0; index < count; ++index) {
         const bool background = count == 1 || index != 0;
         m_workers.emplace_back([this, background](std::stop_token stop) {

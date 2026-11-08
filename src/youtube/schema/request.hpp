@@ -9,6 +9,20 @@ enum class MusicClient {
     VisionOs
 };
 
+struct MusicClientProfile {
+    std::string_view name;
+    std::string_view id;
+    std::string_view version;
+    std::string_view user_agent;
+    bool login_supported;
+    std::string_view os_name;
+    std::string_view os_version;
+    std::string_view device_make;
+    std::string_view device_model;
+};
+
+const MusicClientProfile& music_client_profile(MusicClient client);
+
 enum class MusicAuth {
     Anonymous,
     Optional,

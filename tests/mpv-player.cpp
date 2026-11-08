@@ -2,6 +2,7 @@
 #include "../src/playback/controller.hpp"
 #include "../src/utils/thread-pool.hpp"
 #include "../src/youtube/stream.hpp"
+#include "../src/youtube/schema/player.hpp"
 #include "../src/youtube/session.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -92,7 +93,7 @@ TEST_CASE("audio selection ignores DRM ciphered streams and alternate languages"
     cipher.url.clear();
     cipher.signature_cipher = "s=signature";
     data.adaptive_formats = {dubbed, drm, cipher, original};
-    REQUIRE(select_audio_format(data) == &data.adaptive_formats.back());
+    REQUIRE(YoutubeMediaStream::select_audio_format(data) == &data.adaptive_formats.back());
     data.adaptive_formats.pop_back();
-    REQUIRE(select_audio_format(data) == nullptr);
+    REQUIRE(YoutubeMediaStream::select_audio_format(data) == nullptr);
 }

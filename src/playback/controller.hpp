@@ -11,6 +11,7 @@
 
 class ThreadPool;
 class MpvPlayer;
+class YoutubeMediaStream;
 
 struct PlaybackPage {
     std::vector<MusicItem> tracks;
@@ -68,6 +69,7 @@ private:
     ThreadPool& m_workers;
     MpvPlayer& m_player;
     std::shared_ptr<const YoutubeMusicSession> m_session;
+    std::shared_ptr<YoutubeMediaStream> m_media_stream;
     PlaybackQueue m_queue;
     std::future<YoutubeResult<PlaybackPage>> m_task;
     std::optional<MusicContinuation> m_continuation;

@@ -1,3 +1,8 @@
+# Unreleased
+
+- Fix cursor flicking on disabled items
+- Disable UI debugger on release builds
+
 # v0.1.1
 
 - Fix appimage packaging
