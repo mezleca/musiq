@@ -8,8 +8,6 @@
 #include <exception>
 
 int main() {
-    LOG_INFO("[app] starting musiq");
-
     SDL_SetHint(SDL_HINT_APP_ID, "org.mezleca.musiq");
 #if defined(__linux__)
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
@@ -65,10 +63,11 @@ int main() {
         return 1;
     }
 
+    LOG_INFO("[app] stopped");
+
     SDL_GL_DestroyContext(context);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
-    LOG_INFO("[app] stopped");
     return 0;
 }

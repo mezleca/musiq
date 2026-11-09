@@ -122,8 +122,9 @@ void PlaybackController::collect_page() {
             return;
         }
 
+        // recommendations extend the queue without changing the album or playlist that started it
         for (auto& track : page->tracks) {
-            if (is_playable(track)) m_queue.append(std::move(track), !m_radio);
+            if (is_playable(track)) m_queue.append(std::move(track), true);
         }
         m_continuation = std::move(page->continuation);
         LOG_INFO("[queue] loaded page (entries={})", m_queue.entries().size());

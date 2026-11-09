@@ -1,41 +1,16 @@
-add_executable(tests
-    youtube-account.cpp
-    youtube-api.cpp
-    youtube-playlists.cpp
-    utils.cpp
-    thumbnails.cpp
-    playback.cpp
-    mpv-player.cpp
-    ../src/playback/mpv-player.cpp
-    ../src/playback/controller.cpp
-    ../src/playback/audio-stream.cpp
-    ../src/youtube/stream.cpp
-    ../src/youtube/yt-dlp.cpp
-    ../src/youtube/dlp-manager.cpp
-    ../src/utils/system.cpp
-    ../src/utils/path.cpp
-    ../src/utils/random.cpp
-    ../src/playback/queue.cpp
-    ../src/utils/thread-pool.cpp
-    ../src/utils/log.cpp
-    ../src/app/resources/thumbnails.cpp
-    ../src/utils/media.cpp
-    ../src/youtube/schema/account.cpp
-    ../src/youtube/schema/common.cpp
-    ../src/youtube/schema/request.cpp
-    ../src/youtube/schema/player.cpp
-    ../src/youtube/schema/catalog.cpp
-    ../src/youtube/schema/queue.cpp
-    ../src/youtube/schema/continuation.cpp
-    ../src/youtube/schema/playlist.cpp
-    ../src/youtube/client.cpp
-    ../src/youtube/catalog.cpp
-    ../src/youtube/queue.cpp
-    ../src/youtube/playlists.cpp
-    ../src/youtube/session.cpp
-    ../src/youtube/error.cpp
-    ../src/http/http-client.cpp
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+    "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
+list(FILTER TEST_SOURCES EXCLUDE REGEX "/src/main\\.cpp$|/webview/(linux|windows)/")
+
+if(WIN32)
+    list(APPEND TEST_SOURCES "${PROJECT_SOURCE_DIR}/src/webview/windows/impl.cpp")
+else()
+    list(APPEND TEST_SOURCES "${PROJECT_SOURCE_DIR}/src/webview/linux/impl.cpp")
+endif()
+
+add_executable(tests ${TEST_SOURCES})
 
 target_link_libraries(tests PRIVATE
     nlohmann_json
@@ -46,12 +21,27 @@ target_link_libraries(tests PRIVATE
     mpv::mpv
     miniz
     imgui-ui::sdl
+    OpenGL::GL
+    webview::core
+    sqlite_orm::sqlite_orm
 )
 
 target_compile_definitions(tests PRIVATE
     MUSIQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
     MUSIQ_INSTALLED_RESOURCE_ROOT="${MUSIQ_INSTALLED_RESOURCE_ROOT}"
 )
+
+if(MSVC)
+    target_compile_options(tests PRIVATE /utf-8 /Zc:preprocessor)
+    target_compile_definitions(tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
+if(WIN32)
+    add_custom_command(TARGET tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:tests> $<TARGET_FILE_DIR:tests>
+        COMMAND_EXPAND_LISTS VERBATIM)
+endif()
 
 catch_discover_tests(tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:tests>"

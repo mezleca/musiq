@@ -137,10 +137,8 @@ jobs:
             - name: install packaging and build tools
               shell: pwsh
               run: |
-                  choco install innosetup nasm pkgconfiglite --no-progress -y
-                  python -m pip install meson
+                  choco install innosetup --no-progress -y
                   "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
-                  "C:\Program Files\NASM" >> $env:GITHUB_PATH
 
             - name: package installer and zip
               run: python ./ez package
