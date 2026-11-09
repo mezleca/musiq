@@ -10,7 +10,7 @@ static YoutubeResult<YoutubeResponse> read_response(const cpr::Response& respons
     if (response.error.code != cpr::ErrorCode::OK) {
         return youtube_transport_error(response.status_code, static_cast<int>(response.error.code));
     }
-    if (!HttpClient::successful(response)) {
+    if (!http::successful(response)) {
         return youtube_error(YoutubeErrorKind::Http, "HTTP request failed", response.status_code);
     }
 
@@ -32,8 +32,7 @@ YoutubeResult<MusicAccountsList> YoutubeMusicClient::accounts_list() const {
 }
 
 YoutubeResult<MusicVisitorData> YoutubeMusicClient::visitor_data() const {
-    auto& http = HttpClient::instance();
-    auto response = http.get(
+    auto response = http::get(
         "https://music.youtube.com/sw.js_data",
         {{"User-Agent", std::string(music_client_profile(MusicClient::WebRemix).user_agent)}}
     );
@@ -99,8 +98,7 @@ YoutubeResult<YoutubeResponse> YoutubeMusicClient::post(
     body["context"] = MusicRequestContext{resolved.client, resolved.visitor_data, identity};
     parameters.Add({"prettyPrint", "false"});
 
-    auto& http = HttpClient::instance();
     return read_response(
-        http.post_json(std::format("{}/{}", MUSIC_API_URL, endpoint), body, std::move(*request_headers), std::move(parameters))
+        http::post_json(std::format("{}/{}", MUSIC_API_URL, endpoint), body, std::move(*request_headers), std::move(parameters))
     );
 }

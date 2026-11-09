@@ -82,9 +82,88 @@ jobs:
               if: always()
               run: sccache --show-stats
 
+    build-arch:
+        needs: prepare
+        runs-on: ubuntu-latest
+        container: archlinux:base-devel
+
+        steps:
+            - name: install system dependencies
+              run: |
+                  pacman -Syu --noconfirm --needed \
+                      git python cmake ninja clang lld pkgconf boost nlohmann-json miniz \
+                      mpv webkit2gtk-4.1 sqlite openssl curl mesa sdl3 freetype2 fontconfig libdecor
+
+            - name: install nfpm
+              run: |
+                  curl -fL https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_Linux_x86_64.tar.gz \
+                      -o /tmp/nfpm.tar.gz
+                  tar -xzf /tmp/nfpm.tar.gz -C /usr/local/bin nfpm
+
+            - name: checkout
+              uses: actions/checkout@v7
+
+            - name: setup sccache
+              uses: mozilla-actions/sccache-action@v0.0.10
+
+            - name: package arch
+              run: python3 ./ez package --type arch
+
+            - name: upload arch artifact
+              uses: actions/upload-artifact@v7
+              with:
+                  name: arch-bundle
+                  path: dist/musiq-*.pkg.tar.zst
+                  if-no-files-found: error
+
+            - name: sccache stats
+              if: always()
+              run: sccache --show-stats
+
+    build-windows:
+        needs: prepare
+        runs-on: windows-latest
+
+        steps:
+            - name: checkout
+              uses: actions/checkout@v7
+
+            - name: setup MSVC environment
+              uses: ilammy/msvc-dev-cmd@v1
+
+            - name: setup sccache
+              uses: mozilla-actions/sccache-action@v0.0.10
+
+            - name: install packaging and build tools
+              shell: pwsh
+              run: |
+                  choco install innosetup nasm pkgconfiglite --no-progress -y
+                  python -m pip install meson
+                  "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+                  "C:\Program Files\NASM" >> $env:GITHUB_PATH
+
+            - name: package installer and zip
+              run: python ./ez package
+              env:
+                  CC: clang-cl
+                  CXX: clang-cl
+
+            - name: upload windows packages
+              uses: actions/upload-artifact@v7
+              with:
+                  name: windows-bundle
+                  path: |
+                      dist/musiq-*.exe
+                      dist/musiq-*.zip
+                  if-no-files-found: error
+
+            - name: sccache stats
+              if: always()
+              run: sccache --show-stats
+
     release:
         if: ${{ always() && inputs.mode == 'release' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
-        needs: [prepare, build-appimage]
+        needs: [prepare, build-appimage, build-arch, build-windows]
         runs-on: ubuntu-latest
         permissions:
             contents: write

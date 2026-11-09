@@ -63,10 +63,6 @@ void from_json(const json& data, MusicIdentity& value) {
     value = std::move(identity);
 }
 
-void to_json(json& data, const MusicIdentity& value) {
-    data = {{"name", value.name}, {"handle", value.handle}, {"data_sync_id", value.data_sync_id}};
-}
-
 void from_json(const json& data, MusicAccountMenu& value) {
     const auto& header = menu_renderer(data).at("header").at("activeAccountHeaderRenderer");
     MusicAccountMenu account;
@@ -87,16 +83,6 @@ void from_json(const json& data, MusicAccountMenu& value) {
     if (account.name.empty()) throw std::invalid_argument("empty account name");
 
     value = std::move(account);
-}
-
-void to_json(json& data, const MusicAccountMenu& value) {
-    data = {
-        {"name", value.name},
-        {"handle", value.handle},
-        {"avatar_url", value.avatar_url},
-        {"data_sync_id", value.data_sync_id},
-        {"data_sync_token", value.data_sync_token}
-    };
 }
 
 static void append_account_group(const json& group, std::string_view selected_id, std::vector<MusicIdentity>& identities) {
@@ -135,8 +121,4 @@ void from_json(const json& data, MusicAccountsList& value) {
 
     if (!found_section) throw std::invalid_argument("missing account list");
     value = std::move(accounts);
-}
-
-void to_json(json& data, const MusicAccountsList& value) {
-    data = {{"identities", value.identities}};
 }

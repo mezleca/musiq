@@ -1,5 +1,6 @@
 #include "thumbnails.hpp"
 #include "../../utils/media.hpp"
+#include "../../utils/path.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/future.hpp"
 #include "../../utils/thread-pool.hpp"
@@ -9,7 +10,7 @@
 #include <utility>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 ThumbnailCache::ThumbnailCache(ThreadPool& workers) : m_workers(workers) {}
 
@@ -21,6 +22,7 @@ std::shared_ptr<ThumbnailRequest> ThumbnailCache::request(const std::string& url
     entry = pending;
     auto task = m_workers.enqueue(
         [url, interest = std::weak_ptr(pending)] {
+            // skip queued downloads after every visible cover has released the request
             const auto active = interest.lock();
             if (!active) return std::string{};
             return fetch_thumbnail(url);
@@ -55,7 +57,7 @@ ThumbnailCache::resolve(TextureRegistry& textures, const std::string& url, std::
         if (image) return image;
     }
 
-    return textures.acquire("missing-artwork", std::filesystem::path("resources/icons/missing.svg"));
+    return textures.acquire("missing-artwork", utils::path::from_resources("icons/missing.svg"));
 }
 
 void ThumbnailCache::collect() {

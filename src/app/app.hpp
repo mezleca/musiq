@@ -3,8 +3,18 @@
 #include "../youtube/session.hpp"
 #include "../youtube/catalog-browser.hpp"
 #include "page-history.hpp"
-#include "shortcuts.hpp"
 #include "resources/thumbnails.hpp"
+#include "overlays/channel-picker.hpp"
+#include "overlays/loading.hpp"
+#include "overlays/player-bar.hpp"
+#include "overlays/playlist.hpp"
+#include "overlays/queue.hpp"
+#include "overlays/settings.hpp"
+#include "overlays/sidebar.hpp"
+#include "widgets/button.hpp"
+#include "widgets/catalog-results.hpp"
+#include "widgets/search-bar.hpp"
+#include "widgets/user-profile.hpp"
 #include "../playback/controller.hpp"
 #include "../playback/mpv-player.hpp"
 #include "../utils/thread-pool.hpp"
@@ -13,24 +23,8 @@
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
 #include <future>
+#include <string_view>
 #include <unordered_map>
-
-class SideBarOverlay;
-class LoadingOverlay;
-class SettingsOverlay;
-class ChannelPickerOverlay;
-class CatalogResultsWidget;
-class SearchBarWidget;
-class MusiqButtonWidget;
-class PlayerBarOverlay;
-class QueueOverlay;
-class PlaylistOverlay;
-class UserProfileWidget;
-struct CatalogActions;
-
-namespace ui {
-    class Container;
-}
 
 class MusiqApp {
 public:
@@ -69,7 +63,6 @@ private:
     ChannelPickerOverlay* m_channel_picker = nullptr;
     std::string m_session_token;
     PageHistory m_history;
-    AppShortcuts m_shortcuts;
     ThreadPool m_workers;
     CatalogBrowser m_catalog;
     CatalogResultsWidget* m_home = nullptr;

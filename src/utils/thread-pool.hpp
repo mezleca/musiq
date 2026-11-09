@@ -3,7 +3,6 @@
 #include <condition_variable>
 #include <functional>
 #include <future>
-#include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -18,19 +17,18 @@ enum class TaskPriority {
 
 class ThreadPool {
 public:
-    // up to four workers drain two queues, destruction stops intake, drains queued jobs and joins
     ThreadPool();
 
     template <typename F>
     auto enqueue(F&& callback, TaskPriority priority = TaskPriority::Foreground) -> std::future<std::invoke_result_t<F>> {
         using Result = std::invoke_result_t<F>;
-        auto task = std::make_shared<std::packaged_task<Result()>>(std::forward<F>(callback));
-        auto result = task->get_future();
+        std::packaged_task<Result()> task(std::forward<F>(callback));
+        auto result = task.get_future();
 
         {
             std::lock_guard lock(m_mutex);
             auto& tasks = priority == TaskPriority::Foreground ? m_tasks : m_background;
-            tasks.emplace([task] { (*task)(); });
+            tasks.emplace([task = std::move(task)]() mutable { task(); });
         }
 
         m_ready.notify_all();
@@ -40,7 +38,7 @@ public:
 private:
     std::mutex m_mutex;
     std::condition_variable_any m_ready;
-    std::queue<std::function<void()>> m_tasks;
-    std::queue<std::function<void()>> m_background;
+    std::queue<std::move_only_function<void()>> m_tasks;
+    std::queue<std::move_only_function<void()>> m_background;
     std::vector<std::jthread> m_workers;
 };

@@ -9,10 +9,10 @@
 
 #include <algorithm>
 #include <utility>
-#include <unordered_map>
+#include <vector>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 class CatalogTracksWidget final : public VirtualLayout {
 public:
@@ -20,14 +20,13 @@ public:
         std::shared_ptr<const MusicPage> page, std::size_t shelf, std::size_t first, std::size_t count,
         ThumbnailCache& thumbnails, CatalogActions actions
     )
-        : VirtualLayout("tracks", 64.0f), m_actions(std::move(actions)) {
+        : VirtualLayout("tracks", 64.0f), m_actions(std::move(actions)), m_rows(count) {
         set_size({grow(), fit()});
         set_spacing(8.0f);
 
         // keep the page alive while cards and their callbacks reference its items
         set_items(count, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            auto [entry, created] = m_rows.try_emplace(index, nullptr);
-            if (!created) return *entry->second;
+            if (m_rows[index]) return *m_rows[index];
 
             const auto* item = &page->shelves[shelf].items[first + index];
             auto& card = add<MediaCardWidget>(*item, thumbnails);
@@ -42,14 +41,14 @@ public:
                 menu.open_at(event.position);
                 event.stop_propagation();
             });
-            entry->second = &card;
+            m_rows[index] = &card;
             return card;
         });
     }
 
 private:
     CatalogActions m_actions;
-    std::unordered_map<std::size_t, MediaCardWidget*> m_rows;
+    std::vector<MediaCardWidget*> m_rows;
 };
 
 class PlaylistGridWidget final : public VirtualLayout {
@@ -63,8 +62,7 @@ public:
         set_spacing(16.0f);
 
         set_items(0, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            auto [entry, created] = m_rows.try_emplace(index, nullptr);
-            if (!created) return *entry->second;
+            if (m_rows[index]) return *m_rows[index];
 
             auto& row = add<Container>("", StackDirection::Horizontal);
             row.set_size({grow(), fit()});
@@ -76,7 +74,7 @@ public:
                 auto& card = row.add<PlaylistCardWidget>(*item, thumbnails);
                 card.on_click([this, item] { m_play(*item); });
             }
-            entry->second = &row;
+            m_rows[index] = &row;
             return row;
         });
     }
@@ -91,14 +89,14 @@ protected:
         if (columns == m_columns) return;
 
         m_columns = columns;
-        m_rows.clear();
+        m_rows.assign((m_count + columns - 1) / columns, nullptr);
         clear();
-        set_items((m_count + columns - 1) / columns);
+        set_items(m_rows.size());
     }
 
 private:
     std::function<void(MusicItem)> m_play;
-    std::unordered_map<std::size_t, Container*> m_rows;
+    std::vector<Container*> m_rows;
     std::size_t m_count;
     std::size_t m_columns = 0;
 };
@@ -159,6 +157,7 @@ void CatalogResultsWidget::rebuild() {
         section.set_spacing(8.0f);
         if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, true);
 
+        // preserve shelf order while laying out playlist runs as grids and track runs as lists
         for (std::size_t first = 0; first < shelf.items.size();) {
             const bool playlists = is_playlist_card(shelf.items[first]);
             auto end = first + 1;

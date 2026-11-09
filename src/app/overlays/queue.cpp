@@ -8,7 +8,7 @@
 #include <imgui-ui/surface.hpp>
 #include <format>
 #include <utility>
-#include <algorithm>
+#include <unordered_set>
 
 using namespace ui;
 
@@ -24,7 +24,7 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
     auto& title = heading.add<MusiqText>("Queue", true);
     title.set_size({grow(), fit()});
 
-    auto& close = heading.add<MusiqIconButtonWidget>("resources/icons/close.svg");
+    auto& close = heading.add<MusiqIconButtonWidget>("icons/close.svg");
     close.set_tooltip("Close queue");
     close.on_click([this] { set_visible(false); });
 
@@ -42,7 +42,7 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
         auto& card = m_list->add(entry.id, entry.media, m_thumbnails);
         card.on_click([this, id = entry.id] { m_playback.queue().select(id); });
 
-        auto& remove = card.add<MusiqIconButtonWidget>("resources/icons/close.svg");
+        auto& remove = card.add<MusiqIconButtonWidget>("icons/close.svg");
         remove.set_tooltip("Remove from queue");
         remove.on_event(EventType::Click, [this, id = entry.id](UiEvent& event) {
             m_playback.remove(id);
@@ -81,9 +81,12 @@ void QueueOverlay::refresh() {
     // cards stay mapped by entry id, so a removal only drops the matching card
     if (queue.revision() != m_revision) {
         m_revision = queue.revision();
-        m_list->refresh(
-            [&](std::uint64_t id) { return std::ranges::find(entries, id, &QueueEntry::id) != entries.end(); }, current_id
-        );
+        std::unordered_set<std::uint64_t> ids;
+        ids.reserve(entries.size());
+        for (const auto& entry : entries) {
+            ids.insert(entry.id);
+        }
+        m_list->refresh([&ids](std::uint64_t id) { return ids.contains(id); }, current_id);
 
         m_tracks->set_items(entries.size());
     } else {

@@ -1,10 +1,10 @@
 #include "button.hpp"
+#include "../../utils/path.hpp"
 
 #include <imgui-ui/surface.hpp>
 #include <imgui-ui/widgets/image.hpp>
 #include <imgui-ui/resources/texture-registry.hpp>
 #include <imgui-ui/runtime.hpp>
-#include <filesystem>
 #include <utility>
 
 using namespace ui;
@@ -41,7 +41,7 @@ void MusiqIconButtonWidget::apply_theme_defaults(const Theme& theme) {
     m_icon->set_visible(!m_path.empty());
 
     if (!m_path.empty()) {
-        m_icon->set_texture(surface().runtime().textures().acquire(m_path, std::filesystem::path(m_path)));
+        m_icon->set_texture(surface().runtime().textures().acquire(m_path, utils::path::from_resources(m_path)));
     }
 
     m_icon->configure_all_styles([&theme](Style& style) { style.color(theme.text_color); });
@@ -64,6 +64,6 @@ void MusiqIconButtonWidget::set_icon(std::string path) {
     m_icon->set_visible(!m_path.empty());
 
     if (!m_path.empty()) {
-        m_icon->set_texture(surface().runtime().textures().acquire(m_path, std::filesystem::path(m_path)));
+        m_icon->set_texture(surface().runtime().textures().acquire(m_path, utils::path::from_resources(m_path)));
     }
 }

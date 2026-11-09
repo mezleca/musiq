@@ -24,6 +24,7 @@ const MusicFormat* YoutubeMediaStream::select_audio_format(const MusicStreamingD
 }
 
 YoutubeResult<std::string> YoutubeMediaStream::visitor_data(const YoutubeMusicClient& client) {
+    // track resolutions share one anonymous bootstrap and serialize its refresh
     const std::lock_guard lock(m_mutex);
     if (!m_visitor_data.empty() && std::chrono::steady_clock::now() < m_visitor_expires) return m_visitor_data;
 

@@ -23,30 +23,18 @@ struct HttpRequest {
     std::string url;
     cpr::Header headers;
     cpr::Parameters parameters;
-    std::string body;
+    std::string body{};
     std::chrono::milliseconds timeout{30000};
     std::chrono::milliseconds connect_timeout{10000};
     bool follow_redirects{false};
-    std::stop_token stop;
+    std::stop_token stop{};
+    // maximum response bytes, zero disables the limit
     std::size_t response_limit = 0;
 };
 
-class HttpClient {
-public:
-    static HttpClient& instance();
-
-    HttpClient(const HttpClient&) = delete;
-    HttpClient& operator=(const HttpClient&) = delete;
-    HttpClient(HttpClient&&) = delete;
-    HttpClient& operator=(HttpClient&&) = delete;
-
-    cpr::Response request(const HttpRequest& request) const;
-    cpr::Response get(std::string_view url, cpr::Header headers = {}, cpr::Parameters parameters = {}) const;
-    cpr::Response
-    post_json(std::string_view url, const json& body, cpr::Header headers = {}, cpr::Parameters parameters = {}) const;
-
-    static bool successful(const cpr::Response& response);
-
-private:
-    HttpClient() = default;
-};
+namespace http {
+    cpr::Response request(const HttpRequest& request);
+    cpr::Response get(std::string_view url, cpr::Header headers = {}, cpr::Parameters parameters = {});
+    cpr::Response post_json(std::string_view url, const json& body, cpr::Header headers = {}, cpr::Parameters parameters = {});
+    bool successful(const cpr::Response& response);
+} // namespace http

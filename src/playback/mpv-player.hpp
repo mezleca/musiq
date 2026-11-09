@@ -28,7 +28,6 @@ public:
     void pause(bool paused);
     void seek(double seconds);
     void set_volume(int volume);
-    // drains events without waiting, ended is set only for a natural end in this update
     bool update();
     const PlayerState& state() const {
         return m_state;
@@ -41,6 +40,5 @@ private:
     PlayerState m_state;
     std::int64_t m_entry_id = -1;
     AudioStream m_stream;
-    // destroying mpv finishes its callbacks before the stream source is released
     std::unique_ptr<mpv_handle, MpvDeleter> m_handle;
 };

@@ -10,7 +10,7 @@
 
 #include <utility>
 
-using namespace media;
+using namespace utils::media;
 
 static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& session, const MusicItem& item) {
     const YoutubeMusicClient client(session);

@@ -1,19 +1,7 @@
 #include "app.hpp"
 #include "theme.hpp"
-#include "overlays/sidebar.hpp"
-#include "overlays/player-bar.hpp"
-#include "overlays/queue.hpp"
-#include "overlays/playlist.hpp"
-#include "overlays/loading.hpp"
-#include "overlays/settings.hpp"
-#include "overlays/channel-picker.hpp"
-#include "widgets/user-profile.hpp"
-#include "widgets/search-bar.hpp"
-#include "widgets/button.hpp"
-#include "widgets/catalog-results.hpp"
-#include "widgets/catalog-card.hpp"
-#include "resources/avatar.hpp"
 #include "../utils/media.hpp"
+#include "../utils/path.hpp"
 #include "../constants.hpp"
 #include "../database/settings.hpp"
 #include "../utils/future.hpp"
@@ -33,7 +21,7 @@
 #include <utility>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     : m_catalog(m_workers), m_thumbnails(m_workers), m_playback(m_workers, m_player),
@@ -54,9 +42,9 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
                      }
       ) {
     m_surface.set_theme(musiq_theme());
-    auto* font = m_runtime.fonts().add("Manrope Regular", "resources/fonts/manrope-regular.ttf");
+    auto* font = m_runtime.fonts().add("Manrope Regular", utils::path::from_resources("fonts/manrope-regular.ttf"));
     m_surface.set_primary_font(font);
-    m_runtime.fonts().add("Manrope Bold", "resources/fonts/manrope-bold.ttf");
+    m_runtime.fonts().add("Manrope Bold", utils::path::from_resources("fonts/manrope-bold.ttf"));
 
     auto& main = m_surface.root().add<Container>("main", StackDirection::Horizontal);
     main.set_size({grow(), grow()});
@@ -73,8 +61,6 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     m_channel_picker = &m_surface.root().add<ChannelPickerOverlay>(*m_profile, [this](std::string identity) {
         authenticate(m_session_token, std::move(identity));
     });
-
-    m_shortcuts.bind(ImGuiKey_F5, [this] { refresh_page(); });
 }
 
 void MusiqApp::build_navigation(Container& content) {
@@ -84,14 +70,14 @@ void MusiqApp::build_navigation(Container& content) {
     navigation.set_spacing(8.0f);
     navigation.configure_all_styles([](Style& style) { style.padding({16.0f}); });
 
-    m_back = &navigation.add<MusiqIconButtonWidget>("resources/icons/chevron-left.svg", 36.0f);
+    m_back = &navigation.add<MusiqIconButtonWidget>("icons/chevron-left.svg", 36.0f);
     m_back->set_tooltip("Back");
     m_back->on_click([this] {
         if (m_history.back()) show_page();
     });
     m_back->set_enabled(false);
 
-    m_forward = &navigation.add<MusiqIconButtonWidget>("resources/icons/chevron-right.svg", 36.0f);
+    m_forward = &navigation.add<MusiqIconButtonWidget>("icons/chevron-right.svg", 36.0f);
     m_forward->set_tooltip("Forward");
     m_forward->on_click([this] {
         if (m_history.forward()) show_page();
@@ -311,7 +297,11 @@ void MusiqApp::update_profile() {
     }
 
     const auto& user = *m_youtube_session.user();
-    profile.set_user(user.name, load_avatar(m_runtime.textures(), user.avatar_url, user.avatar_data));
+    Texture* avatar = nullptr;
+    if (!user.avatar_data.empty()) {
+        avatar = m_runtime.textures().add("profile:" + user.avatar_url, std::string_view(user.avatar_data));
+    }
+    profile.set_user(user.name, avatar);
 }
 
 void MusiqApp::navigate(std::string_view page) {
@@ -432,7 +422,7 @@ void MusiqApp::update_playback() {
 
 void MusiqApp::update_shortcuts() {
     if (m_loading->visible() || m_channel_picker->native_popup_open() || m_queue_overlay->visible()) return;
-    m_shortcuts.update();
+    if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) refresh_page();
 }
 
 void MusiqApp::initialize() {

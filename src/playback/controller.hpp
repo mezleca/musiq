@@ -21,7 +21,6 @@ struct PlaybackPage {
 class PlaybackController {
 public:
     PlaybackController(ThreadPool& workers, MpvPlayer& player);
-    // new requests use this session, playback and in-flight requests keep their current state
     void set_session(const YoutubeMusicSession& session);
     void play(MusicItem item);
     void play(PlaybackPage page, std::size_t start = 0, std::string source = {});

@@ -61,10 +61,6 @@ std::optional<T> music_optional(const json& data, std::string_view key) {
 }
 
 void from_json(const json& data, MusicThumbnail& value);
-void to_json(json& data, const MusicThumbnail& value);
 void from_json(const json& data, MusicEndpoint& value);
-void to_json(json& data, const MusicEndpoint& value);
 void from_json(const json& data, MusicTextRun& value);
-void to_json(json& data, const MusicTextRun& value);
 void from_json(const json& data, MusicItem& value);
-void to_json(json& data, const MusicItem& value);

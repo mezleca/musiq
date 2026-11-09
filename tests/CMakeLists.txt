@@ -13,9 +13,11 @@ add_executable(tests
     ../src/youtube/yt-dlp.cpp
     ../src/youtube/dlp-manager.cpp
     ../src/utils/system.cpp
+    ../src/utils/path.cpp
     ../src/utils/random.cpp
     ../src/playback/queue.cpp
     ../src/utils/thread-pool.cpp
+    ../src/utils/log.cpp
     ../src/app/resources/thumbnails.cpp
     ../src/utils/media.cpp
     ../src/youtube/schema/account.cpp
@@ -48,6 +50,7 @@ target_link_libraries(tests PRIVATE
 
 target_compile_definitions(tests PRIVATE
     MUSIQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    MUSIQ_INSTALLED_RESOURCE_ROOT="${MUSIQ_INSTALLED_RESOURCE_ROOT}"
 )
 
 catch_discover_tests(tests

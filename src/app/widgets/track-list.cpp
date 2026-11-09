@@ -7,8 +7,6 @@
 TrackList::TrackList(ui::VirtualLayout& layout) : m_layout(layout) {}
 
 MediaCardWidget& TrackList::add(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails) {
-    if (auto* card = find(key)) return *card;
-
     auto& card = m_layout.add<MediaCardWidget>(item, thumbnails);
     card.set_id(std::to_string(key));
     card.set_selected(m_current == key);

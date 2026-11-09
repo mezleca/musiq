@@ -19,4 +19,3 @@ struct MusicNextPage {
 
 void to_json(json& data, const MusicNextRequest& value);
 void from_json(const json& data, MusicNextPage& value);
-void to_json(json& data, const MusicNextPage& value);

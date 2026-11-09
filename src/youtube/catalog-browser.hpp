@@ -29,7 +29,6 @@ struct CatalogChanges {
 class CatalogBrowser {
 public:
     explicit CatalogBrowser(ThreadPool& workers);
-    // drops cached pages and pending futures so responses from the previous session cannot be installed
     void set_session(const YoutubeMusicSession& session);
     bool home(bool refresh = false);
     bool search(std::string query, bool refresh = false);

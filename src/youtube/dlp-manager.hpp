@@ -9,7 +9,7 @@ namespace dlp {
         std::filesystem::path runtime;
     };
 
-    // called from a worker, checks the latest release once per launch and reuses the installed version when the update fails
+    // may download playback tools, call from a worker thread
     Tools prepare();
 
 } // namespace dlp

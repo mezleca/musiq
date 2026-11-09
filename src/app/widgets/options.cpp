@@ -1,11 +1,11 @@
 #include "options.hpp"
 #include "text.hpp"
+#include "../../utils/path.hpp"
 
 #include <imgui-ui/resources/texture-registry.hpp>
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
 #include <imgui-ui/widgets/image.hpp>
-#include <filesystem>
 #include <utility>
 
 using namespace ui;
@@ -49,6 +49,6 @@ void OptionsWidget::apply_theme_defaults(const Theme& theme) {
     style(StyleType::ACTIVE).background_color(theme.controls.active_color);
 
     auto& textures = surface().runtime().textures();
-    m_icon->set_texture(textures.acquire(m_icon_path, std::filesystem::path(m_icon_path)));
+    m_icon->set_texture(textures.acquire(m_icon_path, utils::path::from_resources(m_icon_path)));
     m_icon->configure_all_styles([&theme](Style& style) { style.color(theme.text_color); });
 }

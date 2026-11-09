@@ -90,11 +90,6 @@ void from_json(const json& data, MusicPlaylistPage& value) {
     value = playlist_tracks(playlist_shelf(data));
 }
 
-void to_json(json& data, const MusicPlaylistPage& value) {
-    data = {{"tracks", value.tracks}};
-    if (value.continuation) data["continuation"] = *value.continuation;
-}
-
 static const json* playlist_header(const json& data, MusicPlaylist& playlist) {
     static const auto paths = {
         json::json_pointer("/header"),
@@ -207,6 +202,7 @@ void from_json(const json& data, MusicPlaylist& value) {
         const auto stats = header->find("secondSubtitle");
         if (stats != header->end() && !stats->at("runs").empty()) {
             const auto& runs = stats->at("runs");
+            // view counts prepend a count and separator before the song count and duration
             const bool views = runs.size() > 3;
             playlist.track_count = playlist_count(runs.at(views ? 2 : 0).at("text").get_ref<const std::string&>());
             if (views) playlist.views = runs.front().at("text").get<std::string>();
@@ -222,23 +218,4 @@ void from_json(const json& data, MusicPlaylist& value) {
     }
 
     value = std::move(playlist);
-}
-
-void to_json(json& data, const MusicPlaylist& value) {
-    data = {
-        {"id", value.id},
-        {"title", value.title},
-        {"description", value.description},
-        {"author", value.author},
-        {"collaborators", value.collaborators},
-        {"year", value.year},
-        {"privacy", value.privacy},
-        {"duration", value.duration},
-        {"views", value.views},
-        {"owned", value.owned},
-        {"thumbnails", value.thumbnails},
-        {"tracks", value.tracks}
-    };
-    if (value.track_count) data["track_count"] = *value.track_count;
-    if (value.continuation) data["continuation"] = *value.continuation;
 }

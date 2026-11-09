@@ -50,7 +50,7 @@ TEST_CASE("player parses direct URLs cipher formats and metadata", "[youtube][pl
     REQUIRE_FALSE(formats[1].signature_cipher.empty());
     REQUIRE(formats[1].url.empty());
     REQUIRE(formats[2].drm_families.at(0) == "WIDEVINE");
-    REQUIRE(json(player).at("video_details").at("video_id") == "public-video");
+    REQUIRE(player.video_details->video_id == "public-video");
 }
 
 TEST_CASE("nonplayable player responses retain their reason", "[youtube][player]") {

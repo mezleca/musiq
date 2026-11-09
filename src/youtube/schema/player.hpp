@@ -58,14 +58,8 @@ struct MusicVisitorData {
 
 void to_json(json& data, const MusicPlayerRequest& value);
 void from_json(const json& data, MusicAudioTrack& value);
-void to_json(json& data, const MusicAudioTrack& value);
 void from_json(const json& data, MusicFormat& value);
-void to_json(json& data, const MusicFormat& value);
 void from_json(const json& data, MusicStreamingData& value);
-void to_json(json& data, const MusicStreamingData& value);
 void from_json(const json& data, MusicVideoDetails& value);
-void to_json(json& data, const MusicVideoDetails& value);
 void from_json(const json& data, MusicPlayerData& value);
-void to_json(json& data, const MusicPlayerData& value);
 void from_json(const json& data, MusicVisitorData& value);
-void to_json(json& data, const MusicVisitorData& value);

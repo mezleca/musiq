@@ -1,5 +1,6 @@
 #include "search-bar.hpp"
 #include "button.hpp"
+#include "../../utils/path.hpp"
 #include "../../youtube/schema/catalog.hpp"
 
 #include <imgui-ui/layout/layer-container.hpp>
@@ -9,7 +10,6 @@
 #include <imgui-ui/widgets/text-input.hpp>
 #include <imgui-ui/widgets/image.hpp>
 #include <algorithm>
-#include <filesystem>
 #include <utility>
 
 using namespace ui;
@@ -40,7 +40,7 @@ protected:
         frame().style(StyleType::FOCUS).border_color(theme.accent_color);
         frame().style(StyleType::ACTIVE).border_color(theme.accent_color);
         icon().style(StyleType::HOVER).color(theme.text_secondary_color);
-        set_icon(surface().runtime().textures().acquire("search-icon", std::filesystem::path("resources/icons/search.svg")));
+        set_icon(surface().runtime().textures().acquire("search-icon", utils::path::from_resources("icons/search.svg")));
     }
 };
 
@@ -114,7 +114,7 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
 
     m_input = &add<SearchInputWidget>();
 
-    auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("resources/icons/close.svg");
+    auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("icons/close.svg");
     clear.set_id("clear-search");
     clear.set_tooltip("Clear search");
     clear.on_click([this] {
@@ -205,6 +205,7 @@ void SearchBarWidget::confirm_query() {
 }
 
 void SearchBarWidget::set_query(std::string query) {
+    // restore route text without starting a new suggestion request
     m_restoring_query = true;
     m_input->set_value(std::move(query));
     m_restoring_query = false;

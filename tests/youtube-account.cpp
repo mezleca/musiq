@@ -11,14 +11,6 @@ TEST_CASE("account menu parses profile and selected identity", "[youtube][accoun
     REQUIRE(account.avatar_url == "https://example.invalid/large.jpg");
     REQUIRE(account.data_sync_id == "brand");
     REQUIRE(account.data_sync_token == "brand||device");
-    const json expected = {
-        {"name", "Brand channel"},
-        {"handle", "@brand"},
-        {"avatar_url", "https://example.invalid/large.jpg"},
-        {"data_sync_id", "brand"},
-        {"data_sync_token", "brand||device"}
-    };
-    REQUIRE(json(account) == expected);
 }
 
 TEST_CASE("account menu permits missing optional metadata", "[youtube][account]") {
@@ -66,8 +58,8 @@ TEST_CASE("account list preserves selectable channels and token precedence", "[y
     REQUIRE(accounts.identities[0].handle.empty());
     REQUIRE(accounts.identities[1].data_sync_id == "brand");
     REQUIRE(accounts.identities[2].data_sync_id == "page-only");
-    const json expected = {{"name", "Brand"}, {"handle", "@brand"}, {"data_sync_id", "brand"}};
-    REQUIRE(json(accounts).at("identities")[1] == expected);
+    REQUIRE(accounts.identities[1].name == "Brand");
+    REQUIRE(accounts.identities[1].handle == "@brand");
 }
 
 TEST_CASE("account list deduplicates identities", "[youtube][account]") {

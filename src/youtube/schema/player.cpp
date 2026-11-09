@@ -16,10 +16,6 @@ void from_json(const json& data, MusicAudioTrack& value) {
     value = {data.value("isAutoDubbed", false), data.value("audioIsDefault", false)};
 }
 
-void to_json(json& data, const MusicAudioTrack& value) {
-    data = {{"is_auto_dubbed", value.is_auto_dubbed}, {"is_default", value.is_default}};
-}
-
 void from_json(const json& data, MusicFormat& value) {
     MusicFormat format;
     data.at("itag").get_to(format.itag);
@@ -38,29 +34,10 @@ void from_json(const json& data, MusicFormat& value) {
     value = std::move(format);
 }
 
-void to_json(json& data, const MusicFormat& value) {
-    data = {
-        {"itag", value.itag},
-        {"mime_type", value.mime_type},
-        {"bitrate", value.bitrate},
-        {"url", value.url},
-        {"signature_cipher", value.signature_cipher},
-        {"drm_families", value.drm_families},
-        {"drm_track_type", value.drm_track_type}
-    };
-    if (value.content_length) data["content_length"] = *value.content_length;
-    if (value.audio_track) data["audio_track"] = *value.audio_track;
-}
-
 void from_json(const json& data, MusicStreamingData& value) {
     value.expires_in_seconds = music_optional_number(data, "expiresInSeconds");
     value.formats = data.value("formats", std::vector<MusicFormat>{});
     value.adaptive_formats = data.value("adaptiveFormats", std::vector<MusicFormat>{});
-}
-
-void to_json(json& data, const MusicStreamingData& value) {
-    data = {{"formats", value.formats}, {"adaptive_formats", value.adaptive_formats}};
-    if (value.expires_in_seconds) data["expires_in_seconds"] = *value.expires_in_seconds;
 }
 
 void from_json(const json& data, MusicVideoDetails& value) {
@@ -76,24 +53,12 @@ void from_json(const json& data, MusicVideoDetails& value) {
         thumbnail == data.end() ? std::vector<MusicThumbnail>{} : thumbnail->at("thumbnails").get<std::vector<MusicThumbnail>>();
 }
 
-void to_json(json& data, const MusicVideoDetails& value) {
-    data = {{"video_id", value.video_id},     {"title", value.title},     {"author", value.author},
-            {"channel_id", value.channel_id}, {"is_live", value.is_live}, {"thumbnails", value.thumbnails}};
-    if (value.length_seconds) data["length_seconds"] = *value.length_seconds;
-}
-
 void from_json(const json& data, MusicPlayerData& value) {
     const auto& playability = data.at("playabilityStatus");
     playability.at("status").get_to(value.status);
     value.reason = playability.value("reason", std::string{});
     value.streaming_data = music_optional<MusicStreamingData>(data, "streamingData");
     value.video_details = music_optional<MusicVideoDetails>(data, "videoDetails");
-}
-
-void to_json(json& data, const MusicPlayerData& value) {
-    data = {{"status", value.status}, {"reason", value.reason}};
-    if (value.streaming_data) data["streaming_data"] = *value.streaming_data;
-    if (value.video_details) data["video_details"] = *value.video_details;
 }
 
 void from_json(const json& data, MusicVisitorData& value) {
@@ -106,8 +71,4 @@ void from_json(const json& data, MusicVisitorData& value) {
         }
     }
     throw std::invalid_argument("missing visitor data");
-}
-
-void to_json(json& data, const MusicVisitorData& value) {
-    data = {{"visitor_data", value.visitor_data}};
 }

@@ -125,8 +125,8 @@ bool YoutubeMusicSession::select_identity(std::string_view identity) {
     user.avatar_url = response->avatar_url;
 
     if (!user.avatar_url.empty()) {
-        auto avatar = HttpClient::instance().get(user.avatar_url);
-        if (HttpClient::successful(avatar)) {
+        auto avatar = http::get(user.avatar_url);
+        if (http::successful(avatar)) {
             user.avatar_data = std::move(avatar.text);
         }
     }

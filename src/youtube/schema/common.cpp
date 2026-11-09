@@ -42,10 +42,6 @@ void from_json(const json& data, MusicThumbnail& value) {
     value = {data.at("url").get<std::string>(), data.value("width", 0), data.value("height", 0)};
 }
 
-void to_json(json& data, const MusicThumbnail& value) {
-    data = {{"url", value.url}, {"width", value.width}, {"height", value.height}};
-}
-
 void from_json(const json& data, MusicEndpoint& value) {
     MusicEndpoint endpoint;
     const auto watch = data.find("watchEndpoint");
@@ -58,29 +54,17 @@ void from_json(const json& data, MusicEndpoint& value) {
     if (browse != data.end()) {
         endpoint.browse_id = browse->at("browseId").get<std::string>();
         endpoint.params = browse->value("params", std::string{});
-        const json::json_pointer page_type("/browseEndpointContextSupportedConfigs/browseEndpointContextMusicConfig/pageType");
+        static const json::json_pointer page_type(
+            "/browseEndpointContextSupportedConfigs/browseEndpointContextMusicConfig/pageType"
+        );
         if (browse->contains(page_type)) endpoint.page_type = browse->at(page_type).get<std::string>();
     }
     value = std::move(endpoint);
 }
 
-void to_json(json& data, const MusicEndpoint& value) {
-    data = {
-        {"video_id", value.video_id},
-        {"playlist_id", value.playlist_id},
-        {"browse_id", value.browse_id},
-        {"params", value.params},
-        {"page_type", value.page_type}
-    };
-}
-
 void from_json(const json& data, MusicTextRun& value) {
     value.text = data.at("text").get<std::string>();
     value.endpoint = music_optional<MusicEndpoint>(data, "navigationEndpoint").value_or(MusicEndpoint{});
-}
-
-void to_json(json& data, const MusicTextRun& value) {
-    data = {{"text", value.text}, {"endpoint", value.endpoint}};
 }
 
 void from_json(const json& data, MusicItem& value) {
@@ -105,6 +89,7 @@ void from_json(const json& data, MusicItem& value) {
             item.duration = music_text(fixed->at(0).at("musicResponsiveListItemFixedColumnRenderer").at("text"));
         }
 
+        // album and duration columns vary by shelf, identify them by endpoint and text
         for (std::size_t index = 2; index < columns->size(); ++index) {
             const auto& text = columns->at(index).at("musicResponsiveListItemFlexColumnRenderer").at("text");
             const auto runs = text.find("runs");
@@ -145,11 +130,4 @@ void from_json(const json& data, MusicItem& value) {
     }
 
     value = std::move(item);
-}
-
-void to_json(json& data, const MusicItem& value) {
-    data = {{"title", value.title},       {"subtitle", value.subtitle},
-            {"endpoint", value.endpoint}, {"thumbnails", value.thumbnails},
-            {"duration", value.duration}, {"playlist_set_video_id", value.playlist_set_video_id},
-            {"album", value.album},       {"available", value.available}};
 }

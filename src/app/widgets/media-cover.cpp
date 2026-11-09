@@ -8,7 +8,7 @@
 #include <algorithm>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 MediaCoverWidget::MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbnails, float size) : m_thumbnails(thumbnails) {
     set_type_name("MediaCoverWidget");
@@ -84,6 +84,7 @@ void MediaCoverWidget::draw_before() {
 }
 
 void MediaCoverWidget::on_update(float) {
+    // offscreen covers release their texture handles so the shared cache can evict them
     if ((m_loaded || m_download) && m_last_draw_frame < ImGui::GetFrameCount() - 1) {
         m_download.reset();
         set_texture(nullptr);

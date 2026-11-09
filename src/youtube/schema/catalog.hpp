@@ -42,7 +42,4 @@ struct MusicSuggestions {
 void to_json(json& data, const MusicSearchRequest& value);
 void to_json(json& data, const MusicBrowseRequest& value);
 void from_json(const json& data, MusicPage& value);
-void to_json(json& data, const MusicPage& value);
 void from_json(const json& data, MusicSuggestions& value);
-void to_json(json& data, const MusicSuggestions& value);
-void to_json(json& data, const MusicQuerySuggestion& value);

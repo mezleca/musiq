@@ -18,7 +18,7 @@ ModalOverlay::ModalOverlay(std::string id) : LayerContainer(std::move(id)) {
 void ModalOverlay::apply_theme_defaults(const Theme& theme) {
     LayerContainer::apply_theme_defaults(theme);
 
-    configure_all_styles([theme](Style& style) {
+    configure_all_styles([&theme](Style& style) {
         style.background_color(rgba(0.0f, 0.0f, 0.0f, 0.6f));
         style.border(BorderEdge{.size = 1.0f, .type = BorderType::Solid});
         style.border_color(theme.border_color);

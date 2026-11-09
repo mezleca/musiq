@@ -7,8 +7,6 @@
 #include <memory>
 #include <new>
 #include <stdexcept>
-#include <type_traits>
-#include <utility>
 
 using namespace sqlite_orm;
 
@@ -29,9 +27,8 @@ static auto make_musiq_storage(const std::string& path) {
     );
 }
 
-using SettingsStorage = std::remove_reference_t<decltype(make_musiq_storage(std::declval<const std::string&>()))>;
+using SettingsStorage = decltype(make_musiq_storage(""));
 
-// the singleton keeps one sqlite connection for the process lifetime
 static std::unique_ptr<SettingsStorage> settings_storage;
 
 static void open_settings_storage(const std::string& path) {

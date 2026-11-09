@@ -38,15 +38,3 @@ std::optional<MusicContinuation> music_continuation(const json& data) {
 
     return std::nullopt;
 }
-
-void to_json(json& data, const MusicContinuation& value) {
-    data = {
-        {"token", value.token},
-        {"route", static_cast<int>(value.route)},
-        {"client", static_cast<int>(value.client)},
-        {"auth", static_cast<int>(value.auth)},
-        {"identity", value.identity},
-        {"visitor_data", value.visitor_data},
-        {"in_body", value.in_body}
-    };
-}

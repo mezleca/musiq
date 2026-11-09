@@ -23,6 +23,7 @@ APPIMAGE_PATH = CWD / "dist" / f"musiq-{platform.machine()}.AppImage"
 LINUXDEPLOY_TOOL = CWD / f"linuxdeploy-{platform.machine()}.AppImage"
 LINUXDEPLOY_URL = f"https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/{LINUXDEPLOY_TOOL.name}"
 
+# gtk and webkit need their matching system plugins and data files
 APPIMAGE_SYSTEM_LIBRARIES = (
     "libwebkit2gtk-4.1.so.*", "libjavascriptcoregtk-4.1.so.*",
     "libglib-2.0.so.*", "libgobject-2.0.so.*", "libgio-2.0.so.*",
@@ -34,27 +35,11 @@ APPIMAGE_SYSTEM_LIBRARIES = (
     "libenchant-2.so.*", "libmanette-0.2.so.*", "libharfbuzz-icu.so.*", "libhyphen.so.*",
 )
 
-def run(
-    command: str | list[str], check: bool = True, env: Mapping[str, str] | None = None, capture: bool = False
-) -> tuple[int, str]:
-    display = command if isinstance(command, str) else subprocess.list2cmdline(list(command))
-    print(f"exec: {display}", flush=True)
-    result = subprocess.run(
-        command,
-        shell=isinstance(command, str),
-        env=env,
-        capture_output=capture,
-        text=capture,
-        encoding="utf-8",
-        cwd=CWD,
-        check=SYSTEM != "Linux",
-    )
-
-    if check and result.returncode != 0:
-        print(f"[ez] command failed with exit code {result.returncode}")
+def run(command: list[str], env: Mapping[str, str] | None = None) -> None:
+    print(f"exec: {subprocess.list2cmdline(command)}", flush=True)
+    result = subprocess.run(command, env=env, cwd=CWD)
+    if result.returncode:
         sys.exit(result.returncode)
-
-    return result.returncode, result.stdout or ""
 
 def require_tool(name: str) -> None:
     if shutil.which(name) is not None:
@@ -75,38 +60,21 @@ def init() -> None:
 
 def configure(build_type: str) -> Path:
     build_dir = BUILD_DIR / build_type.lower()
-    cache_file = build_dir / "CMakeCache.txt"
     sccache = shutil.which("sccache") or ""
-    if cache_file.is_file() and (build_dir / "build.ninja").is_file():
-        lines = cache_file.read_text().splitlines()
-        build_matches = any(
-            line.startswith("CMAKE_BUILD_TYPE:") and line.partition("=")[2] == build_type for line in lines
-        )
-        launcher_matches = any(
-            line.startswith("CMAKE_CXX_COMPILER_LAUNCHER:") and line.partition("=")[2] == sccache for line in lines
-        )
-        if build_matches and launcher_matches:
-            return build_dir
-
     cxx = os.environ.get("CXX", "clang++")
     cc = os.environ.get("CC", "clang")
     command = [
         "cmake", "-S", str(CWD), "-B", str(build_dir), "-G", "Ninja",
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_CXX_COMPILER={cxx}",
-        f"-DCMAKE_C_COMPILER={cc}"
+        f"-DCMAKE_C_COMPILER={cc}",
+        f"-DCMAKE_C_COMPILER_LAUNCHER={sccache}",
+        f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache}",
     ]
-
-    if sccache:
-        command += [
-            f"-DCMAKE_C_COMPILER_LAUNCHER={sccache}",
-            f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache}"
-        ]
-
     run(command)
     return build_dir
 
-def link_compile_commands(build_dir: Path) -> None:
+def copy_compile_commands(build_dir: Path) -> None:
     database = build_dir / "compile_commands.json"
     if not database.is_file():
         return
@@ -114,16 +82,17 @@ def link_compile_commands(build_dir: Path) -> None:
     link = CWD / "compile_commands.json"
     if link.is_symlink() or link.exists():
         link.unlink()
-    link.symlink_to(database.relative_to(CWD))
+    shutil.copy2(database, link)
 
 def build(build_type: str) -> Path:
     build_dir = configure(build_type)
-    link_compile_commands(build_dir)
+    copy_compile_commands(build_dir)
     run(["cmake", "--build", str(build_dir), "--parallel"])
     return build_dir
 
 def format_code() -> None:
-    run("clang-format -i $(rg --files -g '*.{h,hpp,cpp,cc,cxx}' src)")
+    sources = [str(path) for path in (CWD / "src").rglob("*") if path.suffix in {".h", ".hpp", ".cpp", ".cc", ".cxx"}]
+    run(["clang-format", "-i", *sources])
 
 def print_release_version() -> None:
     print(RELEASE_VERSION)
@@ -203,6 +172,34 @@ def package_appimage() -> None:
     ], env=environment)
     print(f"[ez] AppImage created: {APPIMAGE_PATH}")
 
+def package_cpack(package_type: str) -> None:
+    if SYSTEM != "Windows":
+        print("[ez] Inno Setup and ZIP packages can only be built on Windows")
+        sys.exit(1)
+    require_tool("cpack")
+    build_dir = build("Release")
+    command = ["cpack", "--config", str(build_dir / "CPackConfig.cmake"), "-C", "Release"]
+    if package_type != "default":
+        command += ["-G", {"inno": "INNOSETUP", "zip": "ZIP"}[package_type]]
+    run(command)
+
+def package_arch() -> None:
+    if SYSTEM != "Linux":
+        print("[ez] Arch packages can only be built on Linux")
+        sys.exit(1)
+    require_tool("nfpm")
+    build_dir = build("Release")
+    staging_dir = CWD / "dist" / "arch"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    run(["cmake", "--install", str(build_dir), "--prefix", str(staging_dir / "usr"),
+         "--component", "Runtime", "--strip"])
+    environment = os.environ.copy()
+    environment["MUSIQ_VERSION"] = RELEASE_VERSION.removeprefix("v")
+    environment["MUSIQ_ARCH"] = platform.machine()
+    run(["nfpm", "package", "--packager", "archlinux", "--config", str(PACKAGING_DIR / "nfpm.yaml"),
+         "--target", str(CWD / "dist")], env=environment)
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ez")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -214,7 +211,7 @@ def main() -> None:
     subparsers.add_parser("format")
 
     package_parser = subparsers.add_parser("package")
-    package_parser.add_argument("--type", choices=("appimage",), default="appimage")
+    package_parser.add_argument("--type", choices=("default", "appimage", "arch", "inno", "zip"), default="default")
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--type", choices=("debug", "release"), default="debug")
@@ -236,7 +233,12 @@ def main() -> None:
         return
 
     if args.command == "package":
-        package_appimage()
+        if args.type == "appimage":
+            package_appimage()
+        elif args.type == "arch" or (args.type == "default" and SYSTEM == "Linux"):
+            package_arch()
+        else:
+            package_cpack(args.type)
         return
 
     if args.command == "release-version":

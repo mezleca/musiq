@@ -97,7 +97,7 @@ bool PlaybackQueue::advance() {
     if (!can_advance()) return false;
 
     if (m_random) {
-        auto position = musiq::random::random_index(m_entries.size() - 1);
+        auto position = utils::random::random_index(m_entries.size() - 1);
         if (position >= m_position) ++position;
         m_position = position;
     } else {

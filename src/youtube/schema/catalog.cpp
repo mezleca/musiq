@@ -89,6 +89,7 @@ void from_json(const json& data, MusicPage& value) {
         json::json_pointer("/contents/twoColumnBrowseResultsRenderer/secondaryContents/sectionListRenderer"),
         json::json_pointer("/continuationContents/sectionListContinuation")
     };
+    // two-column responses can expose shelves in both sections
     for (const auto& pointer : paths) {
         if (!data.contains(pointer)) continue;
         found = true;
@@ -96,8 +97,8 @@ void from_json(const json& data, MusicPage& value) {
         for (const auto& entry : section.at("contents")) {
             append_shelf(entry, page.shelves);
         }
-        const auto continuation = music_continuation(section);
-        if (continuation) page.continuation = continuation;
+        auto continuation = music_continuation(section);
+        if (continuation) page.continuation = std::move(continuation);
     }
 
     static const auto continuation_paths = {
@@ -120,16 +121,6 @@ void from_json(const json& data, MusicPage& value) {
     value = std::move(page);
 }
 
-void to_json(json& data, const MusicPage& value) {
-    data = {{"shelves", json::array()}};
-    for (const auto& shelf : value.shelves) {
-        json section = {{"title", shelf.title}, {"items", shelf.items}};
-        if (shelf.continuation) section["continuation"] = *shelf.continuation;
-        data["shelves"].push_back(std::move(section));
-    }
-    if (value.continuation) data["continuation"] = *value.continuation;
-}
-
 void from_json(const json& data, MusicSuggestions& value) {
     MusicSuggestions suggestions;
     for (const auto& entry : data.at("contents")) {
@@ -140,18 +131,10 @@ void from_json(const json& data, MusicSuggestions& value) {
             const auto query = item.find("searchSuggestionRenderer");
             if (history != item.end() || query != item.end()) {
                 const auto& suggestion = history != item.end() ? *history : *query;
-                const auto query_text = suggestion.at("navigationEndpoint").at("searchEndpoint").at("query").get<std::string>();
-                suggestions.queries.push_back({query_text, history != item.end()});
+                auto query_text = suggestion.at("navigationEndpoint").at("searchEndpoint").at("query").get<std::string>();
+                suggestions.queries.push_back({std::move(query_text), history != item.end()});
             }
         }
     }
     value = std::move(suggestions);
-}
-
-void to_json(json& data, const MusicQuerySuggestion& value) {
-    data = {{"query", value.query}, {"history", value.history}};
-}
-
-void to_json(json& data, const MusicSuggestions& value) {
-    data = {{"queries", value.queries}};
 }

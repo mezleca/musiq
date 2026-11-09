@@ -4,12 +4,7 @@
 #include <utility>
 #include <stdexcept>
 
-HttpClient& HttpClient::instance() {
-    static HttpClient client;
-    return client;
-}
-
-cpr::Response HttpClient::request(const HttpRequest& request) const {
+cpr::Response http::request(const HttpRequest& request) {
     cpr::Session session;
 
     session.SetUrl(cpr::Url{request.url});
@@ -66,29 +61,23 @@ cpr::Response HttpClient::request(const HttpRequest& request) const {
     return response;
 }
 
-cpr::Response HttpClient::get(std::string_view url, cpr::Header headers, cpr::Parameters parameters) const {
-    HttpRequest http_request;
-    http_request.method = HttpMethod::Get;
-    http_request.url = std::string(url);
-    http_request.headers = std::move(headers);
-    http_request.parameters = std::move(parameters);
-    return request(http_request);
+cpr::Response http::get(std::string_view url, cpr::Header headers, cpr::Parameters parameters) {
+    return request({.url = std::string(url), .headers = std::move(headers), .parameters = std::move(parameters)});
 }
 
-cpr::Response
-HttpClient::post_json(std::string_view url, const json& body, cpr::Header headers, cpr::Parameters parameters) const {
+cpr::Response http::post_json(std::string_view url, const json& body, cpr::Header headers, cpr::Parameters parameters) {
     headers.try_emplace("Accept", "application/json");
     headers.try_emplace("Content-Type", "application/json");
 
-    HttpRequest http_request;
-    http_request.method = HttpMethod::Post;
-    http_request.url = std::string(url);
-    http_request.headers = std::move(headers);
-    http_request.parameters = std::move(parameters);
-    http_request.body = body.dump();
-    return request(http_request);
+    return request(
+        {.method = HttpMethod::Post,
+         .url = std::string(url),
+         .headers = std::move(headers),
+         .parameters = std::move(parameters),
+         .body = body.dump()}
+    );
 }
 
-bool HttpClient::successful(const cpr::Response& response) {
+bool http::successful(const cpr::Response& response) {
     return response.error.code == cpr::ErrorCode::OK && response.status_code >= 200 && response.status_code < 300;
 }

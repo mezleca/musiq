@@ -1,7 +1,7 @@
 #include "app/app.hpp"
 #include "database/settings.hpp"
 #include "utils/system.hpp"
-#include "utils/random.hpp"
+#include "utils/path.hpp"
 #include "utils/log.hpp"
 
 #include <SDL3/SDL.h>
@@ -31,7 +31,8 @@ int main() {
         return 1;
     }
 
-    SDL_Surface* icon = SDL_LoadPNG("resources/icons/app/musiq.png");
+    const auto icon_path = utils::path::from_resources("icons/app/musiq.png").u8string();
+    SDL_Surface* icon = SDL_LoadPNG(reinterpret_cast<const char*>(icon_path.c_str()));
     if (icon) {
         if (!SDL_SetWindowIcon(window, icon)) {
             LOG_WARN("[window] could not set icon: {}", SDL_GetError());
@@ -51,8 +52,6 @@ int main() {
 
     SDL_GL_MakeCurrent(window, context);
     SDL_GL_SetSwapInterval(1);
-
-    musiq::random::initialize();
 
     try {
         MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());

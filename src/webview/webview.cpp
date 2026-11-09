@@ -25,9 +25,9 @@ void WebView::close() {
 }
 
 void WebView::cookies(std::string_view url, std::function<void(std::string)> callback) {
-    // the cookie read may finish after run() returns, drop the callback once the loop has exited
     read_cookies(std::string(url), [active = std::weak_ptr(m_active), callback = std::move(callback)](std::string cookies) {
         const auto running = active.lock();
+        // closing the login window invalidates callbacks that captured its stack state
         if (running && *running) {
             callback(std::move(cookies));
         }

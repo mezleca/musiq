@@ -26,8 +26,5 @@ struct MusicAccountsList {
 };
 
 void from_json(const json& data, MusicIdentity& value);
-void to_json(json& data, const MusicIdentity& value);
 void from_json(const json& data, MusicAccountMenu& value);
-void to_json(json& data, const MusicAccountMenu& value);
 void from_json(const json& data, MusicAccountsList& value);
-void to_json(json& data, const MusicAccountsList& value);

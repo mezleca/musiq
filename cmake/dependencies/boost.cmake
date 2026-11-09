@@ -1,7 +1,6 @@
 set(BOOST_INCLUDE_LIBRARIES process hash2)
-set(Boost_USE_STATIC_LIBS ON)
-
 if(NOT WIN32)
+    set(Boost_USE_STATIC_LIBS OFF)
     find_package(Boost 1.88 QUIET CONFIG COMPONENTS process hash2)
 endif()
 

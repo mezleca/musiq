@@ -65,8 +65,3 @@ void from_json(const json& data, MusicNextPage& value) {
 
     value = std::move(page);
 }
-
-void to_json(json& data, const MusicNextPage& value) {
-    data = {{"items", value.items}, {"lyrics", value.lyrics}, {"related", value.related}};
-    if (value.continuation) data["continuation"] = *value.continuation;
-}

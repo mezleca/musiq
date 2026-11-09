@@ -74,7 +74,7 @@ void UserProfileWidget::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
     TransitionSpec transition(0.10f);
 
-    configure_all_styles([theme, transition](Style& style) {
+    configure_all_styles([&theme, transition](Style& style) {
         style.background_color(theme.background_secondary_color, transition);
         style.border(BorderEdge{.size = 1.0f, .type = BorderType::Solid});
         style.border_color(theme.background_secondary_color, transition);

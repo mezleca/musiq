@@ -4,11 +4,17 @@ on:
     workflow_dispatch:
     pull_request:
         paths:
+            - "CMakeLists.txt"
+            - "cmake/**"
+            - ".github/workflows/test.yml"
             - "src/**"
             - "tests/**"
     push:
         branches: [master]
         paths:
+            - "CMakeLists.txt"
+            - "cmake/**"
+            - ".github/workflows/test.yml"
             - "src/**"
             - "tests/**"
 

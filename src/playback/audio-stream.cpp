@@ -65,13 +65,13 @@ private:
         request.stop = m_cancel.get_token();
         request.response_limit = static_cast<std::size_t>(end - m_start + 1);
 
-        auto response = HttpClient::instance().request(request);
+        auto response = http::request(request);
 
         // CDN redirects must still return exactly the requested range, or the full file for the first read
         const bool range_matches = response.status_code == 206 && response.header["content-range"] ==
                                                                       std::format("bytes {}-{}/{}", m_start, end, m_source->size);
         const bool whole_file = response.status_code == 200 && m_start == 0 && end + 1 == m_source->size;
-        if (HttpClient::successful(response) && (range_matches || whole_file) && response.text.size() == request.response_limit) {
+        if (http::successful(response) && (range_matches || whole_file) && response.text.size() == request.response_limit) {
             m_chunk = std::move(response.text);
             return true;
         }

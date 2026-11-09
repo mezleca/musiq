@@ -27,4 +27,3 @@ struct MusicContinuation {
 };
 
 std::optional<MusicContinuation> music_continuation(const json& data);
-void to_json(json& data, const MusicContinuation& value);

@@ -1,6 +1,5 @@
 #include "player-bar.hpp"
 #include "../../utils/media.hpp"
-#include "../widgets/catalog-card.hpp"
 #include "../widgets/text.hpp"
 #include "../widgets/media-cover.hpp"
 #include "../widgets/spinner.hpp"
@@ -16,14 +15,14 @@
 #include <cmath>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 static std::string playback_time(double seconds) {
     const auto total = static_cast<int>(std::max(0.0, seconds));
     return std::format("{}:{:02}", total / 60, total % 60);
 }
 
-QueueButtonWidget::QueueButtonWidget() : MusiqIconButtonWidget("resources/icons/queue.svg", 44.0f) {
+QueueButtonWidget::QueueButtonWidget() : MusiqIconButtonWidget("icons/queue.svg", 44.0f) {
     set_layout(
         {.size = {px(44), px(44)},
          .placement = {.anchor = Anchor::TopRight, .origin = Anchor::BottomRight, .offset = {-16.0f, -12.0f}},
@@ -84,17 +83,17 @@ PlayerBarOverlay::PlayerBarOverlay(
     controls.set_content_alignment(Anchor::Center);
     controls.set_spacing(8.0f);
 
-    m_random = &controls.add<MusiqIconButtonWidget>("resources/icons/shuffle.svg");
+    m_random = &controls.add<MusiqIconButtonWidget>("icons/shuffle.svg");
     m_random->set_tooltip("Random");
     m_random->set_enabled(false);
     m_random->on_click([this] { m_playback.queue().set_random(!m_playback.queue().random()); });
 
-    m_previous = &controls.add<MusiqIconButtonWidget>("resources/icons/skip-previous.svg");
+    m_previous = &controls.add<MusiqIconButtonWidget>("icons/skip-previous.svg");
     m_previous->set_tooltip("Previous track");
     m_previous->on_click([this] { m_playback.queue().previous(); });
     m_previous->set_enabled(false);
 
-    m_play = &controls.add<MusiqIconButtonWidget>("resources/icons/play.svg", 42.0f);
+    m_play = &controls.add<MusiqIconButtonWidget>("icons/play.svg", 42.0f);
     m_play->on_click([this] { m_playback.toggle_pause(); });
     m_play->set_enabled(false);
     m_spinner = &m_play->add<SpinnerWidget>();
@@ -105,12 +104,12 @@ PlayerBarOverlay::PlayerBarOverlay(
     );
     m_spinner->set_visible(false);
 
-    m_next = &controls.add<MusiqIconButtonWidget>("resources/icons/skip-next.svg");
+    m_next = &controls.add<MusiqIconButtonWidget>("icons/skip-next.svg");
     m_next->set_tooltip("Next track");
     m_next->on_click([this] { m_playback.queue().advance(); });
     m_next->set_enabled(false);
 
-    m_repeat = &controls.add<MusiqIconButtonWidget>("resources/icons/repeat.svg");
+    m_repeat = &controls.add<MusiqIconButtonWidget>("icons/repeat.svg");
     m_repeat->set_enabled(false);
     m_repeat->set_tooltip("Repeat this track once");
     m_repeat->on_click([this] { m_playback.queue().set_repeat(!m_playback.queue().repeat()); });
@@ -130,7 +129,7 @@ PlayerBarOverlay::PlayerBarOverlay(
     auto& right = add<Container>("volume", StackDirection::Horizontal);
     right.set_size({grow(), grow()});
     right.set_content_alignment(Anchor::CenterRight);
-    right.add<MusiqIconButtonWidget>("resources/icons/volume.svg").set_input_enabled(false);
+    right.add<MusiqIconButtonWidget>("icons/volume.svg").set_input_enabled(false);
 
     m_volume = MusiqSettings::instance().volume();
     m_player.set_volume(static_cast<int>(m_volume));
@@ -170,7 +169,7 @@ void PlayerBarOverlay::refresh() {
     const bool playing = state.loaded && !state.paused;
 
     m_spinner->set_visible(loading);
-    m_play->set_icon(loading ? "" : playing ? "resources/icons/pause.svg" : "resources/icons/play.svg");
+    m_play->set_icon(loading ? "" : playing ? "icons/pause.svg" : "icons/play.svg");
     m_play->set_enabled(current && !loading);
     m_play->set_tooltip(playing ? "Pause" : "Play");
     m_seek->set_enabled(state.loaded && state.duration > 0);

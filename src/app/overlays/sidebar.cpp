@@ -14,9 +14,9 @@ SideBarOverlay::SideBarOverlay(std::function<void(std::string_view)> navigate)
     m_options = &add<Container>("musiq-options", StackDirection::Vertical);
     m_options->set_size({grow(), fit()});
     m_options->set_spacing(4.0f);
-    add_option("home", "Home", "resources/icons/home.svg", true);
-    add_option("search", "Search", "resources/icons/search.svg");
-    add_option("settings", "Settings", "resources/icons/settings.svg");
+    add_option("home", "Home", "icons/home.svg", true);
+    add_option("search", "Search", "icons/search.svg");
+    add_option("settings", "Settings", "icons/settings.svg");
 
     m_playlists = &add<Container>("user-playlists", StackDirection::Vertical);
     m_playlists->set_size({grow(), grow()});

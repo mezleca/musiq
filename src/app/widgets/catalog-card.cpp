@@ -6,7 +6,7 @@
 #include <imgui-ui/surface.hpp>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 static std::string playlist_subtitle(const MusicItem& item) {
     const bool album = is_album(item.endpoint);

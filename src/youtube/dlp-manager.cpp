@@ -23,8 +23,8 @@ static std::string download_tool(const std::string& url) {
     request.connect_timeout = std::chrono::seconds(5);
     request.response_limit = 128 * 1024 * 1024;
 
-    auto response = HttpClient::instance().request(request);
-    if (!HttpClient::successful(response)) {
+    auto response = http::request(request);
+    if (!http::successful(response)) {
         throw std::runtime_error(std::format("tool download failed (HTTP {})", response.status_code));
     }
     return std::move(response.text);
@@ -65,8 +65,9 @@ static std::filesystem::path install_tool(const std::string& repository, const s
     const auto root = utils::get_app_dir() / "tools" / std::filesystem::path(binary).stem();
     try {
         const auto release = json::parse(download_tool("https://api.github.com/repos/" + repository + "/releases/latest"));
-        const auto asset =
-            std::ranges::find(release.at("assets"), name, [](const json& item) { return item.at("name").get<std::string>(); });
+        const auto asset = std::ranges::find_if(release.at("assets"), [&](const json& item) {
+            return item.at("name").get_ref<const std::string&>() == name;
+        });
         if (asset == release.at("assets").end()) throw std::runtime_error("release has no binary for this platform");
 
         const auto digest = asset->at("digest").get<std::string>();

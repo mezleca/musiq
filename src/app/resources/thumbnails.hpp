@@ -19,9 +19,9 @@ class ThumbnailCache {
 public:
     explicit ThumbnailCache(ThreadPool& workers);
 
-    // callers keep pending downloads alive, abandoned queued requests skip network io
+    // keep the returned request alive while its artwork is needed
     std::shared_ptr<ThumbnailRequest> request(const std::string& url);
-    // a nonempty pending request means the image is still loading, failures use the shared placeholder
+    // resolves cached artwork or starts a shared request for a visible cover
     ui::TextureHandle resolve(ui::TextureRegistry& textures, const std::string& url, std::shared_ptr<ThumbnailRequest>& pending);
     void collect();
 

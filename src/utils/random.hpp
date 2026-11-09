@@ -2,7 +2,6 @@
 
 #include <cstddef>
 
-namespace musiq::random {
-    void initialize();
+namespace utils::random {
     std::size_t random_index(std::size_t count);
-} // namespace musiq::random
+} // namespace utils::random

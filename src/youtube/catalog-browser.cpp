@@ -93,9 +93,10 @@ void CatalogBrowser::suggest(std::string query) {
 CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now) {
     CatalogChanges changed;
 
+    // keep the active request at the front until its result has updated the original page
     if (future_ready(m_page_task)) {
         auto result = take_result(m_page_task);
-        const auto query = std::move(m_pages.front());
+        auto query = std::move(m_pages.front());
         m_pages.pop_front();
         const bool home = query.empty();
 
@@ -114,12 +115,12 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
         }
 
         changed.home = home;
-        if (!home) changed.search = query;
+        if (!home) changed.search = std::move(query);
     }
 
     if (future_ready(m_suggestions_task)) {
         auto result = take_result(m_suggestions_task);
-        // install a suggestion response only while its query is still current
+        // typing can overtake a worker, so stale suggestions must not replace the current query
         if (m_running_suggestion == m_suggestion_query && !m_suggestion_query.empty()) {
             if (result) {
                 m_suggestions = std::move(*result);

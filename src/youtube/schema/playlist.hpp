@@ -33,6 +33,4 @@ struct MusicPlaylist {
 
 void to_json(json& data, const MusicPlaylistRequest& value);
 void from_json(const json& data, MusicPlaylistPage& value);
-void to_json(json& data, const MusicPlaylistPage& value);
 void from_json(const json& data, MusicPlaylist& value);
-void to_json(json& data, const MusicPlaylist& value);

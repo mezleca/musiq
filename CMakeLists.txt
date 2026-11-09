@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(musiq LANGUAGES C CXX)
+project(musiq VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,10 +7,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(WIN32)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
-
-if(NOT DEFINED OUTPUT_NAME OR OUTPUT_NAME STREQUAL "")
-    set(OUTPUT_NAME "${PROJECT_NAME}")
 endif()
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -25,7 +21,7 @@ list(FILTER SOURCES EXCLUDE REGEX "/webview/(linux|windows)/")
 
 if(WIN32)
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/windows/impl.cpp")
-else(LINUX)
+else()
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/linux/impl.cpp")
 endif()
 
@@ -39,6 +35,12 @@ if(MUSIQ_IPO_SUPPORTED)
 endif()
 message(STATUS "Release IPO/LTO supported: ${MUSIQ_IPO_SUPPORTED}")
 
+include(GNUInstallDirs)
+
+file(RELATIVE_PATH MUSIQ_INSTALLED_RESOURCE_ROOT
+    "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_DATADIR}/${PROJECT_NAME}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE MUSIQ_INSTALLED_RESOURCE_ROOT="${MUSIQ_INSTALLED_RESOURCE_ROOT}")
+
 option(MUSIQ_BUILD_TESTS "Build musiq tests" OFF)
 if(MUSIQ_BUILD_TESTS)
     include(cmake/dependencies/catch2.cmake)
@@ -48,15 +50,12 @@ if(MUSIQ_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-include(GNUInstallDirs)
-
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
 install(DIRECTORY resources/fonts
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/resources
     COMPONENT Runtime
 )
 
-# the ico is only used by the Windows executable and is not needed in Linux packages
 install(DIRECTORY resources/icons
     DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/resources
     COMPONENT Runtime
@@ -64,6 +63,16 @@ install(DIRECTORY resources/icons
 )
 
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME} COMPONENT Runtime)
+
+if(LINUX)
+    install(FILES resources/packaging/org.mezleca.musiq.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications COMPONENT Runtime)
+    install(FILES resources/icons/app/musiq.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+        RENAME org.mezleca.musiq.png COMPONENT Runtime)
+endif()
+
+include(cmake/packaging.cmake)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Boost::process

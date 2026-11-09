@@ -32,37 +32,36 @@ function(musiq_mpv_build stage)
     endif()
 endfunction()
 
-if(NOT EXISTS "${mpv_prefix}/.musiq-installed")
-    set(mpv_compilers "CC=${CMAKE_C_COMPILER}" "CXX=${CMAKE_CXX_COMPILER}")
-    set(mpv_runtime)
-    if(MSVC)
-        set(mpv_compilers CC=clang CXX=clang++ CC_LD=lld-link CXX_LD=lld-link)
-        set(mpv_runtime -Db_vscrt=mt)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(mpv_runtime -Db_vscrt=mtd)
-        endif()
+set(mpv_compilers "CC=${CMAKE_C_COMPILER}" "CXX=${CMAKE_CXX_COMPILER}")
+set(mpv_runtime)
+if(MSVC)
+    set(mpv_compilers CC=clang CXX=clang++ CC_LD=lld-link CXX_LD=lld-link)
+    set(mpv_runtime -Db_vscrt=mt)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(mpv_runtime -Db_vscrt=mtd)
     endif()
-    message(STATUS "Building static libmpv and its dependencies (first build only)")
-    musiq_mpv_build(configure "${CMAKE_COMMAND}" -E env ${mpv_compilers}
-        "${MUSIQ_MESON}" setup --reconfigure "${mpv_build}"
-        --prefix "${mpv_prefix}" --libdir lib --buildtype "${mpv_build_type}"
-        --default-library static --wrap-mode=forcefallback -Dprefer_static=true -Dauto_features=disabled ${mpv_runtime}
-        -Dlibmpv=true -Dcplayer=false -Dwasapi=enabled -Dwin32-threads=enabled -Dgl=disabled -Dlua=disabled
-        -Dlibass:require-system-font-provider=false -Dlibplacebo:demos=false
-        -Dffmpeg:auto_features=auto -Dffmpeg:network=disabled
-        -Dffmpeg:programs=disabled -Dffmpeg:tests=disabled
-    )
-    musiq_mpv_build(compile "${MUSIQ_MESON}" compile -C "${mpv_build}")
-    musiq_mpv_build(install "${MUSIQ_MESON}" install -C "${mpv_build}")
-    file(WRITE "${mpv_prefix}/.musiq-installed" "mpv 0.41.0\n")
 endif()
+
+# pkg-config needs the installed static dependency metadata during cmake configuration
+musiq_mpv_build(configure "${CMAKE_COMMAND}" -E env ${mpv_compilers}
+    "${MUSIQ_MESON}" setup --reconfigure "${mpv_build}"
+    --prefix "${mpv_prefix}" --libdir lib --buildtype "${mpv_build_type}"
+    --default-library static --wrap-mode=forcefallback -Dprefer_static=true -Dauto_features=disabled ${mpv_runtime}
+    -Dlibmpv=true -Dcplayer=false -Dwasapi=enabled -Dwin32-threads=enabled -Dgl=disabled -Dlua=disabled
+    -Dlibass:require-system-font-provider=false -Dlibplacebo:demos=false
+    -Dffmpeg:auto_features=auto -Dffmpeg:network=disabled
+    -Dffmpeg:programs=disabled -Dffmpeg:tests=disabled
+)
+musiq_mpv_build(compile "${MUSIQ_MESON}" compile -C "${mpv_build}")
+musiq_mpv_build(install "${MUSIQ_MESON}" install -C "${mpv_build}")
 
 set(mpv_old_pkg_path "$ENV{PKG_CONFIG_PATH}")
 set(ENV{PKG_CONFIG_PATH} "${mpv_prefix}/lib/pkgconfig;${mpv_prefix}/share/pkgconfig")
-find_package(PkgConfig REQUIRED)
-set(PKG_CONFIG_ARGN --static)
-list(APPEND CMAKE_FIND_LIBRARY_SUFFIXES .a)
-pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
-unset(PKG_CONFIG_ARGN)
+block(SCOPE_FOR VARIABLES)
+    find_package(PkgConfig REQUIRED)
+    set(PKG_CONFIG_ARGN --static)
+    list(APPEND CMAKE_FIND_LIBRARY_SUFFIXES .a)
+    pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+endblock()
 set(ENV{PKG_CONFIG_PATH} "${mpv_old_pkg_path}")
 add_library(mpv::mpv ALIAS PkgConfig::MPV)

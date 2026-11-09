@@ -10,7 +10,7 @@
 #include <imgui-ui/layout/virtual-layout.hpp>
 
 using namespace ui;
-using namespace media;
+using namespace utils::media;
 
 PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, ThreadPool& workers, PlaybackController& playback)
     : Container("playlist", StackDirection::Vertical), m_item(std::move(item)), m_thumbnails(thumbnails), m_playback(playback),
