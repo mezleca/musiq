@@ -6,6 +6,7 @@
 #include "../../playback/controller.hpp"
 
 #include <utility>
+#include <algorithm>
 #include <imgui-ui/layout/virtual-layout.hpp>
 
 using namespace ui;
@@ -52,14 +53,12 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
     m_tracks->set_size({grow(), grow()});
     m_tracks->set_spacing(6.0f);
     m_tracks->set_overscan(2);
+    m_list.emplace(*m_tracks);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
-        auto [entry, created] = m_rows.try_emplace(index, nullptr);
-        if (!created) return *entry->second;
+        if (auto* card = m_list->find(index)) return *card;
 
-        auto& card = m_tracks->add<MediaCardWidget>(m_browser.playlist().tracks[index], m_thumbnails);
-        card.set_id(std::to_string(index));
+        auto& card = m_list->add(index, m_browser.playlist().tracks[index], m_thumbnails);
         card.on_click([this, index] { play(index); });
-        entry->second = &card;
         return card;
     });
 
@@ -77,8 +76,7 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, bool reload) {
         return;
     }
 
-    m_rows.clear();
-    m_tracks->clear();
+    m_list->clear();
     m_tracks->set_items(0);
     m_tracks->scroll().seek_to({}, ScrollBehavior::Instant);
 
@@ -120,12 +118,33 @@ void PlaylistOverlay::play(std::size_t start) {
 }
 
 void PlaylistOverlay::update_playback() {
-    if (m_playback.queue().source() != m_item.endpoint.browse_id) {
+    const auto& queue = m_playback.queue();
+    if (queue.source() != m_item.endpoint.browse_id) {
         m_play->set_text("Play");
+        m_list->set_current(std::nullopt);
         return;
     }
 
     m_play->set_text(m_playback.paused() ? "Resume" : "Pause");
+
+    std::optional<std::uint64_t> current;
+
+    const auto* entry = queue.current();
+    const auto& tracks = m_browser.playlist().tracks;
+    if (entry) {
+        // the queue was built from this playlist, so its position also identifies the exact occurrence
+        const auto position = queue.position();
+        if (position < tracks.size() && tracks[position].endpoint.video_id == entry->media.endpoint.video_id) {
+            current = static_cast<std::uint64_t>(position);
+        } else {
+            const auto match = std::ranges::find_if(tracks, [&](const MusicItem& track) {
+                return track.endpoint.video_id == entry->media.endpoint.video_id;
+            });
+            if (match != tracks.end()) current = static_cast<std::uint64_t>(match - tracks.begin());
+        }
+    }
+
+    m_list->set_current(current);
 }
 
 void PlaylistOverlay::load_more() {

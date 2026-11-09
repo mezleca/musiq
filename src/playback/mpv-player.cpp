@@ -13,22 +13,33 @@ void MpvDeleter::operator()(mpv_handle* handle) const {
 }
 
 MpvPlayer::MpvPlayer(bool silent) : m_handle(mpv_create()) {
-    if (!m_handle) throw std::runtime_error("could not create libmpv");
+    if (!m_handle) {
+        throw std::runtime_error("could not create libmpv");
+    }
+
     for (const auto* option : {"config", "terminal", "ytdl", "video", "osc", "input-default-bindings"}) {
         check_mpv(mpv_set_option_string(m_handle.get(), option, "no"));
     }
+
     check_mpv(mpv_set_option_string(m_handle.get(), "idle", "yes"));
     check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause-initial", "no"));
     check_mpv(mpv_set_option_string(m_handle.get(), "demuxer-max-bytes", "8388608"));
-    if (silent) check_mpv(mpv_set_option_string(m_handle.get(), "ao", "null"));
+
+    if (silent) {
+        check_mpv(mpv_set_option_string(m_handle.get(), "ao", "null"));
+    }
+
     check_mpv(mpv_initialize(m_handle.get()));
     m_stream.attach(m_handle.get());
+
     for (const auto* name : {"time-pos", "duration"}) {
         check_mpv(mpv_observe_property(m_handle.get(), 0, name, MPV_FORMAT_DOUBLE));
     }
+
     for (const auto* name : {"pause", "paused-for-cache"}) {
         check_mpv(mpv_observe_property(m_handle.get(), 0, name, MPV_FORMAT_FLAG));
     }
+
     LOG_INFO("[player] libmpv initialized");
 }
 

@@ -1,14 +1,14 @@
 #pragma once
 
 #include "modal.hpp"
+#include "../widgets/track-list.hpp"
 #include <cstdint>
-#include <unordered_map>
+#include <optional>
 
 class PlaybackController;
 class ThumbnailCache;
 class MusiqText;
 class MusiqButtonWidget;
-class MediaCardWidget;
 namespace ui {
     class VirtualLayout;
 }
@@ -30,5 +30,5 @@ private:
     MusiqButtonWidget* m_more;
     bool m_autoplay = true;
     std::uint64_t m_revision = 0;
-    std::unordered_map<std::uint64_t, MediaCardWidget*> m_rows;
+    std::optional<TrackList> m_list;
 };

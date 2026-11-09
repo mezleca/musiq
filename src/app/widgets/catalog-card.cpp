@@ -41,10 +41,12 @@ MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnai
 void MediaCardWidget::apply_theme_defaults(const Theme& theme) {
     MusiqButtonWidget::apply_theme_defaults(theme);
     configure_all_styles([this, &theme](Style& style) {
-        style.padding({8.0f}).background_color(theme.background_secondary_color).border_radius(theme.controls.rounding);
-        style.border_thickness(m_selected ? 1.0f : 0.0f).border_color(theme.accent_color);
+        style.padding({8.0f})
+            .background_color(m_selected ? theme.accent_color : theme.background_secondary_color)
+            .border_radius(theme.controls.rounding)
+            .border_thickness(0.0f);
     });
-    style(StyleType::HOVER).background_color(theme.controls.hover_color);
+    style(StyleType::HOVER).background_color(m_selected ? theme.accent_hover_color : theme.controls.hover_color);
 }
 
 void MediaCardWidget::set_selected(bool selected) {

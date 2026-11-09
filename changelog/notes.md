@@ -1,6 +1,7 @@
 # Unreleased
 
 - Implemented Random & Repeat
+- Show selected track on playlist and queue list
 - Fix cursor flicking on disabled items
 - Disable UI debugger on release builds
 

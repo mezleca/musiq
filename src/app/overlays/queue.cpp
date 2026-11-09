@@ -34,15 +34,13 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
     m_tracks->set_size({grow(), grow()});
     m_tracks->set_spacing(6.0f);
     m_tracks->set_overscan(2);
+    m_list.emplace(*m_tracks);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
         const auto& entry = m_playback.queue().entries()[index];
-        auto [row, created] = m_rows.try_emplace(entry.id, nullptr);
-        if (!created) return *row->second;
+        if (auto* card = m_list->find(entry.id)) return *card;
 
-        auto& card = m_tracks->add<MediaCardWidget>(entry.media, m_thumbnails);
-        card.set_id(std::to_string(entry.id));
+        auto& card = m_list->add(entry.id, entry.media, m_thumbnails);
         card.on_click([this, id = entry.id] { m_playback.queue().select(id); });
-        card.set_selected(index == m_playback.queue().position());
 
         auto& remove = card.add<MusiqIconButtonWidget>("resources/icons/close.svg");
         remove.set_tooltip("Remove from queue");
@@ -50,8 +48,6 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
             m_playback.remove(id);
             event.stop_propagation();
         });
-
-        row->second = &card;
         return card;
     });
 
@@ -80,20 +76,18 @@ void QueueOverlay::refresh() {
     const auto& entries = queue.entries();
     const auto* current = queue.current();
 
-    // rows stay mapped by entry id, so a removal only drops the matching card
+    const auto current_id = current ? std::make_optional(current->id) : std::nullopt;
+
+    // cards stay mapped by entry id, so a removal only drops the matching card
     if (queue.revision() != m_revision) {
         m_revision = queue.revision();
-        std::erase_if(m_rows, [&](const auto& row) {
-            if (std::ranges::find(entries, row.first, &QueueEntry::id) != entries.end()) {
-                row.second->set_selected(current->id == row.first);
-                return false;
-            }
-
-            m_tracks->remove(*row.second);
-            return true;
-        });
+        m_list->refresh(
+            [&](std::uint64_t id) { return std::ranges::find(entries, id, &QueueEntry::id) != entries.end(); }, current_id
+        );
 
         m_tracks->set_items(entries.size());
+    } else {
+        m_list->set_current(current_id);
     }
 
     std::string status;
