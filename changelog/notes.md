@@ -1,4 +1,4 @@
-# Unreleased
+# v0.3.0
 
 - MPV: Enable "cache" and "cache-pause"
 - Queue: Removed "AutoPlay" (recommended songs are now loaded via the "load more" button)
