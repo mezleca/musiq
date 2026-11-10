@@ -8,9 +8,21 @@
 #include <utility>
 #include <algorithm>
 #include <imgui-ui/layout/virtual-layout.hpp>
+#include <imgui-ui/surface.hpp>
 
 using namespace ui;
 using namespace utils::media;
+
+class PlaylistPlayButtonWidget final : public MusiqIconButtonWidget {
+public:
+    PlaylistPlayButtonWidget() : MusiqIconButtonWidget("icons/play.svg", 42.0f) {}
+
+protected:
+    void apply_theme_defaults(const Theme& theme) override {
+        MusiqIconButtonWidget::apply_theme_defaults(theme);
+        configure_all_styles([&theme](Style& style) { style.background_color(theme.controls.hover_color); });
+    }
+};
 
 PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, ThreadPool& workers, PlaybackController& playback)
     : Container("playlist", StackDirection::Vertical), m_item(std::move(item)), m_thumbnails(thumbnails), m_playback(playback),
@@ -38,7 +50,8 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
         text->set_overflow(TextOverflow::Ellipsis);
     }
 
-    m_play = &details.add<MusiqButtonWidget>("Play");
+    m_play = &details.add<PlaylistPlayButtonWidget>();
+    m_play->set_tooltip("Play");
     m_play->on_click([this] {
         if (m_playback.queue().source() == m_item.endpoint.browse_id) {
             m_playback.toggle_pause();
@@ -120,12 +133,15 @@ void PlaylistOverlay::play(std::size_t start) {
 void PlaylistOverlay::update_playback() {
     const auto& queue = m_playback.queue();
     if (queue.source() != m_item.endpoint.browse_id) {
-        m_play->set_text("Play");
+        m_play->set_icon("icons/play.svg");
+        m_play->set_tooltip("Play");
         m_list->set_current(std::nullopt);
         return;
     }
 
-    m_play->set_text(m_playback.paused() ? "Resume" : "Pause");
+    const bool paused = m_playback.paused();
+    m_play->set_icon(paused ? "icons/play.svg" : "icons/pause.svg");
+    m_play->set_tooltip(paused ? "Play" : "Pause");
 
     std::optional<std::uint64_t> current;
 

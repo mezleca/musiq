@@ -22,6 +22,19 @@ ChannelPickerOverlay::ChannelPickerOverlay(Node& anchor, std::function<void(std:
     m_channels->set_spacing(8.0f);
 }
 
+void ChannelPickerOverlay::apply_theme_defaults(const Theme& theme) {
+    LayerContainer::apply_theme_defaults(theme);
+
+    configure_all_styles([&theme](Style& style) {
+        style.padding({12.0f});
+        style.background_color(theme.background_secondary_color);
+        style.border(BorderEdge{.size = 1.0f, .type = BorderType::Solid});
+        style.border_radius(theme.metrics.popup_rounding);
+        style.border_thickness(1.0f);
+        style.border_color(theme.border_color);
+    });
+}
+
 void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bool failed) {
     m_channels->clear();
 
@@ -48,20 +61,12 @@ bool ChannelPickerOverlay::take_dismissed() {
 bool ChannelPickerOverlay::paint() {
     const auto anchor = m_anchor.layout().visual_rect();
     set_popup_position({anchor.max.x - layout().size().x, anchor.max.y + 4.0f});
-    if (LayerContainer::paint()) return true;
+
+    if (LayerContainer::paint()) {
+        return true;
+    }
 
     set_visible(false);
     m_dismissed = true;
     return false;
-}
-
-void ChannelPickerOverlay::apply_theme_defaults(const Theme& theme) {
-    LayerContainer::apply_theme_defaults(theme);
-    configure_all_styles([&theme](Style& style) {
-        style.padding({12.0f});
-        style.background_color(theme.background_secondary_color);
-        style.border_radius(theme.metrics.popup_rounding);
-        style.border_thickness(1.0f);
-        style.border_color(theme.border_color);
-    });
 }

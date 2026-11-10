@@ -121,6 +121,7 @@ PlayerBarOverlay::PlayerBarOverlay(
     m_position = &progress.add<MusiqText>("0:00");
 
     auto& seek = progress.add<MusiqSliderWidget>(m_progress);
+    seek.set_commit_on_release(true);
     seek.on_change([this] { m_player.seek(m_progress * m_player.state().duration / 100.0); });
     seek.set_enabled(false);
     m_seek = &seek;

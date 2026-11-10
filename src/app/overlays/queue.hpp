@@ -28,7 +28,6 @@ private:
     ui::VirtualLayout* m_tracks;
     MusiqText* m_status;
     MusiqButtonWidget* m_more;
-    bool m_autoplay = true;
     std::uint64_t m_revision = 0;
     std::optional<TrackList> m_list;
 };

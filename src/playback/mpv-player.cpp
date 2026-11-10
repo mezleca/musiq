@@ -22,8 +22,13 @@ MpvPlayer::MpvPlayer(bool silent) : m_handle(mpv_create()) {
     }
 
     check_mpv(mpv_set_option_string(m_handle.get(), "idle", "yes"));
+
+    // musiq:// is not detected as a network source, so auto would disable seekable caching
+    check_mpv(mpv_set_option_string(m_handle.get(), "cache", "yes"));
     check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause-initial", "no"));
+    check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause-wait", "0.3"));
     check_mpv(mpv_set_option_string(m_handle.get(), "demuxer-max-bytes", "8388608"));
+    check_mpv(mpv_set_option_string(m_handle.get(), "demuxer-max-back-bytes", "8388608"));
 
     if (silent) {
         check_mpv(mpv_set_option_string(m_handle.get(), "ao", "null"));

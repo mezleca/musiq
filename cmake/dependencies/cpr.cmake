@@ -5,7 +5,7 @@ if(WIN32)
     set(CPR_CURL_USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
 else()
     set(CPR_USE_SYSTEM_CURL ON CACHE BOOL "" FORCE)
-    find_package(CURL REQUIRED)
+    find_package(CURL 7.83 REQUIRED)
 endif()
 
 FetchContent_Declare(

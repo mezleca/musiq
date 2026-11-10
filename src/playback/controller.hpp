@@ -44,18 +44,8 @@ public:
         return m_task.valid();
     }
 
-    bool has_more() const {
-        return m_continuation.has_value();
-    }
-
     const std::string& error() const {
         return m_error;
-    }
-
-    void set_autoplay(bool enabled);
-
-    bool autoplay() const {
-        return m_autoplay;
     }
 
 private:
@@ -63,7 +53,9 @@ private:
     void radio(std::string video_id);
     void reset_source();
     void update_player();
+    void switch_track(const QueueEntry* track);
     void resolve_current();
+    void collect_stream();
 
     ThreadPool& m_workers;
     MpvPlayer& m_player;
@@ -73,8 +65,6 @@ private:
     std::future<YoutubeResult<PlaybackPage>> m_task;
     std::optional<MusicContinuation> m_continuation;
     std::string m_error;
-    bool m_radio = true;
-    bool m_autoplay = true;
     bool m_changed = false;
     std::future<YoutubeResult<AudioSource>> m_stream_task;
     std::uint64_t m_track_id = 0;

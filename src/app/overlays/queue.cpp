@@ -3,7 +3,6 @@
 #include "../widgets/text.hpp"
 #include "../../playback/controller.hpp"
 
-#include <imgui-ui/widgets/checkbox.hpp>
 #include <imgui-ui/layout/virtual-layout.hpp>
 #include <imgui-ui/surface.hpp>
 #include <format>
@@ -55,10 +54,6 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
     footer.set_size({grow(), fit()});
     footer.set_content_alignment(Anchor::CenterLeft);
 
-    auto& autoplay = footer.add<CheckboxWidget>(m_autoplay, "Autoplay");
-    autoplay.set_size({grow(), fit()});
-    autoplay.on_change([this] { m_playback.set_autoplay(m_autoplay); });
-
     m_more = &footer.add<MusiqButtonWidget>("Load more");
     m_more->on_click([this] { m_playback.load_more(); });
 }
@@ -71,7 +66,6 @@ void QueueOverlay::show() {
 void QueueOverlay::refresh() {
     if (!visible()) return;
 
-    m_autoplay = m_playback.autoplay();
     auto& queue = m_playback.queue();
     const auto& entries = queue.entries();
     const auto* current = queue.current();
@@ -105,8 +99,7 @@ void QueueOverlay::refresh() {
     }
     m_status->set_text(std::move(status));
 
-    m_more->set_visible(m_playback.has_more());
-    m_more->set_enabled(!m_playback.loading());
+    m_more->set_enabled(current && !m_playback.loading());
 }
 
 void QueueOverlay::event(UiEvent& event) {

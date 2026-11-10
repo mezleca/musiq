@@ -77,7 +77,7 @@ void UserProfileWidget::apply_theme_defaults(const Theme& theme) {
     configure_all_styles([&theme, transition](Style& style) {
         style.background_color(theme.background_secondary_color, transition);
         style.border(BorderEdge{.size = 1.0f, .type = BorderType::Solid});
-        style.border_color(theme.background_secondary_color, transition);
+        style.border_color(theme.border_color, transition);
         style.padding({8.0f, 4.0f, 8.0f, 4.0f});
     });
 

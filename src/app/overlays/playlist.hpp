@@ -11,6 +11,7 @@ class PlaybackController;
 class MediaCoverWidget;
 class MusiqText;
 class MusiqButtonWidget;
+class MusiqIconButtonWidget;
 namespace ui {
     class VirtualLayout;
 }
@@ -41,7 +42,7 @@ private:
     MusiqText* m_details;
     MusiqText* m_description;
     MusiqText* m_status;
-    MusiqButtonWidget* m_play;
+    MusiqIconButtonWidget* m_play;
     MusiqButtonWidget* m_more;
     ui::VirtualLayout* m_tracks;
     std::optional<TrackList> m_list;

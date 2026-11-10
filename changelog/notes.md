@@ -1,3 +1,11 @@
+# Unreleased
+
+- Removed "AutoPlay" from queue (recommended songs are now loaded via the "load more" button)
+- Reuse connection per thread (everything should load a bit faster)
+- Enable explicit cache on mpv
+- Reuse "play" / "pause" icons on plalist
+- Fix channel-picker border not showing
+
 # v0.2.0
 
 - Inno(Windows), Portable(Windows) and tarball(arch linux) packaging

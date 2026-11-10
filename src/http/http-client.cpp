@@ -7,6 +7,9 @@
 cpr::Response http::request(const HttpRequest& request) {
     cpr::Session session;
 
+    thread_local cpr::ConnectionPool connections;
+    session.SetConnectionPool(connections);
+
     session.SetUrl(cpr::Url{request.url});
     session.SetHeader(request.headers);
     session.SetParameters(request.parameters);

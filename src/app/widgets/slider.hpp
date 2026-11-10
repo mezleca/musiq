@@ -5,6 +5,7 @@
 class MusiqSliderWidget final : public ui::Widget {
 public:
     explicit MusiqSliderWidget(double& percent);
+    void set_commit_on_release(bool enabled);
     bool dragging() const {
         return m_dragging;
     }
@@ -17,7 +18,9 @@ protected:
 private:
     void set_value(double percent);
     double& m_percent;
+    double m_drag_start = 0;
     ui::Color m_track;
     ui::Color m_active;
     bool m_dragging = false;
+    bool m_commit_on_release = false;
 };

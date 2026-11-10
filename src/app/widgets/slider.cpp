@@ -28,11 +28,16 @@ void MusiqSliderWidget::set_value(double percent) {
     percent = std::clamp(percent, 0.0, 100.0);
     if (percent == m_percent) return;
     m_percent = percent;
-    notify_change();
+    if (!m_commit_on_release || !m_dragging) notify_change();
+}
+
+void MusiqSliderWidget::set_commit_on_release(bool enabled) {
+    m_commit_on_release = enabled;
 }
 
 void MusiqSliderWidget::event(UiEvent& event) {
     if (event.type == EventType::Cancel) {
+        if (m_dragging && m_commit_on_release) m_percent = m_drag_start;
         m_dragging = false;
         return;
     }
@@ -41,6 +46,7 @@ void MusiqSliderWidget::event(UiEvent& event) {
     } else {
         // pointer capture keeps move and release events after the cursor leaves the track
         if (event.type == EventType::PointerDown && event.button == PointerButton::Left) {
+            m_drag_start = m_percent;
             m_dragging = true;
             surface().input_router().capture_pointer(*this);
             surface().input_router().set_focus(this);
@@ -50,7 +56,15 @@ void MusiqSliderWidget::event(UiEvent& event) {
             return;
         }
         const auto rect = layout().visual_rect();
-        set_value((event.position.x - rect.min.x) * 100.0 / rect.size().x);
+        if (rect.size().x > 0.0f) {
+            const auto percent = (event.position.x - rect.min.x) * 100.0 / rect.size().x;
+            if (event.type == EventType::PointerUp && m_commit_on_release) {
+                m_percent = std::clamp(percent, 0.0, 100.0);
+                notify_change();
+            } else {
+                set_value(percent);
+            }
+        }
     }
 
     event.prevent_default();
