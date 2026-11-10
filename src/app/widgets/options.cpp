@@ -21,15 +21,19 @@ OptionsWidget::OptionsWidget(std::string id, std::string text, std::string icon_
     m_icon->set_size({px(24), px(24)});
     m_icon->set_fit(ImageFit::Contain);
 
-    auto& label = add<MusiqText>(std::move(text), true);
+    auto& label = add<MusiqText>(std::move(text));
     label.set_size({grow(), fit()});
     label.set_overflow(TextOverflow::Ellipsis);
 }
 
 void OptionsWidget::set_selected(bool selected) {
     m_selected = selected;
+    apply_selection();
+}
+
+void OptionsWidget::apply_selection() {
     const auto& theme = surface().theme();
-    const auto background = selected ? theme.header_background_color : theme.transparent;
+    const auto background = m_selected ? theme.header_background_color : theme.transparent;
     style(StyleType::DEFAULT).background_color(background);
     style(StyleType::FOCUS).background_color(background);
 }
@@ -45,6 +49,7 @@ void OptionsWidget::apply_theme_defaults(const Theme& theme) {
         style.cursor(ImGuiMouseCursor_Hand);
     });
 
+    apply_selection();
     style(StyleType::HOVER).background_color(theme.controls.hover_color);
     style(StyleType::ACTIVE).background_color(theme.controls.active_color);
 

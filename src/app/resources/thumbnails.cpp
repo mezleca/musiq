@@ -35,28 +35,31 @@ std::shared_ptr<ThumbnailRequest> ThumbnailCache::request(const std::string& url
 
 TextureHandle
 ThumbnailCache::resolve(TextureRegistry& textures, const std::string& url, std::shared_ptr<ThumbnailRequest>& pending) {
-    if (!url.empty()) {
-        if (pending && !future_ready(pending->result)) return {};
+    if (url.empty()) return textures.acquire("missing-artwork", utils::path::from_resources("icons/missing.svg"));
+    if (pending && !future_ready(pending->result)) return {};
 
-        auto image = textures.find_handle("thumbnail:" + url);
-        if (image) {
-            pending.reset();
-            return image;
-        }
-
-        if (!pending) pending = request(url);
-        if (!future_ready(pending->result)) return {};
-
-        try {
-            const auto& bytes = pending->result.get();
-            if (!bytes.empty()) image = textures.acquire("thumbnail:" + url, std::string_view(bytes));
-        } catch (const std::exception& error) {
-            LOG_ERROR("[artwork] thumbnail failed: {} ({})", error.what(), url);
-        }
+    if (auto image = textures.find_handle("thumbnail:" + url)) {
         pending.reset();
-        if (image) return image;
+        return image;
     }
 
+    if (!pending) pending = request(url);
+    if (!future_ready(pending->result)) return {};
+
+    try {
+        const auto& bytes = pending->result.get();
+        if (!bytes.empty()) {
+            auto image = textures.acquire("thumbnail:" + url, std::string_view(bytes));
+            if (image) {
+                pending.reset();
+                return image;
+            }
+        }
+    } catch (const std::exception& error) {
+        LOG_ERROR("[artwork] thumbnail failed: {} ({})", error.what(), url);
+    }
+
+    pending.reset();
     return textures.acquire("missing-artwork", utils::path::from_resources("icons/missing.svg"));
 }
 

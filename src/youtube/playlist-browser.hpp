@@ -1,14 +1,13 @@
 #pragma once
 
+#include "session.hpp"
 #include "schema/playlist.hpp"
 #include "error.hpp"
 
 #include <future>
-#include <memory>
 #include <string>
 
 class ThreadPool;
-class YoutubeMusicSession;
 
 class PlaylistBrowser {
 public:
@@ -39,7 +38,7 @@ private:
     void accept_page(MusicPlaylist page);
 
     ThreadPool& m_workers;
-    std::shared_ptr<const YoutubeMusicSession> m_session;
+    YoutubeMusicSession m_session;
     MusicPlaylist m_playlist;
     std::future<YoutubeResult<MusicPlaylist>> m_task;
     std::string m_error;

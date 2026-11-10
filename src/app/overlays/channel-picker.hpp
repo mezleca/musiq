@@ -13,6 +13,7 @@ public:
     explicit ChannelPickerOverlay(ui::Node& anchor, std::function<void(std::string)> select);
 
     void show(const std::vector<MusicIdentity>& identities, bool failed = false);
+    void refresh(const std::vector<MusicIdentity>& identities, bool failed = false);
     bool take_dismissed();
 
 protected:

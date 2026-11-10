@@ -96,11 +96,9 @@ static void append_account_group(const json& group, std::string_view selected_id
         auto identity = item->get<MusicIdentity>();
         if (identity.data_sync_id.empty() && item->value("isSelected", false)) identity.data_sync_id = selected_id;
         if (identity.name.empty() || identity.data_sync_id.empty()) continue;
-
-        const auto duplicate = std::find_if(identities.begin(), identities.end(), [&](const MusicIdentity& existing) {
-            return existing.data_sync_id == identity.data_sync_id;
-        });
-        if (duplicate == identities.end()) identities.push_back(std::move(identity));
+        if (!std::ranges::contains(identities, identity.data_sync_id, &MusicIdentity::data_sync_id)) {
+            identities.push_back(std::move(identity));
+        }
     }
 }
 

@@ -5,7 +5,6 @@
 #include "../utils/log.hpp"
 #include "../utils/thread-pool.hpp"
 
-#include <exception>
 #include <format>
 #include <utility>
 
@@ -21,25 +20,16 @@ static YoutubeResult<MusicSuggestions> read_suggestions(const YoutubeMusicSessio
     return YoutubeMusicCatalog(client).suggestions(query, {.auth = MusicAuth::Anonymous});
 }
 
-template <typename T>
-static YoutubeResult<T> take_result(std::future<YoutubeResult<T>>& task) {
-    try {
-        return task.get();
-    } catch (const std::exception& error) {
-        return youtube_error(YoutubeErrorKind::Transport, error.what());
-    }
-}
-
-CatalogBrowser::CatalogBrowser(ThreadPool& workers)
-    : m_session(std::make_shared<const YoutubeMusicSession>()), m_workers(workers) {}
+CatalogBrowser::CatalogBrowser(ThreadPool& workers) : m_workers(workers) {}
 
 void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
-    m_session = std::make_shared<const YoutubeMusicSession>(session);
+    m_session = session;
     m_home = {};
     m_searches.clear();
 
     // dropping the futures ignores old responses, queued requests still finish in the pool
     m_page_task = {};
+    m_home_more_task = {};
     m_suggestions_task = {};
     m_pages.clear();
     suggest({});
@@ -62,6 +52,17 @@ bool CatalogBrowser::home(bool refresh) {
     if (m_home.loading || (!refresh && m_home.page)) return false;
 
     queue_page({});
+    return true;
+}
+
+bool CatalogBrowser::more_home() {
+    if (m_home.loading || !m_home.error.empty() || !m_home.page || !m_home.page->continuation) return false;
+
+    m_home.loading = true;
+    m_home_more_task = m_workers.enqueue([session = m_session, continuation = *m_home.page->continuation] {
+        const YoutubeMusicClient client(session);
+        return YoutubeMusicCatalog(client).more(continuation);
+    });
     return true;
 }
 
@@ -92,6 +93,28 @@ void CatalogBrowser::suggest(std::string query) {
 
 CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now) {
     CatalogChanges changed;
+
+    if (future_ready(m_home_more_task)) {
+        auto result = take_result(m_home_more_task);
+        m_home.loading = false;
+        if (result) {
+            // existing cards retain their page snapshot while new sections use the extended page
+            auto page = std::make_shared<MusicPage>(*m_home.page);
+            for (auto& shelf : result->shelves) {
+                page->shelves.push_back(std::move(shelf));
+            }
+            page->continuation = std::move(result->continuation);
+            if (page->continuation && page->continuation->token == m_home.page->continuation->token) {
+                page->continuation.reset();
+            }
+            m_home.page = std::move(page);
+            changed.home_append = true;
+        } else {
+            m_home.error = result.error().message;
+            LOG_ERROR("[catalog] home continuation failed: {}", m_home.error);
+        }
+        changed.home = true;
+    }
 
     // keep the active request at the front until its result has updated the original page
     if (future_ready(m_page_task)) {
@@ -133,13 +156,13 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
 
     if (!m_pages.empty() && !m_page_task.valid()) {
         LOG_INFO("[catalog] loading {}", m_pages.front().empty() ? "home" : "search");
-        m_page_task = m_workers.enqueue([session = m_session, query = m_pages.front()] { return read_page(*session, query); });
+        m_page_task = m_workers.enqueue([session = m_session, query = m_pages.front()] { return read_page(session, query); });
     }
 
     if (!m_suggestions_task.valid() && m_suggestions_debounce.poll(now)) {
         m_running_suggestion = m_suggestion_query;
         m_suggestions_task =
-            m_workers.enqueue([session = m_session, query = m_running_suggestion] { return read_suggestions(*session, query); });
+            m_workers.enqueue([session = m_session, query = m_running_suggestion] { return read_suggestions(session, query); });
     }
 
     return changed;

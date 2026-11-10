@@ -123,6 +123,7 @@ private:
                         LPWSTR value = nullptr;
                         const auto name_result = cookie->get_Name(&name);
                         const auto value_result = cookie->get_Value(&value);
+                        // convert before checking the results so take_utf8 releases whichever value was allocated
                         auto key = take_utf8(name);
                         auto content = take_utf8(value);
                         if (FAILED(name_result) || FAILED(value_result)) {

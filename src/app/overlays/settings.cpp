@@ -50,11 +50,11 @@ SettingsOverlay::SettingsOverlay(
         LOG_WARN("[settings] could not read volume: {}", error.what());
     }
 
-    add<MusiqText>("Settings", true);
+    add<MusiqText>("Settings", TextWeight::Bold);
     m_status = &add<MusiqText>("Changes are saved automatically.");
 
     auto& audio = add<SettingsSectionWidget>("audio");
-    audio.add<MusiqText>("Audio", true);
+    audio.add<MusiqText>("Audio", TextWeight::Bold);
 
     audio.add<MusiqText>("Volume");
     auto& row = audio.add<Container>("volume", StackDirection::Horizontal);
@@ -66,7 +66,7 @@ SettingsOverlay::SettingsOverlay(
     volume.on_change([this] { save_volume(); });
 
     m_account = &add<SettingsSectionWidget>("account");
-    m_account->add<MusiqText>("Account", true);
+    m_account->add<MusiqText>("Account", TextWeight::Bold);
 
     auto& logout = m_account->add<MusiqButtonWidget>("Log out");
     logout.set_id("log-out");
@@ -81,7 +81,7 @@ SettingsOverlay::SettingsOverlay(
     set_authenticated(false);
 
     auto& browser = add<SettingsSectionWidget>("browser");
-    browser.add<MusiqText>("Webview", true);
+    browser.add<MusiqText>("Webview", TextWeight::Bold);
     browser.add<MusiqButtonWidget>("Clear cookies").on_click([this, clear_cookies = std::move(clear_cookies)] {
         try {
             clear_cookies();

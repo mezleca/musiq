@@ -48,8 +48,11 @@ static YoutubeResult<PlaybackPage> read_more(const YoutubeMusicSession& session,
 }
 
 PlaybackController::PlaybackController(ThreadPool& workers, MpvPlayer& player)
-    : m_workers(workers), m_player(player), m_session(std::make_shared<const YoutubeMusicSession>()),
-      m_media_stream(std::make_shared<YoutubeMediaStream>()) {}
+    : m_workers(workers), m_player(player), m_media_stream(std::make_shared<YoutubeMediaStream>()) {}
+
+PlaybackController::~PlaybackController() {
+    m_resolve_stop.request_stop();
+}
 
 void PlaybackController::reset_source() {
     m_task = {};
@@ -59,7 +62,7 @@ void PlaybackController::reset_source() {
 }
 
 void PlaybackController::set_session(const YoutubeMusicSession& session) {
-    m_session = std::make_shared<const YoutubeMusicSession>(session);
+    m_session = session;
 }
 
 void PlaybackController::remove(std::uint64_t id) {
@@ -69,7 +72,7 @@ void PlaybackController::remove(std::uint64_t id) {
 
 void PlaybackController::radio(std::string video_id) {
     m_task = m_workers.enqueue([session = m_session, video_id = std::move(video_id)]() -> YoutubeResult<PlaybackPage> {
-        const YoutubeMusicClient client(*session);
+        const YoutubeMusicClient client(session);
         auto page = YoutubeMusicQueue(client).next({video_id, {}});
         if (!page) return std::unexpected(std::move(page.error()));
 
@@ -106,7 +109,7 @@ void PlaybackController::load_more() {
     }
 
     m_task =
-        m_workers.enqueue([session = m_session, continuation = *m_continuation] { return read_more(*session, continuation); });
+        m_workers.enqueue([session = m_session, continuation = *m_continuation] { return read_more(session, continuation); });
     m_changed = true;
 }
 
@@ -115,24 +118,19 @@ void PlaybackController::collect_page() {
 
     m_changed = true;
 
-    try {
-        auto page = m_task.get();
-        if (!page) {
-            m_error = page.error().message;
-            LOG_ERROR("[queue] load failed: {} (status={})", m_error, page.error().status);
-            return;
-        }
-
-        // recommendations extend the queue without changing the album or playlist that started it
-        for (auto& track : page->tracks) {
-            if (is_playable(track)) m_queue.append(std::move(track), true);
-        }
-        m_continuation = std::move(page->continuation);
-        LOG_INFO("[queue] loaded page (entries={})", m_queue.entries().size());
-    } catch (const std::exception& error) {
-        m_error = error.what();
-        LOG_ERROR("[queue] load failed: {}", m_error);
+    auto page = take_result(m_task);
+    if (!page) {
+        m_error = page.error().message;
+        LOG_ERROR("[queue] load failed: {} (status={})", m_error, page.error().status);
+        return;
     }
+
+    // recommendations extend the queue without changing the album or playlist that started it
+    for (auto& track : page->tracks) {
+        if (is_playable(track)) m_queue.append(std::move(track), true);
+    }
+    m_continuation = std::move(page->continuation);
+    LOG_INFO("[queue] loaded page (entries={})", m_queue.entries().size());
 }
 
 bool PlaybackController::update() {
@@ -146,11 +144,21 @@ void PlaybackController::resolve_current() {
 
     m_audio_error.clear();
     LOG_INFO("[player] resolving {}", track.media.endpoint.video_id);
+    m_resolve_stop.request_stop();
+    m_resolve_stop = {};
 
     // keep the resolver and its visitor cache alive until this job finishes
-    m_stream_task = m_workers.enqueue([stream = m_media_stream, session = m_session, video = track.media.endpoint.video_id] {
-        return stream->resolve(*session, video);
-    });
+    m_stream_task = m_workers.enqueue(
+        [stream = m_media_stream, session = m_session, video = track.media.endpoint.video_id,
+         stop = m_resolve_stop.get_token()]() -> YoutubeResult<AudioSource> {
+            for (unsigned attempt = 0;; ++attempt) {
+                if (stop.stop_requested()) return youtube_error(YoutubeErrorKind::Transport, "audio resolution cancelled");
+                auto source = stream->resolve(session, video);
+                if (source || attempt == 3 || stop.stop_requested()) return source;
+                LOG_WARN("[player] audio resolution retry {}/3: {}", attempt + 1, source.error().message);
+            }
+        }
+    );
 
     m_changed = true;
 }
@@ -158,7 +166,12 @@ void PlaybackController::resolve_current() {
 void PlaybackController::toggle_pause() {
     const auto& state = m_player.state();
 
-    if (state.loaded || state.buffering) {
+    if (!resolving() && (!state.error.empty() || !m_audio_error.empty())) {
+        m_resume = state.position;
+        m_at_end = false;
+        m_player.stop();
+        resolve_current();
+    } else if (state.loaded || state.buffering) {
         m_player.pause(!state.paused);
     } else if (!resolving()) {
         m_track_id = 0;
@@ -168,17 +181,17 @@ void PlaybackController::toggle_pause() {
 }
 
 bool PlaybackController::paused() const {
-    return m_player.state().paused || m_at_end || !m_audio_error.empty();
+    return m_player.state().paused || m_at_end || !m_audio_error.empty() || !m_player.state().error.empty();
 }
 
 void PlaybackController::switch_track(const QueueEntry* track) {
     m_player.stop();
+    m_resolve_stop.request_stop();
 
     // discard the previous resolver result and recovery state before starting another track
     m_stream_task = {};
     m_track_id = track ? track->id : 0;
     m_at_end = false;
-    m_retried = false;
     m_resume = 0;
     m_audio_error.clear();
 
@@ -192,18 +205,11 @@ void PlaybackController::collect_stream() {
         return;
     }
 
-    try {
-        auto source = m_stream_task.get();
-        if (source) {
-            m_player.load(std::move(*source));
-        } else {
-            m_audio_error = source.error().message;
-        }
-    } catch (const std::exception& error) {
-        m_audio_error = error.what();
-    }
-
-    if (!m_audio_error.empty()) {
+    auto source = take_result(m_stream_task);
+    if (source) {
+        m_player.load(std::move(*source));
+    } else {
+        m_audio_error = source.error().message;
         LOG_ERROR("[player] resolve failed: {}", m_audio_error);
     }
 
@@ -220,16 +226,15 @@ void PlaybackController::update_player() {
     m_changed |= m_player.update();
 
     // ignore end events while replacing a track or resolving its audio
-    if (!switched && !resolving() && m_player.state().ended) {
+    if (!switched && !resolving() && m_player.state().ended && m_player.state().error.empty()) {
         m_at_end = true;
     }
 
-    // handle repeat (is consumed once)
-    if (m_at_end) {
+    // take_repeat consumes the flag so advancing happens once per end event
+    if (m_at_end && m_player.state().error.empty()) {
         const bool repeat = m_queue.take_repeat();
         if (repeat || m_queue.advance()) {
             if (repeat) {
-                m_retried = false;
                 m_player.restart();
             }
             m_at_end = false;
@@ -241,18 +246,8 @@ void PlaybackController::update_player() {
     collect_stream();
     const auto& state = m_player.state();
 
-    // seek only after the replacement stream has loaded
-    // and consume the saved position
+    // a manual retry restores the position after the new stream has loaded
     if (state.loaded && m_resume > 0) {
         m_player.seek(std::exchange(m_resume, 0));
-    }
-
-    // resolve once per playback attempt and keep the position across the player reset
-    if (current && !resolving() && !state.error.empty() && !m_retried) {
-        m_retried = true;
-        m_resume = state.position;
-        m_player.stop();
-        LOG_WARN("[player] stream failed, resolving once more");
-        resolve_current();
     }
 }

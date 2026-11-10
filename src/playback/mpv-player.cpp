@@ -22,9 +22,8 @@ MpvPlayer::MpvPlayer(bool silent) : m_handle(mpv_create()) {
     }
 
     check_mpv(mpv_set_option_string(m_handle.get(), "idle", "yes"));
-
-    // musiq:// is not detected as a network source, so auto would disable seekable caching
     check_mpv(mpv_set_option_string(m_handle.get(), "cache", "yes"));
+    check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause", "yes"));
     check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause-initial", "no"));
     check_mpv(mpv_set_option_string(m_handle.get(), "cache-pause-wait", "0.3"));
     check_mpv(mpv_set_option_string(m_handle.get(), "demuxer-max-bytes", "8388608"));
@@ -54,10 +53,13 @@ void MpvPlayer::command(const char** arguments) {
 }
 
 void MpvPlayer::load(AudioSource source) {
-    load_file(m_stream.open(std::move(source)));
+    const auto uri = m_stream.open(std::move(source));
+    const char* arguments[] = {"loadfile", uri.c_str(), "replace", nullptr};
+    load_command(arguments);
 }
 
 void MpvPlayer::load_file(const std::string& path) {
+    m_stream.clear();
     const char* arguments[] = {"loadfile", path.c_str(), "replace", nullptr};
     load_command(arguments);
 }
@@ -140,8 +142,10 @@ bool MpvPlayer::update() {
                 if (end.playlist_entry_id != m_entry_id) break;
                 m_state.loaded = false;
                 m_state.buffering = false;
-                m_state.ended = end.reason == MPV_END_FILE_REASON_EOF;
                 if (end.reason == MPV_END_FILE_REASON_ERROR) m_state.error = mpv_error_string(end.error);
+                // truncated streams may be reported as EOF, which must never advance the queue
+                if (m_stream.failed()) m_state.error = "audio fetch failed after 3 retries";
+                m_state.ended = end.reason == MPV_END_FILE_REASON_EOF && m_state.error.empty();
                 break;
             }
             case MPV_EVENT_COMMAND_REPLY:

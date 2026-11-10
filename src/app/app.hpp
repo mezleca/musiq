@@ -22,9 +22,17 @@
 #include <SDL3/SDL_video.h>
 #include <imgui-ui/runtime.hpp>
 #include <imgui-ui/surface.hpp>
+#include <functional>
 #include <future>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
+
+enum class SessionAction {
+    SignIn,
+    Refresh,
+    Channels
+};
 
 class MusiqApp {
 public:
@@ -41,11 +49,16 @@ private:
     void clear_session();
     void clear_browser_cookies();
     std::string open_sign_in();
+    void run_session(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> task);
     void authenticate(std::string token, std::string identity = {});
+    void refresh_session();
+    void choose_channel();
+    void load_avatar();
     void cancel_channel_selection();
     void update_session();
     void update_shortcuts();
     void update_profile();
+    void refresh_profile();
     void navigate(std::string_view page);
     void show_page();
     void submit_search(std::string query);
@@ -83,5 +96,7 @@ private:
     ui::Runtime m_runtime;
     ui::Surface m_surface;
 
-    std::future<std::optional<YoutubeMusicSession>> m_session;
+    SessionAction m_session_action = SessionAction::SignIn;
+    std::future<YoutubeResult<YoutubeMusicSession>> m_session;
+    std::future<std::pair<std::string, std::string>> m_avatar;
 };

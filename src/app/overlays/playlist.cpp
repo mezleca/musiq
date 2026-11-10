@@ -40,7 +40,7 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
     auto& details = header.add<Container>("info", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(8.0f);
-    m_title = &details.add<MusiqText>(m_item.title, true);
+    m_title = &details.add<MusiqText>(m_item.title, TextWeight::Bold);
     m_author = &details.add<MusiqText>(media_artist(m_item));
     m_details = &details.add<MusiqText>("");
     m_description = &details.add<MusiqText>("");

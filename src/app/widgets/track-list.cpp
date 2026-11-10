@@ -45,16 +45,12 @@ void TrackList::set_current(std::optional<std::uint64_t> key) {
         return;
     }
 
-    if (m_current) {
-        if (auto* card = find(*m_current)) {
-            card->set_selected(false);
-        }
+    if (auto* card = m_current ? find(*m_current) : nullptr) {
+        card->set_selected(false);
     }
 
     m_current = key;
-    if (m_current) {
-        if (auto* card = find(*m_current)) {
-            card->set_selected(true);
-        }
+    if (auto* card = key ? find(*key) : nullptr) {
+        card->set_selected(true);
     }
 }

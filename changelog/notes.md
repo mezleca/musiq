@@ -1,10 +1,14 @@
 # Unreleased
 
-- Removed "AutoPlay" from queue (recommended songs are now loaded via the "load more" button)
-- Reuse connection per thread (everything should load a bit faster)
-- Enable explicit cache on mpv
-- Reuse "play" / "pause" icons on plalist
-- Fix channel-picker border not showing
+- MPV: Enable "cache" and "cache-pause"
+- Queue: Removed "AutoPlay" (recommended songs are now loaded via the "load more" button)
+- Http: Reuse connection per thread (everything should load a bit faster)
+- Session: Cache and restore last session data (should start a bit faster)
+- Playback: Fixed song switch on network errors
+- UI: Fixed broken font on some languages (Manrope -> Inter with fallback to NotoSans)
+- UI(HomeOverlay): Load more sections on scroll
+- UI(PlaylistOverlay): Use "play" / "pause" icons instead of text
+- UI(ChannelPicker): Fixed invisible border
 
 # v0.2.0
 

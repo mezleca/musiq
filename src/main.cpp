@@ -1,6 +1,4 @@
 #include "app/app.hpp"
-#include "database/settings.hpp"
-#include "utils/system.hpp"
 #include "utils/path.hpp"
 #include "utils/log.hpp"
 
@@ -52,7 +50,6 @@ int main() {
     SDL_GL_SetSwapInterval(1);
 
     try {
-        MusiqSettings::initialize((utils::get_app_dir() / "settings.sqlite").string());
         MusiqApp app(window, context);
         app.initialize();
     } catch (const std::exception& error) {

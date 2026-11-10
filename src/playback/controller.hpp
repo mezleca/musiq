@@ -8,6 +8,7 @@
 
 #include <future>
 #include <memory>
+#include <stop_token>
 
 class ThreadPool;
 class MpvPlayer;
@@ -21,6 +22,13 @@ struct PlaybackPage {
 class PlaybackController {
 public:
     PlaybackController(ThreadPool& workers, MpvPlayer& player);
+    ~PlaybackController();
+
+    PlaybackController(const PlaybackController&) = delete;
+    PlaybackController& operator=(const PlaybackController&) = delete;
+    PlaybackController(PlaybackController&&) = delete;
+    PlaybackController& operator=(PlaybackController&&) = delete;
+
     void set_session(const YoutubeMusicSession& session);
     void play(MusicItem item);
     void play(PlaybackPage page, std::size_t start = 0, std::string source = {});
@@ -59,7 +67,7 @@ private:
 
     ThreadPool& m_workers;
     MpvPlayer& m_player;
-    std::shared_ptr<const YoutubeMusicSession> m_session;
+    YoutubeMusicSession m_session;
     std::shared_ptr<YoutubeMediaStream> m_media_stream;
     PlaybackQueue m_queue;
     std::future<YoutubeResult<PlaybackPage>> m_task;
@@ -67,9 +75,9 @@ private:
     std::string m_error;
     bool m_changed = false;
     std::future<YoutubeResult<AudioSource>> m_stream_task;
+    std::stop_source m_resolve_stop;
     std::uint64_t m_track_id = 0;
     std::string m_audio_error;
     bool m_at_end = false;
-    bool m_retried = false;
     double m_resume = 0;
 };

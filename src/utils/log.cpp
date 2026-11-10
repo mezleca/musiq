@@ -20,7 +20,7 @@ static bool is_error_terminal() {
 
 #ifdef _WIN32
 static void enable_windows_ansi() {
-    static const bool enabled = [] {
+    [[maybe_unused]] static const bool enabled = [] {
         const HANDLE handle = GetStdHandle(STD_ERROR_HANDLE);
         if (handle == INVALID_HANDLE_VALUE || handle == nullptr) {
             return false;
@@ -33,8 +33,6 @@ static void enable_windows_ansi() {
 
         return SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
     }();
-
-    static_cast<void>(enabled);
 }
 #endif
 

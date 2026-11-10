@@ -2,7 +2,6 @@
 #include "client.hpp"
 #include "playlists.hpp"
 #include "catalog.hpp"
-#include "session.hpp"
 #include "../utils/media.hpp"
 #include "../utils/future.hpp"
 #include "../utils/thread-pool.hpp"
@@ -50,8 +49,8 @@ bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& 
     m_playlist = {};
     m_appending = false;
     m_error.clear();
-    m_session = std::make_shared<const YoutubeMusicSession>(session);
-    m_task = m_workers.enqueue([session = m_session, item] { return read_playlist(*session, item); });
+    m_session = session;
+    m_task = m_workers.enqueue([session = m_session, item] { return read_playlist(session, item); });
     return true;
 }
 
@@ -64,7 +63,7 @@ void PlaylistBrowser::load_more() {
     m_appending = true;
     m_error.clear();
     m_task = m_workers.enqueue([session = m_session, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
-        const YoutubeMusicClient client(*session);
+        const YoutubeMusicClient client(session);
         auto page = YoutubeMusicPlaylists(client).more(continuation);
         if (!page) return std::unexpected(std::move(page.error()));
         MusicPlaylist result;
@@ -77,18 +76,11 @@ void PlaylistBrowser::load_more() {
 bool PlaylistBrowser::poll() {
     if (!future_ready(m_task)) return false;
 
-    try {
-        auto result = m_task.get();
-        if (result) {
-            accept_page(std::move(*result));
-        } else {
-            m_error = result.error().message;
-        }
-    } catch (const std::exception& exception) {
-        m_error = exception.what();
-    }
-
-    if (!m_error.empty()) {
+    auto result = take_result(m_task);
+    if (result) {
+        accept_page(std::move(*result));
+    } else {
+        m_error = result.error().message;
         LOG_ERROR("[playlist] page failed: {}", m_error);
     }
 

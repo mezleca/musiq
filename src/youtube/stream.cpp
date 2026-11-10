@@ -40,8 +40,7 @@ YoutubeResult<AudioSource> YoutubeMediaStream::resolve(const YoutubeMusicSession
     const YoutubeMusicClient client(session);
     const auto visitor = visitor_data(client);
 
-    // anonymous VISIONOS player first
-    // use yt-dlp when no playable direct format exists
+    // prefer the anonymous VISIONOS player and fall back to yt-dlp when it yields no direct audio format
     std::string reason = visitor ? "no supported direct audio stream" : visitor.error().message;
 
     if (visitor) {

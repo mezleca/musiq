@@ -1,6 +1,7 @@
 #pragma once
 
 #include "schema/account.hpp"
+#include "error.hpp"
 
 #include <cpr/cprtypes.h>
 
@@ -12,15 +13,17 @@
 struct MusicUser {
     std::string name;
     std::string avatar_url;
-    std::string avatar_data;
 };
 
 class YoutubeMusicSession {
 public:
     static bool has_session_cookie(std::string_view cookies);
 
-    bool authenticate(std::string cookies, std::string_view identity = {});
-    bool select_identity(std::string_view identity);
+    bool restore(const json& data);
+    json snapshot() const;
+    YoutubeResult<void> authenticate(std::string cookies, std::string_view identity = {});
+    YoutubeResult<void> select_identity(std::string_view identity);
+    YoutubeResult<void> load_identities();
 
     std::optional<cpr::Header> authentication_headers() const;
 

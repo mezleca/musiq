@@ -19,8 +19,8 @@ protected:
     void apply_theme_defaults(const Theme& theme) override {
         MusiqButtonWidget::apply_theme_defaults(theme);
 
-        configure_all_styles([](Style& style) {
-            style.background_color(rgba(0.0f, 0.0f, 0.0f, 0.0f));
+        configure_all_styles([&theme](Style& style) {
+            style.background_color(theme.transparent);
             style.border_thickness(0.0f);
         });
     }
@@ -40,7 +40,7 @@ public:
         m_avatar->set_fit(ImageFit::Cover);
         m_avatar->configure_all_styles([](Style& style) { style.border_radius(20.0f); });
 
-        m_name = &add<MusiqText>("", true);
+        m_name = &add<MusiqText>("", TextWeight::Semibold);
         m_name->set_size({fit(), fit()});
         m_name->set_overflow(TextOverflow::Ellipsis);
     }
@@ -91,6 +91,7 @@ void UserProfileWidget::apply_theme_defaults(const Theme& theme) {
 
 void UserProfileWidget::set_busy(bool busy) {
     m_sign_in->set_enabled(!busy);
+    m_account->set_enabled(!busy);
     m_sign_in->set_text(busy ? "Signing in..." : "Sign in");
 }
 

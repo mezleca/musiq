@@ -14,7 +14,7 @@ ChannelPickerOverlay::ChannelPickerOverlay(Node& anchor, std::function<void(std:
     set_spacing(8.0f);
     set_visible(false);
 
-    add<MusiqText>("Choose your YouTube channel", true);
+    add<MusiqText>("Choose your YouTube channel", TextWeight::Bold);
     m_status = &add<MusiqText>("Could not open this channel. Try again.");
     m_status->set_visible(false);
     m_channels = &add<Container>("identities", StackDirection::Vertical);
@@ -36,6 +36,13 @@ void ChannelPickerOverlay::apply_theme_defaults(const Theme& theme) {
 }
 
 void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bool failed) {
+    refresh(identities, failed);
+    m_dismissed = false;
+    set_visible(true);
+    open_popup();
+}
+
+void ChannelPickerOverlay::refresh(const std::vector<MusicIdentity>& identities, bool failed) {
     m_channels->clear();
 
     for (const auto& identity : identities) {
@@ -49,9 +56,6 @@ void ChannelPickerOverlay::show(const std::vector<MusicIdentity>& identities, bo
     }
 
     m_status->set_visible(failed);
-    m_dismissed = false;
-    set_visible(true);
-    open_popup();
 }
 
 bool ChannelPickerOverlay::take_dismissed() {

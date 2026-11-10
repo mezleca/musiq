@@ -64,7 +64,7 @@ PlayerBarOverlay::PlayerBarOverlay(
     auto& details = m_selection->add<Container>("metadata", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
-    m_title = &details.add<MusiqText>("", true);
+    m_title = &details.add<MusiqText>("", TextWeight::Bold);
     m_artist = &details.add<MusiqText>("");
     m_status = &details.add<MusiqText>("");
     m_status->set_visible(false);

@@ -17,8 +17,8 @@ static std::string playlist_subtitle(const MusicItem& item) {
     return artist.empty() ? type : type + " by " + artist;
 }
 
-static void add_card_text(Container& container, std::string text, bool bold, std::string id) {
-    auto& label = container.add<MusiqText>(std::move(text), bold);
+static void add_card_text(Container& container, std::string text, TextWeight weight, std::string id) {
+    auto& label = container.add<MusiqText>(std::move(text), weight);
     label.set_id(std::move(id));
     label.set_size({grow(), fit()});
     label.set_overflow(TextOverflow::Ellipsis);
@@ -34,8 +34,8 @@ MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnai
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
-    add_card_text(details, item.title, true, "title");
-    add_card_text(details, media_artist(item), false, "artist");
+    add_card_text(details, item.title, TextWeight::Bold, "title");
+    add_card_text(details, media_artist(item), TextWeight::Regular, "artist");
 }
 
 void MediaCardWidget::apply_theme_defaults(const Theme& theme) {
@@ -65,8 +65,8 @@ PlaylistCardWidget::PlaylistCardWidget(const MusicItem& item, ThumbnailCache& th
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
-    add_card_text(details, item.title, true, "title");
-    add_card_text(details, playlist_subtitle(item), false, "metadata");
+    add_card_text(details, item.title, TextWeight::Bold, "title");
+    add_card_text(details, playlist_subtitle(item), TextWeight::Regular, "metadata");
 }
 
 void PlaylistCardWidget::apply_theme_defaults(const Theme& theme) {

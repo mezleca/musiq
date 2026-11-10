@@ -49,15 +49,26 @@ std::string utils::media::media_artist(const MusicItem& item) {
 
 const MusicThumbnail* utils::media::select_thumbnail(std::span<const MusicThumbnail> thumbnails, float pixel_size) {
     const MusicThumbnail* selected = nullptr;
+    int selected_extent = 0;
+
     for (const auto& candidate : thumbnails) {
         if (candidate.url.empty()) continue;
+
         const int extent = std::min(candidate.width, candidate.height);
-        const int selected_extent = selected ? std::min(selected->width, selected->height) : 0;
-        if (!selected || (selected_extent < pixel_size && extent > selected_extent) ||
-            (extent >= pixel_size && extent < selected_extent)) {
+        if (!selected) {
             selected = &candidate;
+            selected_extent = extent;
+            continue;
+        }
+
+        const bool closer =
+            selected_extent < pixel_size ? extent > selected_extent : extent >= pixel_size && extent < selected_extent;
+        if (closer) {
+            selected = &candidate;
+            selected_extent = extent;
         }
     }
+
     return selected;
 }
 

@@ -5,17 +5,27 @@
 #include <cpr/curlmultiholder.h>
 #include <mpv/stream_cb.h>
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <format>
 #include <stdexcept>
 #include <utility>
 #include <stop_token>
 
+struct AudioLoad {
+    explicit AudioLoad(AudioSource value) : source(std::move(value)) {}
+
+    AudioSource source;
+    std::atomic_bool failed = false;
+};
+
 class AudioReadStream {
 public:
-    explicit AudioReadStream(std::shared_ptr<const AudioSource> source) : m_source(std::move(source)) {
-        curl_easy_setopt(m_http.handle, CURLOPT_URL, m_source->url.c_str());
-        curl_easy_setopt(m_http.handle, CURLOPT_USERAGENT, m_source->user_agent.c_str());
+    explicit AudioReadStream(std::shared_ptr<AudioLoad> load) : m_load(std::move(load)) {
+        const auto& url = m_load->source.url;
+        const auto& user_agent = m_load->source.user_agent;
+        curl_easy_setopt(m_http.handle, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(m_http.handle, CURLOPT_USERAGENT, user_agent.c_str());
         curl_easy_setopt(m_http.handle, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(m_http.handle, CURLOPT_MAXREDIRS, 50L);
         curl_easy_setopt(m_http.handle, CURLOPT_CONNECTTIMEOUT_MS, 10000L);
@@ -38,45 +48,50 @@ public:
 
     std::int64_t read(char* buffer, std::uint64_t count) {
         if (m_cancel.stop_requested()) return -1;
-        if (m_position == m_source->size || count == 0) return 0;
+        if (m_position == m_load->source.size || count == 0) return 0;
 
-        try {
-            // drive the transfer only until bytes arrive, not until the whole range has downloaded
-            while (m_position == m_start + static_cast<std::int64_t>(m_chunk.size())) {
-                if (m_cancel.stop_requested()) return -1;
+        // retries block only the demux reader, mpv keeps playing its buffered packets
+        while (m_position == m_start + static_cast<std::int64_t>(m_chunk.size())) {
+            if (m_cancel.stop_requested() || m_load->failed.load()) return -1;
+            try {
                 if (!m_active) start_transfer();
-
                 pump();
-
                 if (m_position < m_start + static_cast<std::int64_t>(m_chunk.size())) break;
                 if (m_active) check(curl_multi_poll(m_transfer.handle, nullptr, 0, 100, nullptr));
+            } catch (const std::exception& error) {
+                stop_transfer();
+                if (m_cancel.stop_requested()) return -1;
+                if (m_retries == 3) {
+                    m_load->failed.store(true);
+                    LOG_ERROR("[player] audio fetch failed after 3 retries: {}", error.what());
+                } else {
+                    ++m_retries;
+                    LOG_WARN("[player] audio fetch retry {}/3: {}", m_retries, error.what());
+                }
             }
-
-            const auto offset = static_cast<std::size_t>(m_position - m_start);
-            const auto size = std::min<std::uint64_t>(count, m_chunk.size() - offset);
-            std::memcpy(buffer, m_chunk.data() + offset, static_cast<std::size_t>(size));
-            m_position += static_cast<std::int64_t>(size);
-            return static_cast<std::int64_t>(size);
-        } catch (const std::exception& error) {
-            if (!m_cancel.stop_requested()) LOG_ERROR("[player] audio read failed: {}", error.what());
-            cancel();
-            return -1;
         }
+
+        const auto offset = static_cast<std::size_t>(m_position - m_start);
+        const auto size = std::min<std::uint64_t>(count, m_chunk.size() - offset);
+        std::memcpy(buffer, m_chunk.data() + offset, static_cast<std::size_t>(size));
+        m_position += static_cast<std::int64_t>(size);
+        return static_cast<std::int64_t>(size);
     }
 
     std::int64_t seek(std::int64_t offset) {
-        if (offset < 0 || offset > m_source->size || m_cancel.stop_requested()) return MPV_ERROR_GENERIC;
+        if (offset < 0 || offset > m_load->source.size || m_cancel.stop_requested()) return MPV_ERROR_GENERIC;
         if (offset < m_start || offset > m_start + static_cast<std::int64_t>(m_chunk.size())) {
             stop_transfer();
             m_chunk.clear();
             m_start = offset;
+            m_retries = 0;
         }
         m_position = offset;
         return offset;
     }
 
     std::int64_t size() const {
-        return m_source->size;
+        return m_load->source.size;
     }
 
     void cancel() {
@@ -95,10 +110,11 @@ private:
     }
 
     void start_transfer() {
+        const auto total = m_load->source.size;
         m_start = m_position;
-        m_end = std::min(m_source->size, m_start + 4 * 1024 * 1024);
+        m_end = std::min(total, m_start + 4 * 1024 * 1024);
         m_chunk.clear();
-        m_expected_range = std::format("bytes {}-{}/{}", m_start, m_end - 1, m_source->size);
+        m_expected_range = std::format("bytes {}-{}/{}", m_start, m_end - 1, total);
         curl_easy_setopt(m_http.handle, CURLOPT_RANGE, std::format("{}-{}", m_start, m_end - 1).c_str());
         check(curl_multi_add_handle(m_transfer.handle, m_http.handle));
         m_active = true;
@@ -116,6 +132,7 @@ private:
             if (m_chunk.size() != static_cast<std::size_t>(m_end - m_start)) {
                 throw std::runtime_error("incomplete audio range");
             }
+            m_retries = 0;
         }
     }
 
@@ -131,7 +148,7 @@ private:
             const bool partial = status == 206 &&
                                  curl_easy_header(m_http.handle, "content-range", 0, CURLH_HEADER, -1, &range) == CURLHE_OK &&
                                  m_expected_range == range->value;
-            const bool whole = status == 200 && m_start == 0 && m_end == m_source->size;
+            const bool whole = status == 200 && m_start == 0 && m_end == m_load->source.size;
             if (!partial && !whole) return 0;
             if (bytes.size() > static_cast<std::size_t>(m_end - m_start) - m_chunk.size()) return 0;
             m_chunk.append(bytes);
@@ -141,7 +158,7 @@ private:
         }
     }
 
-    std::shared_ptr<const AudioSource> m_source;
+    std::shared_ptr<AudioLoad> m_load;
     cpr::CurlHolder m_http;
     cpr::CurlMultiHolder m_transfer;
     std::stop_source m_cancel;
@@ -151,6 +168,7 @@ private:
     std::int64_t m_end = 0;
     std::int64_t m_position = 0;
     bool m_active = false;
+    unsigned m_retries = 0;
 };
 
 void AudioStream::attach(mpv_handle* handle) {
@@ -160,25 +178,30 @@ void AudioStream::attach(mpv_handle* handle) {
 
 std::string AudioStream::open(AudioSource source) {
     std::lock_guard lock(m_mutex);
-    m_source = std::make_shared<AudioSource>(std::move(source));
+    m_load = std::make_shared<AudioLoad>(std::move(source));
     return std::format("musiq://{}", ++m_id);
 }
 
 void AudioStream::clear() {
     std::lock_guard lock(m_mutex);
-    m_source.reset();
+    m_load.reset();
+}
+
+bool AudioStream::failed() const {
+    std::lock_guard lock(m_mutex);
+    return m_load && m_load->failed.load();
 }
 
 int AudioStream::open_callback(void* owner, char* uri, mpv_stream_cb_info* info) {
-    auto& source = *static_cast<AudioStream*>(owner);
+    auto& stream = *static_cast<AudioStream*>(owner);
 
     try {
-        std::lock_guard lock(source.m_mutex);
-        if (!source.m_source || uri != std::format("musiq://{}", source.m_id)) {
+        std::lock_guard lock(stream.m_mutex);
+        if (!stream.m_load || uri != std::format("musiq://{}", stream.m_id)) {
             return MPV_ERROR_LOADING_FAILED;
         }
 
-        auto stream = std::make_unique<AudioReadStream>(source.m_source);
+        auto reader = std::make_unique<AudioReadStream>(stream.m_load);
         info->read_fn = [](void* cookie, char* data, std::uint64_t size) {
             return static_cast<AudioReadStream*>(cookie)->read(data, size);
         };
@@ -186,7 +209,7 @@ int AudioStream::open_callback(void* owner, char* uri, mpv_stream_cb_info* info)
         info->size_fn = [](void* cookie) { return static_cast<AudioReadStream*>(cookie)->size(); };
         info->cancel_fn = [](void* cookie) { static_cast<AudioReadStream*>(cookie)->cancel(); };
         info->close_fn = [](void* cookie) { delete static_cast<AudioReadStream*>(cookie); };
-        info->cookie = stream.release();
+        info->cookie = reader.release();
         return 0;
     } catch (const std::exception& error) {
         LOG_ERROR("[player] opening stream failed: {}", error.what());

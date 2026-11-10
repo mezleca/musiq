@@ -22,6 +22,7 @@ struct CatalogPageState {
 
 struct CatalogChanges {
     bool home = false;
+    bool home_append = false;
     std::string search;
     bool suggestions = false;
 };
@@ -31,6 +32,7 @@ public:
     explicit CatalogBrowser(ThreadPool& workers);
     void set_session(const YoutubeMusicSession& session);
     bool home(bool refresh = false);
+    bool more_home();
     bool search(std::string query, bool refresh = false);
     void suggest(std::string query);
 
@@ -54,13 +56,14 @@ public:
 private:
     void queue_page(std::string query);
 
-    std::shared_ptr<const YoutubeMusicSession> m_session;
+    YoutubeMusicSession m_session;
     ThreadPool& m_workers;
     CatalogPageState m_home;
     std::unordered_map<std::string, CatalogPageState> m_searches;
     std::string m_query;
     MusicSuggestions m_suggestions;
     std::future<YoutubeResult<MusicPage>> m_page_task;
+    std::future<YoutubeResult<MusicPage>> m_home_more_task;
     std::future<YoutubeResult<MusicSuggestions>> m_suggestions_task;
     std::deque<std::string> m_pages;
     std::string m_suggestion_query;

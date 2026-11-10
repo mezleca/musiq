@@ -58,6 +58,22 @@ def init() -> None:
     print("[ez] initializing submodules...")
     run(["git", "submodule", "update", "--init", "--recursive"])
 
+def is_build_configured(build_dir: Path) -> bool:
+    cache = build_dir / "CMakeCache.txt"
+    if not cache.is_file() or not (build_dir / "build.ninja").is_file():
+        return False
+
+    entries = dict(
+        line.split("=", 1) for line in cache.read_text(errors="replace").splitlines()
+        if line.startswith(("CMAKE_CACHEFILE_DIR:INTERNAL=", "CMAKE_HOME_DIRECTORY:INTERNAL="))
+    )
+    cache_dir = entries.get("CMAKE_CACHEFILE_DIR:INTERNAL")
+    source_dir = entries.get("CMAKE_HOME_DIRECTORY:INTERNAL")
+    return (
+        cache_dir is not None and Path(cache_dir).resolve() == build_dir.resolve()
+        and source_dir is not None and Path(source_dir).resolve() == CWD
+    )
+
 def configure(build_type: str) -> Path:
     build_dir = BUILD_DIR / build_type.lower()
     sccache = shutil.which("sccache") or ""
@@ -85,9 +101,11 @@ def copy_compile_commands(build_dir: Path) -> None:
     shutil.copy2(database, link)
 
 def build(build_type: str) -> Path:
-    build_dir = configure(build_type)
-    copy_compile_commands(build_dir)
+    build_dir = BUILD_DIR / build_type.lower()
+    if not is_build_configured(build_dir):
+        configure(build_type)
     run(["cmake", "--build", str(build_dir), "--parallel"])
+    copy_compile_commands(build_dir)
     return build_dir
 
 def format_code() -> None:
@@ -207,6 +225,9 @@ def main() -> None:
     build_parser = subparsers.add_parser("build")
     build_parser.add_argument("--type", choices=("debug", "release"), default="debug")
 
+    configure_parser = subparsers.add_parser("configure")
+    configure_parser.add_argument("--type", choices=("debug", "release"), default="debug")
+
     subparsers.add_parser("init")
     subparsers.add_parser("format")
 
@@ -251,7 +272,9 @@ def main() -> None:
 
     build_type = args.type.capitalize()
 
-    if args.command == "build":
+    if args.command == "configure":
+        copy_compile_commands(configure(build_type))
+    elif args.command == "build":
         build(build_type)
     else:
         build_dir = build(build_type)

@@ -16,6 +16,8 @@ protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 
 private:
+    void apply_selection();
+
     ui::ImageWidget* m_icon;
     std::string m_icon_path;
     bool m_selected;

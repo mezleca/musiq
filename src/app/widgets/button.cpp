@@ -1,4 +1,5 @@
 #include "button.hpp"
+#include "../resources/fonts.hpp"
 #include "../../utils/path.hpp"
 
 #include <imgui-ui/surface.hpp>
@@ -15,7 +16,7 @@ MusiqButtonWidget::MusiqButtonWidget(std::string text, LayoutSize size) : Button
 
 void MusiqButtonWidget::apply_theme_defaults(const Theme& theme) {
     ButtonWidget::apply_theme_defaults(theme);
-    set_font(surface().get_font("Manrope Bold"), 14.0f);
+    set_font(MusiqFonts::instance().get(), 14.0f);
 }
 
 MusiqIconButtonWidget::MusiqIconButtonWidget(std::string icon_path, float size)
@@ -38,11 +39,7 @@ void MusiqIconButtonWidget::apply_theme_defaults(const Theme& theme) {
     });
 
     style(StyleType::HOVER).background_color(m_selected ? theme.transparent : theme.controls.hover_color);
-    m_icon->set_visible(!m_path.empty());
-
-    if (!m_path.empty()) {
-        m_icon->set_texture(surface().runtime().textures().acquire(m_path, utils::path::from_resources(m_path)));
-    }
+    load_icon();
 
     m_icon->configure_all_styles([&theme](Style& style) { style.color(theme.text_color); });
 
@@ -61,6 +58,10 @@ void MusiqIconButtonWidget::set_icon(std::string path) {
     }
 
     m_path = std::move(path);
+    load_icon();
+}
+
+void MusiqIconButtonWidget::load_icon() {
     m_icon->set_visible(!m_path.empty());
 
     if (!m_path.empty()) {

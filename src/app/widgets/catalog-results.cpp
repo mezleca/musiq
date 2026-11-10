@@ -107,7 +107,7 @@ CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, Th
     set_size({grow(), grow()});
     set_spacing(16.0f);
 
-    m_title = &add<MusiqText>(std::move(title), true);
+    m_title = &add<MusiqText>(std::move(title), TextWeight::Bold);
     m_title->set_size({grow(), fit()});
     m_title->set_overflow(TextOverflow::Ellipsis);
     m_status = &add<MusiqText>("");
@@ -122,12 +122,17 @@ void CatalogResultsWidget::set_actions(CatalogActions actions) {
     m_actions = std::move(actions);
 }
 
-void CatalogResultsWidget::show(const CatalogPageState& state) {
+bool CatalogResultsWidget::near_bottom() const {
+    return m_rows->layout().size().y > 0.0f && m_rows->scroll().max().y - m_rows->scroll().position().y < 400.0f;
+}
+
+void CatalogResultsWidget::show(const CatalogPageState& state, bool append) {
     if (m_page != state.page) {
-        m_rows->clear();
+        const auto first = append && m_page ? m_page->shelves.size() : 0;
+        if (!append) m_rows->clear();
         m_page = state.page;
-        rebuild();
-        m_rows->scroll().seek_to({0.0f, 0.0f}, ScrollBehavior::Instant);
+        rebuild(first);
+        if (!append) m_rows->scroll().seek_to({0.0f, 0.0f}, ScrollBehavior::Instant);
     }
 
     std::string status;
@@ -145,17 +150,17 @@ void CatalogResultsWidget::show(const CatalogPageState& state) {
     m_status->set_visible(!m_status->empty());
 }
 
-void CatalogResultsWidget::rebuild() {
+void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
     if (!m_page) return;
 
-    for (std::size_t shelf_index = 0; shelf_index < m_page->shelves.size(); ++shelf_index) {
+    for (std::size_t shelf_index = first_shelf; shelf_index < m_page->shelves.size(); ++shelf_index) {
         const auto& shelf = m_page->shelves[shelf_index];
         if (shelf.items.empty()) continue;
 
         auto& section = m_rows->add<Container>("", StackDirection::Vertical);
         section.set_size({grow(), fit()});
         section.set_spacing(8.0f);
-        if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, true);
+        if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, TextWeight::Bold);
 
         // preserve shelf order while laying out playlist runs as grids and track runs as lists
         for (std::size_t first = 0; first < shelf.items.size();) {
