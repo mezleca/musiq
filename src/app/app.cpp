@@ -1,10 +1,10 @@
 #include "app.hpp"
 #include "theme.hpp"
-#include "resources/fonts.hpp"
 #include "../utils/media.hpp"
 #include "../utils/path.hpp"
 #include "../constants.hpp"
 #include "../database/cache.hpp"
+#include "../database/settings.hpp"
 #include "../utils/future.hpp"
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
@@ -16,6 +16,7 @@
 #include <imgui-ui/resources/texture-registry.hpp>
 #include <SDL3/SDL_events.h>
 #include <exception>
+#include <format>
 #include <stdexcept>
 #include <memory>
 #include <utility>
@@ -42,7 +43,7 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
                      }
       ) {
     m_surface.set_theme(musiq_theme());
-    MusiqFonts::instance().set_family(m_surface, "inter");
+    apply_fonts();
 
     auto& main = m_surface.root().add<Container>("main", StackDirection::Horizontal);
     main.set_size({grow(), grow()});
@@ -59,6 +60,22 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     m_channel_picker = &m_surface.root().add<ChannelPickerOverlay>(*m_profile, [this](std::string identity) {
         authenticate(m_session_token, std::move(identity));
     });
+}
+
+void MusiqApp::apply_fonts() {
+    auto& settings = MusiqSettings::instance();
+    const auto main_font = settings.main_font();
+    const auto fallback_font = settings.fallback_font();
+    FontRequest fonts;
+    if (!main_font.empty()) fonts.main = FontSelection::family(main_font);
+    if (!fallback_font.empty()) fonts.fallback = FontSelection::family(fallback_font);
+
+    const auto id = std::format("interface:{}:{}:{}", main_font.size(), main_font, fallback_font);
+    auto* font = m_runtime.fonts().find(id);
+    if (font == nullptr) font = m_runtime.fonts().add(id, fonts);
+
+    m_surface.set_primary_font(font);
+    m_surface.set_theme(m_surface.theme());
 }
 
 void MusiqApp::build_navigation(Container& content) {
@@ -100,12 +117,12 @@ void MusiqApp::build_pages(Container& content) {
     m_current_page = m_home;
 
     m_settings_overlay = &m_pages->add<SettingsOverlay>(
-        [this] { log_out(); },
+        m_runtime.fonts(), [this] { log_out(); },
         [this](int volume) {
             m_player_bar->set_volume(volume);
             m_player.set_volume(volume);
         },
-        [this] { clear_browser_cookies(); }
+        [this] { clear_browser_cookies(); }, [this] { m_fonts_changed = true; }
     );
 }
 
@@ -524,6 +541,11 @@ void MusiqApp::initialize() {
     while (!m_surface.is_done()) {
         m_surface.process_events();
         update_session();
+
+        if (m_fonts_changed) {
+            apply_fonts();
+            m_fonts_changed = false;
+        }
 
         m_surface.begin_frame();
         {

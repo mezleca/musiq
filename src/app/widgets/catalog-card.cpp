@@ -17,7 +17,7 @@ static std::string playlist_subtitle(const MusicItem& item) {
     return artist.empty() ? type : type + " by " + artist;
 }
 
-static void add_card_text(Container& container, std::string text, TextWeight weight, std::string id) {
+static void add_card_text(Container& container, std::string text, FontWeight weight, std::string id) {
     auto& label = container.add<MusiqText>(std::move(text), weight);
     label.set_id(std::move(id));
     label.set_size({grow(), fit()});
@@ -34,8 +34,8 @@ MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnai
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
-    add_card_text(details, item.title, TextWeight::Bold, "title");
-    add_card_text(details, media_artist(item), TextWeight::Regular, "artist");
+    add_card_text(details, item.title, FontWeight::Bold, "title");
+    add_card_text(details, media_artist(item), FontWeight::Regular, "artist");
 }
 
 void MediaCardWidget::apply_theme_defaults(const Theme& theme) {
@@ -65,8 +65,8 @@ PlaylistCardWidget::PlaylistCardWidget(const MusicItem& item, ThumbnailCache& th
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
-    add_card_text(details, item.title, TextWeight::Bold, "title");
-    add_card_text(details, playlist_subtitle(item), TextWeight::Regular, "metadata");
+    add_card_text(details, item.title, FontWeight::Bold, "title");
+    add_card_text(details, playlist_subtitle(item), FontWeight::Regular, "metadata");
 }
 
 void PlaylistCardWidget::apply_theme_defaults(const Theme& theme) {

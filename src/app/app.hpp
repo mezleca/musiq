@@ -41,6 +41,7 @@ public:
     void initialize();
 
 private:
+    void apply_fonts();
     void build_navigation(ui::Container& content);
     void build_pages(ui::Container& content);
     void build_player();
@@ -95,6 +96,7 @@ private:
 
     ui::Runtime m_runtime;
     ui::Surface m_surface;
+    bool m_fonts_changed = false;
 
     SessionAction m_session_action = SessionAction::SignIn;
     std::future<YoutubeResult<YoutubeMusicSession>> m_session;

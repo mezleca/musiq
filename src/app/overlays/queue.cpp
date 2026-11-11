@@ -20,7 +20,7 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
     auto& heading = panel.add<Container>("heading", StackDirection::Horizontal);
     heading.set_size({grow(), fit()});
     heading.set_content_alignment(Anchor::CenterLeft);
-    auto& title = heading.add<MusiqText>("Queue", TextWeight::Bold);
+    auto& title = heading.add<MusiqText>("Queue", FontWeight::Bold);
     title.set_size({grow(), fit()});
 
     auto& close = heading.add<MusiqIconButtonWidget>("icons/close.svg");

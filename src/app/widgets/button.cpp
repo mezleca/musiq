@@ -1,5 +1,4 @@
 #include "button.hpp"
-#include "../resources/fonts.hpp"
 #include "../../utils/path.hpp"
 
 #include <imgui-ui/surface.hpp>
@@ -16,7 +15,7 @@ MusiqButtonWidget::MusiqButtonWidget(std::string text, LayoutSize size) : Button
 
 void MusiqButtonWidget::apply_theme_defaults(const Theme& theme) {
     ButtonWidget::apply_theme_defaults(theme);
-    set_font(MusiqFonts::instance().get(), 14.0f);
+    configure_all_styles([](Style& style) { style.font_size(14.0f); });
 }
 
 MusiqIconButtonWidget::MusiqIconButtonWidget(std::string icon_path, float size)

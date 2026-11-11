@@ -14,7 +14,8 @@ auto open_storage(const std::string& path, const std::string& table, Factory fac
         auto storage = std::make_unique<decltype(factory(path))>(factory(path));
         const auto status = storage->sync_schema_simulate().at(table);
         if (status != sqlite_orm::sync_schema_result::already_in_sync &&
-            status != sqlite_orm::sync_schema_result::new_table_created) {
+            status != sqlite_orm::sync_schema_result::new_table_created &&
+            status != sqlite_orm::sync_schema_result::new_columns_added) {
             throw std::runtime_error("incompatible database schema");
         }
         storage->sync_schema();

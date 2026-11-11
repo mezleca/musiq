@@ -5,9 +5,9 @@
 
 using namespace ui;
 
-MusiqText::MusiqText(std::string text, TextWeight weight) : TextWidget(std::move(text)), m_weight(weight) {}
+MusiqText::MusiqText(std::string text, FontWeight weight) : TextWidget(std::move(text)), m_weight(weight) {}
 
 void MusiqText::apply_theme_defaults(const Theme& theme) {
     TextWidget::apply_theme_defaults(theme);
-    set_font(MusiqFonts::instance().get(m_weight), 16.0f);
+    configure_all_styles([this](Style& style) { style.font_weight(m_weight).font_size(16.0f); });
 }

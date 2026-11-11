@@ -1,6 +1,5 @@
 #include "search-bar.hpp"
 #include "button.hpp"
-#include "../resources/fonts.hpp"
 #include "../../utils/path.hpp"
 #include "../../utils/text.hpp"
 #include "../../youtube/schema/catalog.hpp"
@@ -27,7 +26,7 @@ public:
 protected:
     void apply_theme_defaults(const Theme& theme) override {
         TextInputWidget::apply_theme_defaults(theme);
-        set_font(MusiqFonts::instance().get(), 16.0f);
+        configure_all_styles([](Style& style) { style.font_size(16.0f); });
 
         frame().set_size({grow(), grow()});
         frame().set_spacing(12.0f);
@@ -95,8 +94,8 @@ public:
 protected:
     void apply_theme_defaults(const Theme& theme) override {
         MusiqButtonWidget::apply_theme_defaults(theme);
-        set_font(MusiqFonts::instance().get(), 16.0f);
         configure_all_styles([](Style& style) {
+            style.font_size(16.0f);
             style.padding({8.0f, 12.0f, 8.0f, 12.0f});
             style.border_thickness(0.0f);
             style.border_radius(6.0f);

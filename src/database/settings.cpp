@@ -12,12 +12,17 @@ using namespace sqlite_orm;
 struct SettingsData {
     int id = 1;
     int volume = 80;
+    std::string main_font;
+    std::string fallback_font;
 };
 
 static auto make_musiq_storage(const std::string& path) {
     return make_storage(
-        path,
-        make_table("settings", make_column("id", &SettingsData::id, primary_key()), make_column("volume", &SettingsData::volume))
+        path, make_table(
+                  "settings", make_column("id", &SettingsData::id, primary_key()), make_column("volume", &SettingsData::volume),
+                  make_column("main_font", &SettingsData::main_font, default_value("")),
+                  make_column("fallback_font", &SettingsData::fallback_font, default_value(""))
+              )
     );
 }
 
@@ -45,4 +50,18 @@ int MusiqSettings::volume() const {
 
 void MusiqSettings::set_volume(int volume) {
     settings_storage->update_all(set(c(&SettingsData::volume) = std::clamp(volume, 0, 100)), where(c(&SettingsData::id) == 1));
+}
+
+std::string MusiqSettings::main_font() const {
+    return settings_storage->get<SettingsData>(1).main_font;
+}
+
+std::string MusiqSettings::fallback_font() const {
+    return settings_storage->get<SettingsData>(1).fallback_font;
+}
+
+void MusiqSettings::set_fonts(const std::string& main, const std::string& fallback) {
+    settings_storage->update_all(
+        set(c(&SettingsData::main_font) = main, c(&SettingsData::fallback_font) = fallback), where(c(&SettingsData::id) == 1)
+    );
 }

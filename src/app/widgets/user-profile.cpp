@@ -40,7 +40,7 @@ public:
         m_avatar->set_fit(ImageFit::Cover);
         m_avatar->configure_all_styles([](Style& style) { style.border_radius(20.0f); });
 
-        m_name = &add<MusiqText>("", TextWeight::Semibold);
+        m_name = &add<MusiqText>("", FontWeight::Semibold);
         m_name->set_size({fit(), fit()});
         m_name->set_overflow(TextOverflow::Ellipsis);
     }

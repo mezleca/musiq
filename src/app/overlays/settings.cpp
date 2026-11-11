@@ -5,6 +5,7 @@
 #include "../../database/settings.hpp"
 #include "../../utils/log.hpp"
 
+#include <imgui-ui/widgets/dropdown.hpp>
 #include <exception>
 #include <utility>
 #include <cmath>
@@ -33,9 +34,11 @@ protected:
 };
 
 SettingsOverlay::SettingsOverlay(
-    std::function<void()> log_out, std::function<void(int)> volume_changed, std::function<void()> clear_cookies
+    FontRegistry& font_registry, std::function<void()> log_out, std::function<void(int)> volume_changed,
+    std::function<void()> clear_cookies, std::function<void()> fonts_changed
 )
-    : Container("settings", StackDirection::Vertical), m_volume_changed(std::move(volume_changed)) {
+    : Container("settings", StackDirection::Vertical), m_volume_changed(std::move(volume_changed)),
+      m_fonts_changed(std::move(fonts_changed)) {
     set_type_name("SettingsOverlay");
     set_size({grow(), grow()});
     set_spacing(12.0f);
@@ -50,11 +53,33 @@ SettingsOverlay::SettingsOverlay(
         LOG_WARN("[settings] could not read volume: {}", error.what());
     }
 
-    add<MusiqText>("Settings", TextWeight::Bold);
+    add<MusiqText>("Settings", FontWeight::Bold);
     m_status = &add<MusiqText>("Changes are saved automatically.");
 
+    auto& appearance = add<SettingsSectionWidget>("appearance");
+    appearance.add<MusiqText>("Appearance", FontWeight::Bold);
+
+    m_main_font = settings.main_font();
+    m_fallback_font = settings.fallback_font();
+    std::vector<DropdownOption> main_options{{.label = "System Font", .value = {}, .description = {}}};
+    std::vector<DropdownOption> fallback_options{{.label = "Automatic", .value = {}, .description = {}}};
+    for (const auto& family : font_registry.families()) {
+        main_options.push_back({.label = family.name, .value = family.id, .description = {}});
+        if (family.coverage.supports(FontScript::Han) || family.coverage.supports(FontScript::Hiragana) ||
+            family.coverage.supports(FontScript::Katakana) || family.coverage.supports(FontScript::Hangul)) {
+            fallback_options.push_back({.label = family.name, .value = family.id, .description = {}});
+        }
+    }
+
+    auto& main_font = appearance.add<DropdownWidget>(m_main_font, std::move(main_options), "Main font");
+    main_font.set_size({grow(), fit()});
+    main_font.on_select([this] { save_fonts(); });
+    auto& fallback_font = appearance.add<DropdownWidget>(m_fallback_font, std::move(fallback_options), "Fallback font");
+    fallback_font.set_size({grow(), fit()});
+    fallback_font.on_select([this] { save_fonts(); });
+
     auto& audio = add<SettingsSectionWidget>("audio");
-    audio.add<MusiqText>("Audio", TextWeight::Bold);
+    audio.add<MusiqText>("Audio", FontWeight::Bold);
 
     audio.add<MusiqText>("Volume");
     auto& row = audio.add<Container>("volume", StackDirection::Horizontal);
@@ -66,7 +91,7 @@ SettingsOverlay::SettingsOverlay(
     volume.on_change([this] { save_volume(); });
 
     m_account = &add<SettingsSectionWidget>("account");
-    m_account->add<MusiqText>("Account", TextWeight::Bold);
+    m_account->add<MusiqText>("Account", FontWeight::Bold);
 
     auto& logout = m_account->add<MusiqButtonWidget>("Log out");
     logout.set_id("log-out");
@@ -81,7 +106,7 @@ SettingsOverlay::SettingsOverlay(
     set_authenticated(false);
 
     auto& browser = add<SettingsSectionWidget>("browser");
-    browser.add<MusiqText>("Webview", TextWeight::Bold);
+    browser.add<MusiqText>("Webview", FontWeight::Bold);
     browser.add<MusiqButtonWidget>("Clear cookies").on_click([this, clear_cookies = std::move(clear_cookies)] {
         try {
             clear_cookies();
@@ -115,6 +140,17 @@ void SettingsOverlay::save_volume() {
 void SettingsOverlay::set_volume(int volume) {
     m_volume = volume;
     save_volume();
+}
+
+void SettingsOverlay::save_fonts() {
+    try {
+        MusiqSettings::instance().set_fonts(m_main_font, m_fallback_font);
+        m_fonts_changed();
+        m_status->set_text("Changes are saved automatically.");
+    } catch (const std::exception& error) {
+        LOG_ERROR("[settings] could not save fonts: {}", error.what());
+        m_status->set_text("Could not save changes. Try again.");
+    }
 }
 
 void SettingsOverlay::apply_theme_defaults(const Theme& theme) {
