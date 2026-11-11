@@ -1,3 +1,6 @@
+# v0.4.1
+- Core(Fonts): Fix high memory usage
+
 # v0.4.0
 
 - UI(Sidebar): Make it resizable

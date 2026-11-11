@@ -17,7 +17,6 @@
 #include <imgui-ui/resources/texture-registry.hpp>
 #include <SDL3/SDL_events.h>
 #include <exception>
-#include <format>
 #include <stdexcept>
 #include <memory>
 #include <utility>
@@ -74,11 +73,7 @@ void MusiqApp::apply_fonts() {
     if (!main_font.empty()) fonts.main = FontSelection::family(main_font);
     if (!fallback_font.empty()) fonts.fallback = FontSelection::family(fallback_font);
 
-    const auto id = std::format("interface:{}:{}:{}", main_font.size(), main_font, fallback_font);
-    auto* font = m_runtime.fonts().find(id);
-    if (font == nullptr) font = m_runtime.fonts().add(id, fonts);
-
-    m_surface.set_primary_font(font);
+    m_surface.set_primary_font(m_runtime.fonts().set("interface", fonts));
     m_surface.set_theme(m_surface.theme());
 }
 
