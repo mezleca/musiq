@@ -1,35 +1,34 @@
 #include "catalog-results.hpp"
 #include "text.hpp"
 #include "catalog-card.hpp"
+#include "track-list.hpp"
 #include "../../youtube/catalog-browser.hpp"
 #include "../../utils/media.hpp"
 
 #include <imgui-ui/widgets/context-menu.hpp>
-#include <imgui-ui/layout/virtual-layout.hpp>
 
 #include <algorithm>
 #include <utility>
-#include <vector>
 
 using namespace ui;
 using namespace utils::media;
 
-class CatalogTracksWidget final : public VirtualLayout {
+class CatalogTracksWidget final : public TrackList {
 public:
     CatalogTracksWidget(
         std::shared_ptr<const MusicPage> page, std::size_t shelf, std::size_t first, std::size_t count,
         ThumbnailCache& thumbnails, CatalogActions actions
     )
-        : VirtualLayout("tracks", 64.0f), m_actions(std::move(actions)), m_rows(count) {
+        : TrackList("tracks"), m_actions(std::move(actions)) {
         set_size({grow(), fit()});
         set_spacing(8.0f);
 
         // keep the page alive while cards and their callbacks reference its items
         set_items(count, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            if (m_rows[index]) return *m_rows[index];
+            if (auto* card = find_track(index)) return *card;
 
             const auto* item = &page->shelves[shelf].items[first + index];
-            auto& card = add<MediaCardWidget>(*item, thumbnails);
+            auto& card = add_track(index, *item, thumbnails);
             card.set_enabled(is_playable(*item));
             card.on_click([this, item] { m_actions.play(*item); });
 
@@ -41,14 +40,12 @@ public:
                 menu.open_at(event.position);
                 event.stop_propagation();
             });
-            m_rows[index] = &card;
             return card;
         });
     }
 
 private:
     CatalogActions m_actions;
-    std::vector<MediaCardWidget*> m_rows;
 };
 
 class PlaylistGridWidget final : public Container {

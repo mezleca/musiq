@@ -3,6 +3,7 @@
 - UI(Sidebar): Make it resizable
 - UI(Catalog): Fixed Widgets dissapearing on resize
 - UI(Settings): Added "Main Font" and "Fallback Font" selectors
+- UI(TrackList): Fix tracks only being selected on playlist or queue lists 
 - Core(Windows): Hide console window
 
 # v0.3.0

@@ -1,56 +1,64 @@
 #include "track-list.hpp"
 #include "catalog-card.hpp"
+#include "../../youtube/schema/common.hpp"
 
-#include <imgui-ui/layout/virtual-layout.hpp>
 #include <string>
+#include <utility>
 
-TrackList::TrackList(ui::VirtualLayout& layout) : m_layout(layout) {}
+TrackList::TrackList(std::string id) : VirtualLayout(std::move(id), 64.0f) {
+    set_type_name("TrackList");
+}
 
-MediaCardWidget& TrackList::add(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails) {
-    auto& card = m_layout.add<MediaCardWidget>(item, thumbnails);
+MediaCardWidget& TrackList::add_track(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails) {
+    auto& card = add<MediaCardWidget>(item, thumbnails);
     card.set_id(std::to_string(key));
-    card.set_selected(m_current == key);
-    m_rows.emplace(key, &card);
+    card.set_selected(!m_current.empty() && m_current == item.endpoint.video_id);
+    m_rows.emplace(key, TrackRow{item.endpoint.video_id, &card});
     return card;
 }
 
-MediaCardWidget* TrackList::find(std::uint64_t key) const {
+MediaCardWidget* TrackList::find_track(std::uint64_t key) const {
     const auto row = m_rows.find(key);
-    return row == m_rows.end() ? nullptr : row->second;
+    return row == m_rows.end() ? nullptr : row->second.card;
 }
 
-void TrackList::refresh(const std::function<bool(std::uint64_t)>& keep, std::optional<std::uint64_t> current) {
+void TrackList::retain(const std::function<bool(std::uint64_t)>& keep) {
     for (auto row = m_rows.begin(); row != m_rows.end();) {
-        const auto& [key, card] = *row;
+        const auto& [key, track] = *row;
         if (!keep(key)) {
-            m_layout.remove(*card);
+            remove(*track.card);
             row = m_rows.erase(row);
             continue;
         }
-        card->set_selected(current == key);
         ++row;
     }
-
-    m_current = current;
 }
 
-void TrackList::clear() {
+void TrackList::clear_tracks() {
     m_rows.clear();
-    m_layout.clear();
-    m_current.reset();
+    clear();
 }
 
-void TrackList::set_current(std::optional<std::uint64_t> key) {
-    if (m_current == key) {
+void TrackList::set_current(std::string_view video_id) {
+    if (m_current == video_id) {
         return;
     }
 
-    if (auto* card = m_current ? find(*m_current) : nullptr) {
-        card->set_selected(false);
+    m_current = video_id;
+    for (const auto& [key, row] : m_rows) {
+        row.card->set_selected(!m_current.empty() && row.video_id == m_current);
+    }
+}
+
+void update_track_lists(ui::Node& root, std::string_view video_id) {
+    if (!root.visible() || root.removal_pending()) return;
+
+    if (auto* tracks = dynamic_cast<TrackList*>(&root)) {
+        tracks->set_current(video_id);
+        return;
     }
 
-    m_current = key;
-    if (auto* card = key ? find(*key) : nullptr) {
-        card->set_selected(true);
+    for (const auto& child : root.children()) {
+        update_track_lists(*child, video_id);
     }
 }

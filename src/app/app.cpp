@@ -434,6 +434,7 @@ void MusiqApp::show_page() {
         next->set_visible(true);
         m_current_page = next;
     }
+    update_tracks(*m_current_page);
 }
 
 void MusiqApp::submit_search(std::string query) {
@@ -457,13 +458,19 @@ void MusiqApp::refresh_page() {
 void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
 
-    if (changed.home) m_home->show(m_catalog.home_state(), changed.home_append);
+    if (changed.home) {
+        m_home->show(m_catalog.home_state(), changed.home_append);
+        update_tracks(*m_home);
+    }
     if (!changed.home && m_current_page == m_home && m_home->near_bottom() && m_catalog.more_home()) {
         m_home->show(m_catalog.home_state());
     }
     if (!changed.search.empty()) {
         const auto view = m_searches.find(changed.search);
-        if (view != m_searches.end()) view->second->show(m_catalog.search_state(changed.search));
+        if (view != m_searches.end()) {
+            view->second->show(m_catalog.search_state(changed.search));
+            update_tracks(*view->second);
+        }
     }
     if (changed.suggestions) m_search_bar->set_suggestions(m_catalog.suggestions());
 }
@@ -499,7 +506,8 @@ void MusiqApp::update_playback() {
     }
 
     const bool changed = m_playback.update();
-    if (!changed && m_queue_revision == m_playback.queue().revision()) return;
+    const bool queue_changed = m_queue_revision != m_playback.queue().revision();
+    if (!changed && !queue_changed) return;
 
     m_queue_revision = m_playback.queue().revision();
     m_player_bar->refresh();
@@ -507,6 +515,12 @@ void MusiqApp::update_playback() {
     for (const auto& playlist : m_playlists) {
         if (playlist.second->visible()) playlist.second->update_playback();
     }
+    if (queue_changed) update_tracks(m_surface.root());
+}
+
+void MusiqApp::update_tracks(Node& root) {
+    const auto* current = m_playback.queue().current();
+    update_track_lists(root, current ? current->media.endpoint.video_id : "");
 }
 
 void MusiqApp::update_shortcuts() {

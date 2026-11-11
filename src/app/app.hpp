@@ -67,6 +67,7 @@ private:
     void update_catalog();
     CatalogActions catalog_actions();
     void update_playback();
+    void update_tracks(ui::Node& root);
     void open_playlist(MusicItem item);
 
     YoutubeMusicSession m_youtube_session;

@@ -3,7 +3,6 @@
 #include "../widgets/text.hpp"
 #include "../../playback/controller.hpp"
 
-#include <imgui-ui/layout/virtual-layout.hpp>
 #include <imgui-ui/surface.hpp>
 #include <format>
 #include <utility>
@@ -29,16 +28,15 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
 
     m_status = &panel.add<MusiqText>("");
 
-    m_tracks = &panel.add<VirtualLayout>("tracks", 64.0f);
+    m_tracks = &panel.add<TrackList>();
     m_tracks->set_size({grow(), grow()});
     m_tracks->set_spacing(6.0f);
     m_tracks->set_overscan(2);
-    m_list.emplace(*m_tracks);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
         const auto& entry = m_playback.queue().entries()[index];
-        if (auto* card = m_list->find(entry.id)) return *card;
+        if (auto* card = m_tracks->find_track(entry.id)) return *card;
 
-        auto& card = m_list->add(entry.id, entry.media, m_thumbnails);
+        auto& card = m_tracks->add_track(entry.id, entry.media, m_thumbnails);
         card.on_click([this, id = entry.id] { m_playback.queue().select(id); });
 
         auto& remove = card.add<MusiqIconButtonWidget>("icons/close.svg");
@@ -70,7 +68,7 @@ void QueueOverlay::refresh() {
     const auto& entries = queue.entries();
     const auto* current = queue.current();
 
-    const auto current_id = current ? std::make_optional(current->id) : std::nullopt;
+    m_tracks->set_current(current ? current->media.endpoint.video_id : "");
 
     // cards stay mapped by entry id, so a removal only drops the matching card
     if (queue.revision() != m_revision) {
@@ -80,11 +78,9 @@ void QueueOverlay::refresh() {
         for (const auto& entry : entries) {
             ids.insert(entry.id);
         }
-        m_list->refresh([&ids](std::uint64_t id) { return ids.contains(id); }, current_id);
+        m_tracks->retain([&ids](std::uint64_t id) { return ids.contains(id); });
 
         m_tracks->set_items(entries.size());
-    } else {
-        m_list->set_current(current_id);
     }
 
     std::string status;

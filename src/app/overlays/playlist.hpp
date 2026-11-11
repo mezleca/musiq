@@ -3,7 +3,6 @@
 #include <imgui-ui/layout/container.hpp>
 #include "../../youtube/playlist-browser.hpp"
 #include "../widgets/track-list.hpp"
-#include <optional>
 
 class ThreadPool;
 class ThumbnailCache;
@@ -12,9 +11,6 @@ class MediaCoverWidget;
 class MusiqText;
 class MusiqButtonWidget;
 class MusiqIconButtonWidget;
-namespace ui {
-    class VirtualLayout;
-}
 
 class PlaylistOverlay final : public ui::Container {
 public:
@@ -44,6 +40,5 @@ private:
     MusiqText* m_status;
     MusiqIconButtonWidget* m_play;
     MusiqButtonWidget* m_more;
-    ui::VirtualLayout* m_tracks;
-    std::optional<TrackList> m_list;
+    TrackList* m_tracks;
 };
