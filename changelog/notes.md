@@ -2,6 +2,8 @@
 
 - UI(Sidebar): Make it resizable
 - UI(Catalog): Fixed Widgets dissapearing on resize
+- UI(Settings): Added "Main Font" and "Fallback Font" selectors
+- Core(Windows): Hide console window
 
 # v0.3.0
 
