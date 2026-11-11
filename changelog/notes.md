@@ -1,4 +1,4 @@
-# Unreleased
+# v0.4.0
 
 - UI(Sidebar): Make it resizable
 - UI(Sidebar): Added Saved playlists section

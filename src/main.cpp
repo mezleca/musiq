@@ -3,9 +3,10 @@
 #include "utils/log.hpp"
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 #include <exception>
 
-int main() {
+int main(int, char**) {
     SDL_SetHint(SDL_HINT_APP_ID, "org.mezleca.musiq");
 #if defined(__linux__)
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
