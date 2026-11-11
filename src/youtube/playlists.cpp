@@ -1,10 +1,41 @@
 #include "playlists.hpp"
 #include "client.hpp"
+#include "catalog.hpp"
 #include "../utils/log.hpp"
 
 #include <utility>
+#include <unordered_set>
 
 YoutubeMusicPlaylists::YoutubeMusicPlaylists(const YoutubeMusicClient& client) : m_client(client) {}
+
+YoutubeResult<std::vector<MusicItem>> YoutubeMusicPlaylists::library(const MusicRequestOptions& options) const {
+    auto authenticated = options;
+    authenticated.auth = MusicAuth::Required;
+    const YoutubeMusicCatalog catalog(m_client);
+    auto page = catalog.browse({.browse_id = "FEmusic_liked_playlists", .params = {}}, authenticated);
+    std::vector<MusicItem> playlists;
+    std::unordered_set<std::string> ids;
+    std::unordered_set<std::string> tokens;
+
+    while (page) {
+        auto continuation = page->continuation;
+        for (auto& shelf : page->shelves) {
+            for (auto& item : shelf.items) {
+                const auto& id = item.endpoint.browse_id;
+                if (id.starts_with("VL") && ids.insert(id).second) playlists.push_back(std::move(item));
+            }
+            if (!continuation && shelf.continuation) continuation = shelf.continuation;
+        }
+
+        if (!continuation) return playlists;
+        if (!tokens.insert(continuation->token).second) {
+            return youtube_error(YoutubeErrorKind::Api, "repeated library playlist continuation");
+        }
+        page = catalog.more(*continuation);
+    }
+
+    return std::unexpected(std::move(page.error()));
+}
 
 YoutubeResult<MusicPlaylist> YoutubeMusicPlaylists::get(std::string_view playlist_id, const MusicRequestOptions& options) const {
     if (playlist_id.empty()) return youtube_error(YoutubeErrorKind::Api, "playlist id required");

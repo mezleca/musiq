@@ -88,6 +88,7 @@ private:
     MusiqButtonWidget* m_back = nullptr;
     MusiqButtonWidget* m_forward = nullptr;
     SearchBarWidget* m_search_bar = nullptr;
+    MusiqText* m_navigation_title = nullptr;
     ThumbnailCache m_thumbnails;
     MpvPlayer m_player;
     PlaybackController m_playback;

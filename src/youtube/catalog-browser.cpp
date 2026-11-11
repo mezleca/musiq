@@ -1,6 +1,7 @@
 #include "catalog-browser.hpp"
 #include "catalog.hpp"
 #include "client.hpp"
+#include "playlists.hpp"
 #include "../utils/future.hpp"
 #include "../utils/log.hpp"
 #include "../utils/thread-pool.hpp"
@@ -26,6 +27,14 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_session = session;
     m_home = {};
     m_searches.clear();
+    m_library.clear();
+    m_library_task = {};
+    if (session.user()) {
+        m_library_task = m_workers.enqueue([session] {
+            const YoutubeMusicClient client(session);
+            return YoutubeMusicPlaylists(client).library();
+        });
+    }
 
     // dropping the futures ignores old responses, queued requests still finish in the pool
     m_page_task = {};
@@ -93,6 +102,16 @@ void CatalogBrowser::suggest(std::string query) {
 
 CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now) {
     CatalogChanges changed;
+
+    if (future_ready(m_library_task)) {
+        auto result = take_result(m_library_task);
+        if (result) {
+            m_library = std::move(*result);
+        } else {
+            LOG_WARN("[catalog] library playlists failed: {}", result.error().message);
+        }
+        changed.library = true;
+    }
 
     if (future_ready(m_home_more_task)) {
         auto result = take_result(m_home_more_task);

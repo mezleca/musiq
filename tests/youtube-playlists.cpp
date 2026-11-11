@@ -20,6 +20,10 @@ TEST_CASE("playlist reads normalize browse ids and reject invalid scopes before 
     const YoutubeMusicSession session;
     const YoutubeMusicClient client(session);
     const YoutubeMusicPlaylists playlists(client);
+    const auto library = playlists.library();
+    REQUIRE_FALSE(library);
+    REQUIRE(library.error().kind == YoutubeErrorKind::Authentication);
+    REQUIRE_FALSE(playlists.library({.auth = MusicAuth::Anonymous}));
     const auto private_list = playlists.get("PLprivate", {.auth = MusicAuth::Required});
     REQUIRE_FALSE(private_list);
     REQUIRE(private_list.error().kind == YoutubeErrorKind::Authentication);

@@ -74,7 +74,7 @@ CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, Th
     set_size({grow(), grow()});
     set_spacing(16.0f);
 
-    m_title = &add<MusiqText>(std::move(title), FontWeight::Bold);
+    m_title = &add<MusiqText>(std::move(title), FontWeight::Bold, 22.0f);
     m_title->set_size({grow(), fit()});
     m_title->set_overflow(TextOverflow::Ellipsis);
     m_status = &add<MusiqText>("");
@@ -127,7 +127,7 @@ void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
         auto& section = m_rows->add<Container>("", StackDirection::Vertical);
         section.set_size({grow(), fit()});
         section.set_spacing(8.0f);
-        if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, FontWeight::Bold);
+        if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, FontWeight::Bold, 22.0f);
 
         // preserve shelf order while laying out playlist runs as grids and track runs as lists
         for (std::size_t first = 0; first < shelf.items.size();) {

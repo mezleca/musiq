@@ -14,7 +14,7 @@ ChannelPickerOverlay::ChannelPickerOverlay(Node& anchor, std::function<void(std:
     set_spacing(8.0f);
     set_visible(false);
 
-    add<MusiqText>("Choose your YouTube channel", FontWeight::Bold);
+    add<MusiqText>("Choose your YouTube channel", FontWeight::Bold, 22.0f);
     m_status = &add<MusiqText>("Could not open this channel. Try again.");
     m_status->set_visible(false);
     m_channels = &add<Container>("identities", StackDirection::Vertical);

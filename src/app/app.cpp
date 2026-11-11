@@ -1,5 +1,6 @@
 #include "app.hpp"
 #include "theme.hpp"
+#include "widgets/text.hpp"
 #include "../utils/media.hpp"
 #include "../utils/path.hpp"
 #include "../constants.hpp"
@@ -48,7 +49,10 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     auto& main = m_surface.root().add<Container>("main", StackDirection::Horizontal);
     main.set_size({grow(), grow()});
 
-    m_sidebar = &main.add<SideBarOverlay>([this](std::string_view option) { navigate(option); });
+    m_sidebar = &main.add<SideBarOverlay>(
+        m_thumbnails, [this](std::string_view option) { navigate(option); },
+        [this](MusicItem item) { open_playlist(std::move(item)); }
+    );
 
     auto& content = main.add<Container>("content", StackDirection::Vertical);
     content.set_size({grow(), grow()});
@@ -103,6 +107,11 @@ void MusiqApp::build_navigation(Container& content) {
         [this](std::string query) { submit_search(std::move(query)); },
         [this](std::string query) { m_catalog.suggest(std::move(query)); }
     );
+
+    m_navigation_title = &navigation.add<MusiqText>("", FontWeight::Bold, 22.0f);
+    m_navigation_title->set_size({{px(0), px(800)}, fit()});
+    m_navigation_title->set_alignment({0.0f, 0.5f});
+    m_navigation_title->set_visible(false);
 
     navigation.add<Container>("profile-spacer").set_size({grow(), px(1)});
     m_profile = &navigation.add<UserProfileWidget>([this] { sign_in(); }, [this] { choose_channel(); });
@@ -301,6 +310,7 @@ void MusiqApp::update_session() {
             LOG_WARN("[login] avatar failed: {}", error.what());
         }
     }
+
     if (m_channel_picker->take_dismissed() && !m_session.valid()) cancel_channel_selection();
     if (!future_ready(m_session)) return;
 
@@ -319,11 +329,16 @@ void MusiqApp::update_session() {
             clear_session();
             return;
         }
-        if (m_session_action == SessionAction::Refresh) return;
+
+        if (m_session_action == SessionAction::Refresh) {
+            return;
+        }
+
         if (m_session_action == SessionAction::Channels) {
             if (m_channel_picker->visible()) m_channel_picker->refresh(m_youtube_session.identities(), true);
             return;
         }
+
         if (!m_youtube_session.identities().empty()) {
             m_channel_picker->show(m_youtube_session.identities(), true);
         } else if (!m_youtube_session.user()) {
@@ -333,6 +348,7 @@ void MusiqApp::update_session() {
                 navigate("home");
             }
         }
+
         return;
     }
 
@@ -343,6 +359,7 @@ void MusiqApp::update_session() {
         if (m_youtube_session.user()) MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
         return;
     }
+
     if (!m_youtube_session.user()) {
         m_channel_picker->show(m_youtube_session.identities());
         return;
@@ -355,11 +372,17 @@ void MusiqApp::update_session() {
     } else {
         update_profile();
     }
+
     MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
-    if (!m_avatar.valid() || previous_avatar != m_youtube_session.user()->avatar_url) load_avatar();
+    if (!m_avatar.valid() || previous_avatar != m_youtube_session.user()->avatar_url) {
+        load_avatar();
+    }
+
     LOG_INFO("[login] session ready");
 
-    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) refresh_page();
+    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) {
+        refresh_page();
+    }
 }
 
 void MusiqApp::update_profile() {
@@ -369,6 +392,7 @@ void MusiqApp::update_profile() {
     }
 
     m_catalog.set_session(m_youtube_session);
+    m_sidebar->set_playlists({});
     show_page();
     refresh_profile();
 }
@@ -397,10 +421,13 @@ void MusiqApp::navigate(std::string_view page) {
 
 void MusiqApp::show_page() {
     const auto& route = m_history.current();
-    m_sidebar->select(route.page);
+    m_sidebar->select(route.page == "playlist" ? route.query : route.page);
     m_back->set_enabled(m_history.can_back());
     m_forward->set_enabled(m_history.can_forward());
-    m_search_bar->set_visible(route.page != "settings");
+    const bool settings_open = route.page == "settings";
+    m_search_bar->set_visible(!settings_open);
+    m_navigation_title->set_text(settings_open ? "Settings" : "");
+    m_navigation_title->set_visible(settings_open);
     m_search_bar->set_query(route.page == "search" ? route.query : std::string{});
     m_catalog.suggest({});
 
@@ -457,14 +484,17 @@ void MusiqApp::refresh_page() {
 
 void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
+    if (changed.library) m_sidebar->set_playlists(m_catalog.library_playlists());
 
     if (changed.home) {
         m_home->show(m_catalog.home_state(), changed.home_append);
         update_tracks(*m_home);
     }
+
     if (!changed.home && m_current_page == m_home && m_home->near_bottom() && m_catalog.more_home()) {
         m_home->show(m_catalog.home_state());
     }
+
     if (!changed.search.empty()) {
         const auto view = m_searches.find(changed.search);
         if (view != m_searches.end()) {
@@ -472,7 +502,10 @@ void MusiqApp::update_catalog() {
             update_tracks(*view->second);
         }
     }
-    if (changed.suggestions) m_search_bar->set_suggestions(m_catalog.suggestions());
+
+    if (changed.suggestions) {
+        m_search_bar->set_suggestions(m_catalog.suggestions());
+    }
 }
 
 CatalogActions MusiqApp::catalog_actions() {
@@ -512,10 +545,14 @@ void MusiqApp::update_playback() {
     m_queue_revision = m_playback.queue().revision();
     m_player_bar->refresh();
     m_queue_overlay->refresh();
+
     for (const auto& playlist : m_playlists) {
         if (playlist.second->visible()) playlist.second->update_playback();
     }
-    if (queue_changed) update_tracks(m_surface.root());
+
+    if (queue_changed) {
+        update_tracks(m_surface.root());
+    }
 }
 
 void MusiqApp::update_tracks(Node& root) {

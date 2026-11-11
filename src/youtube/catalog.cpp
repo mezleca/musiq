@@ -42,8 +42,21 @@ YoutubeResult<MusicPage> YoutubeMusicCatalog::more(const MusicContinuation& cont
 YoutubeResult<MusicPage> YoutubeMusicCatalog::page(
     MusicRoute route, std::string_view endpoint, json body, const MusicRequestOptions& options, cpr::Parameters parameters
 ) const {
-    const auto resolved = m_client.request_options(options);
-    auto result = youtube_parse<MusicPage>(m_client.post(endpoint, std::move(body), resolved, {}, std::move(parameters)));
+    auto resolved = m_client.request_options(options);
+    auto response = m_client.post(endpoint, std::move(body), resolved, {}, std::move(parameters));
+
+    // continuation tokens belong to the visitor that received the page, even when signed out
+    std::string visitor;
+    const json::json_pointer visitor_path("/responseContext/visitorData");
+    if (response && resolved.visitor_data.empty() && response->data.contains(visitor_path)) {
+        const auto& issued = response->data.at(visitor_path);
+        if (issued.is_string()) {
+            issued.get_to(visitor);
+            resolved.visitor_data = visitor;
+        }
+    }
+
+    auto result = youtube_parse<MusicPage>(std::move(response));
     if (result) result->set_scope(route, resolved, m_client.identity());
     return result;
 }

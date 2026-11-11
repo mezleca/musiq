@@ -53,11 +53,10 @@ SettingsOverlay::SettingsOverlay(
         LOG_WARN("[settings] could not read volume: {}", error.what());
     }
 
-    add<MusiqText>("Settings", FontWeight::Bold);
     m_status = &add<MusiqText>("Changes are saved automatically.");
 
     auto& appearance = add<SettingsSectionWidget>("appearance");
-    appearance.add<MusiqText>("Appearance", FontWeight::Bold);
+    appearance.add<MusiqText>("Appearance", FontWeight::Bold, 22.0f);
 
     m_main_font = settings.main_font();
     m_fallback_font = settings.fallback_font();
@@ -79,7 +78,7 @@ SettingsOverlay::SettingsOverlay(
     fallback_font.on_select([this] { save_fonts(); });
 
     auto& audio = add<SettingsSectionWidget>("audio");
-    audio.add<MusiqText>("Audio", FontWeight::Bold);
+    audio.add<MusiqText>("Audio", FontWeight::Bold, 22.0f);
 
     audio.add<MusiqText>("Volume");
     auto& row = audio.add<Container>("volume", StackDirection::Horizontal);
@@ -91,7 +90,7 @@ SettingsOverlay::SettingsOverlay(
     volume.on_change([this] { save_volume(); });
 
     m_account = &add<SettingsSectionWidget>("account");
-    m_account->add<MusiqText>("Account", FontWeight::Bold);
+    m_account->add<MusiqText>("Account", FontWeight::Bold, 22.0f);
 
     auto& logout = m_account->add<MusiqButtonWidget>("Log out");
     logout.set_id("log-out");
@@ -106,7 +105,7 @@ SettingsOverlay::SettingsOverlay(
     set_authenticated(false);
 
     auto& browser = add<SettingsSectionWidget>("browser");
-    browser.add<MusiqText>("Webview", FontWeight::Bold);
+    browser.add<MusiqText>("Webview", FontWeight::Bold, 22.0f);
     browser.add<MusiqButtonWidget>("Clear cookies").on_click([this, clear_cookies = std::move(clear_cookies)] {
         try {
             clear_cookies();

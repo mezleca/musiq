@@ -1,9 +1,10 @@
 # Unreleased
 
 - UI(Sidebar): Make it resizable
+- UI(Sidebar): Added Saved playlists section
 - UI(Catalog): Fixed Widgets dissapearing on resize
 - UI(Settings): Added "Main Font" and "Fallback Font" selectors
-- UI(TrackList): Fix tracks only being selected on playlist or queue lists 
+- UI(TrackList): Fix track only showing selected at playlist or queue lists 
 - Core(Windows): Hide console window
 
 # v0.3.0
