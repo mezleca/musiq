@@ -1,3 +1,8 @@
+# Unreleased
+
+- UI(Sidebar): Make it resizable
+- UI(Catalog): Fixed Widgets dissapearing on resize
+
 # v0.3.0
 
 - MPV: Enable "cache" and "cache-pause"

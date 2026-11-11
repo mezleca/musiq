@@ -1,13 +1,13 @@
 #pragma once
 
-#include <imgui-ui/layout/container.hpp>
+#include <imgui-ui/layout/resizable-container.hpp>
 #include <functional>
 #include <string>
 #include <string_view>
 
 class OptionsWidget;
 
-class SideBarOverlay final : public ui::Container {
+class SideBarOverlay final : public ui::ResizableContainer {
 public:
     explicit SideBarOverlay(std::function<void(std::string_view)> navigate = {});
     void select(std::string_view id);

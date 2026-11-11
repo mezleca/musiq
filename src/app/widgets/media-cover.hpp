@@ -15,16 +15,13 @@ public:
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
-    void on_update(float dt) override;
     void draw_before() override;
 
 private:
     ThumbnailCache& m_thumbnails;
     SpinnerWidget* m_spinner;
-    std::vector<MusicThumbnail> m_sources;
     std::string m_url;
     std::shared_ptr<ThumbnailRequest> m_download;
-    float m_pixel_size = 0;
-    int m_last_draw_frame = -1;
+    const float m_size;
     bool m_loaded = false;
 };

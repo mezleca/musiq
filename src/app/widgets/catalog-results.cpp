@@ -51,54 +51,24 @@ private:
     std::vector<MediaCardWidget*> m_rows;
 };
 
-class PlaylistGridWidget final : public VirtualLayout {
+class PlaylistGridWidget final : public Container {
 public:
     PlaylistGridWidget(
         std::shared_ptr<const MusicPage> page, std::size_t shelf, std::size_t first, std::size_t count,
         ThumbnailCache& thumbnails, std::function<void(MusicItem)> play
     )
-        : VirtualLayout("playlists", 236.0f), m_play(std::move(play)), m_count(count) {
+        : Container("playlists", StackDirection::Horizontal) {
         set_size({grow(), fit()});
         set_spacing(16.0f);
+        set_wrap(StackWrap::Wrap);
 
-        set_items(0, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            if (m_rows[index]) return *m_rows[index];
-
-            auto& row = add<Container>("", StackDirection::Horizontal);
-            row.set_size({grow(), fit()});
-            row.set_spacing(16.0f);
-
-            const auto end = std::min(m_count, (index + 1) * m_columns);
-            for (auto item_index = index * m_columns; item_index < end; ++item_index) {
-                const auto* item = &page->shelves[shelf].items[first + item_index];
-                auto& card = row.add<PlaylistCardWidget>(*item, thumbnails);
-                card.on_click([this, item] { m_play(*item); });
-            }
-            m_rows[index] = &row;
-            return row;
-        });
+        for (std::size_t index = first; index < first + count; ++index) {
+            const auto* item = &page->shelves[shelf].items[index];
+            auto& card = add<PlaylistCardWidget>(*item, thumbnails);
+            // keep the source alive with the callback so its item pointer remains valid
+            card.on_click([page, item, play] { play(*item); });
+        }
     }
-
-protected:
-    void on_update(float) override {
-        // layout width is still zero on the first frame, wait for the measured size
-        const float width = layout().size().x;
-        if (width <= 0.0f) return;
-
-        const auto columns = std::max(std::size_t{1}, static_cast<std::size_t>(width + 16.0f) / 192);
-        if (columns == m_columns) return;
-
-        m_columns = columns;
-        m_rows.assign((m_count + columns - 1) / columns, nullptr);
-        clear();
-        set_items(m_rows.size());
-    }
-
-private:
-    std::function<void(MusicItem)> m_play;
-    std::vector<Container*> m_rows;
-    std::size_t m_count;
-    std::size_t m_columns = 0;
 };
 
 CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails)
