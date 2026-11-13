@@ -6,7 +6,7 @@
 #include "../../playback/controller.hpp"
 
 #include <utility>
-#include <imgui-ui/surface.hpp>
+#include <arbor/surface.hpp>
 
 using namespace ui;
 using namespace utils::media;

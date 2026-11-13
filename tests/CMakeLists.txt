@@ -20,7 +20,7 @@ target_link_libraries(tests PRIVATE
     Boost::process
     mpv::mpv
     miniz
-    imgui-ui::sdl
+    arbor::sdl
     OpenGL::GL
     webview::core
     sqlite_orm::sqlite_orm

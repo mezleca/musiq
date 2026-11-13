@@ -1,6 +1,6 @@
 #pragma once
 
-#include <imgui-ui/resources/texture.hpp>
+#include <arbor/resources/texture.hpp>
 #include <future>
 #include <memory>
 #include <string>

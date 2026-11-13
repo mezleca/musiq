@@ -9,13 +9,13 @@ if(WIN32)
     set(CMAKE_DISABLE_FIND_PACKAGE_Freetype TRUE)
 endif()
 
-set(IMGUI_UI_BUILD_SDL ON)
-set(IMGUI_UI_BUILD_TESTS OFF)
+set(ARBOR_BUILD_SDL ON)
+set(ARBOR_BUILD_TESTS OFF)
 
 FetchContent_Declare(
-    imgui-ui
-    GIT_REPOSITORY https://github.com/mezleca/imgui-ui.git
-    GIT_TAG 94686858e3cdc7aa22be970eb10d857d59140a98
+    arbor
+    GIT_REPOSITORY https://github.com/mezleca/arbor.git
+    GIT_TAG b61d7805aaedd36d69983fff0618bdca003cc734
     GIT_PROGRESS TRUE
 )
-FetchContent_MakeAvailable(imgui-ui)
+FetchContent_MakeAvailable(arbor)

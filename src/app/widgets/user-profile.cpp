@@ -2,8 +2,8 @@
 #include "button.hpp"
 #include "text.hpp"
 
-#include <imgui-ui/widgets/image.hpp>
-#include <imgui-ui/style/theme.hpp>
+#include <arbor/widgets/image.hpp>
+#include <arbor/style/theme.hpp>
 #include <string>
 #include <utility>
 

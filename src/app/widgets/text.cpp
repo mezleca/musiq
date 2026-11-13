@@ -1,6 +1,6 @@
 #include "text.hpp"
 
-#include <imgui-ui/surface.hpp>
+#include <arbor/surface.hpp>
 #include <utility>
 
 using namespace ui;

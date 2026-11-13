@@ -5,7 +5,8 @@
 #include "../../database/settings.hpp"
 #include "../../utils/log.hpp"
 
-#include <imgui-ui/widgets/dropdown.hpp>
+#include <arbor/widgets/dropdown.hpp>
+#include <arbor/surface.hpp>
 #include <exception>
 #include <utility>
 #include <cmath>
@@ -57,6 +58,20 @@ SettingsOverlay::SettingsOverlay(
 
     auto& appearance = add<SettingsSectionWidget>("appearance");
     appearance.add<MusiqText>("Appearance", FontWeight::Bold, 22.0f);
+
+    m_interface_scale = settings.interface_scale();
+    appearance.add<MusiqText>("Interface scale");
+    auto& scale_row = appearance.add<Container>("interface-scale", StackDirection::Horizontal);
+    scale_row.set_size({grow(), fit()});
+    scale_row.set_spacing(12.0f);
+    scale_row.set_content_alignment(Anchor::CenterLeft);
+    auto& scale = scale_row.add<MusiqSliderWidget>(m_interface_scale);
+    scale.set_range(0.75, 1.5);
+    m_scale_text = &scale_row.add<MusiqText>(std::format("{:.2f}x", m_interface_scale));
+    scale.on_change([this] {
+        m_scale_text->set_text(std::format("{:.2f}x", m_interface_scale));
+        m_scale_debounce.restart();
+    });
 
     m_main_font = settings.main_font();
     m_fallback_font = settings.fallback_font();
@@ -136,6 +151,13 @@ void SettingsOverlay::save_volume() {
     }
 }
 
+void SettingsOverlay::update(float dt) {
+    // finish pending changes even if settings were hidden during the debounce.
+    if (m_scale_debounce.poll()) save_scale();
+
+    Container::update(dt);
+}
+
 void SettingsOverlay::set_volume(int volume) {
     m_volume = volume;
     save_volume();
@@ -148,6 +170,18 @@ void SettingsOverlay::save_fonts() {
         m_status->set_text("Changes are saved automatically.");
     } catch (const std::exception& error) {
         LOG_ERROR("[settings] could not save fonts: {}", error.what());
+        m_status->set_text("Could not save changes. Try again.");
+    }
+}
+
+void SettingsOverlay::save_scale() {
+    try {
+        const auto scale = static_cast<float>(m_interface_scale);
+        MusiqSettings::instance().set_interface_scale(scale);
+        surface().set_scale(scale);
+        m_status->set_text("Changes are saved automatically.");
+    } catch (const std::exception& error) {
+        LOG_ERROR("[settings] could not save interface scale: {}", error.what());
         m_status->set_text("Could not save changes. Try again.");
     }
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <imgui-ui/layout/virtual-layout.hpp>
+#include <arbor/layout/virtual-layout.hpp>
 #include <cstdint>
 #include <functional>
 #include <string>

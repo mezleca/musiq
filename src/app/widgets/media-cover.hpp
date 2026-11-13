@@ -1,6 +1,6 @@
 #pragma once
 
-#include <imgui-ui/widgets/image.hpp>
+#include <arbor/widgets/image.hpp>
 #include "../../youtube/schema/common.hpp"
 #include <memory>
 

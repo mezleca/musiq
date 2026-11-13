@@ -20,8 +20,8 @@
 #include "../utils/thread-pool.hpp"
 
 #include <SDL3/SDL_video.h>
-#include <imgui-ui/runtime.hpp>
-#include <imgui-ui/surface.hpp>
+#include <arbor/runtime.hpp>
+#include <arbor/surface.hpp>
 #include <functional>
 #include <future>
 #include <string_view>

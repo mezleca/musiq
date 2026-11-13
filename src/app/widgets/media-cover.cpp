@@ -3,8 +3,8 @@
 #include "../resources/thumbnails.hpp"
 #include "../../utils/media.hpp"
 
-#include <imgui-ui/runtime.hpp>
-#include <imgui-ui/surface.hpp>
+#include <arbor/runtime.hpp>
+#include <arbor/surface.hpp>
 
 using namespace ui;
 using namespace utils::media;

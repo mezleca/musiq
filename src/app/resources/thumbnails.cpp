@@ -5,7 +5,7 @@
 #include "../../utils/future.hpp"
 #include "../../utils/thread-pool.hpp"
 
-#include <imgui-ui/resources/texture-registry.hpp>
+#include <arbor/resources/texture-registry.hpp>
 #include <algorithm>
 #include <utility>
 

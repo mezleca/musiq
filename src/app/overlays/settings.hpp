@@ -1,6 +1,8 @@
 #pragma once
 
-#include <imgui-ui/layout/container.hpp>
+#include "../../utils/debounce.hpp"
+
+#include <arbor/layout/container.hpp>
 #include <functional>
 #include <string>
 
@@ -14,6 +16,7 @@ public:
     );
     void set_authenticated(bool authenticated);
     void set_volume(int volume);
+    void update(float dt) override;
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -21,11 +24,15 @@ protected:
 private:
     void save_volume();
     void save_fonts();
+    void save_scale();
 
     MusiqText* m_status;
     MusiqText* m_volume_text;
+    MusiqText* m_scale_text;
     ui::Container* m_account;
     double m_volume = 80;
+    double m_interface_scale = 1.0;
+    Debounce m_scale_debounce{std::chrono::milliseconds(100)};
     std::function<void(int)> m_volume_changed;
     std::function<void()> m_fonts_changed;
     std::string m_main_font;

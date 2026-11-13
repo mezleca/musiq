@@ -1,6 +1,6 @@
 #pragma once
 
-#include <imgui-ui/layout/resizable-container.hpp>
+#include <arbor/layout/resizable-container.hpp>
 #include <functional>
 #include <string>
 #include <string_view>

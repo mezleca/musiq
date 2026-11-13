@@ -1,10 +1,10 @@
 #include "button.hpp"
 #include "../../utils/path.hpp"
 
-#include <imgui-ui/surface.hpp>
-#include <imgui-ui/widgets/image.hpp>
-#include <imgui-ui/resources/texture-registry.hpp>
-#include <imgui-ui/runtime.hpp>
+#include <arbor/surface.hpp>
+#include <arbor/widgets/image.hpp>
+#include <arbor/resources/texture-registry.hpp>
+#include <arbor/runtime.hpp>
 #include <utility>
 
 using namespace ui;

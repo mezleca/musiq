@@ -1,10 +1,11 @@
 #pragma once
 
-#include <imgui-ui/widgets/widget.hpp>
+#include <arbor/widgets/widget.hpp>
 
 class MusiqSliderWidget final : public ui::Widget {
 public:
-    explicit MusiqSliderWidget(double& percent);
+    explicit MusiqSliderWidget(double& value);
+    void set_range(double minimum, double maximum);
     void set_commit_on_release(bool enabled);
     bool dragging() const {
         return m_dragging;
@@ -16,8 +17,10 @@ protected:
     void event(ui::UiEvent& event) override;
 
 private:
-    void set_value(double percent);
-    double& m_percent;
+    void set_value(double value);
+    double& m_value;
+    double m_minimum = 0;
+    double m_maximum = 100;
     double m_drag_start = 0;
     ui::Color m_track;
     ui::Color m_active;

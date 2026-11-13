@@ -3,7 +3,7 @@
 #include "../widgets/text.hpp"
 #include "../../playback/controller.hpp"
 
-#include <imgui-ui/surface.hpp>
+#include <arbor/surface.hpp>
 #include <format>
 #include <utility>
 #include <unordered_set>
@@ -99,7 +99,7 @@ void QueueOverlay::refresh() {
 }
 
 void QueueOverlay::event(UiEvent& event) {
-    const bool escape = event.type == EventType::Cancel || (event.type == EventType::KeyDown && event.key == Key::Escape);
+    const bool escape = event.type == EventType::Cancel || (event.type == EventType::KeyDown && event.key == ImGuiKey_Escape);
     const bool outside = event.type == EventType::PointerDown && event.button == PointerButton::Left &&
                          !content().layout().visual_rect().contains(event.position);
     if (escape || outside) {

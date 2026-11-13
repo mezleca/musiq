@@ -13,6 +13,8 @@ public:
 
     int volume() const;
     void set_volume(int volume);
+    float interface_scale() const;
+    void set_interface_scale(float scale);
     std::string main_font() const;
     std::string fallback_font() const;
     void set_fonts(const std::string& main, const std::string& fallback);

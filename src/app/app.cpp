@@ -11,10 +11,10 @@
 #include "../utils/log.hpp"
 #include "../webview/webview.hpp"
 
-#include <imgui-ui/backends/opengl/texture-loader.hpp>
-#include <imgui-ui/backends/sdl/backend.hpp>
-#include <imgui-ui/layout/container.hpp>
-#include <imgui-ui/resources/texture-registry.hpp>
+#include <arbor/backends/opengl/texture-loader.hpp>
+#include <arbor/backends/sdl/backend.hpp>
+#include <arbor/layout/container.hpp>
+#include <arbor/resources/texture-registry.hpp>
 #include <SDL3/SDL_events.h>
 #include <exception>
 #include <stdexcept>
@@ -43,6 +43,7 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
                      }
       ) {
     m_surface.set_theme(musiq_theme());
+    m_surface.set_scale(MusiqSettings::instance().interface_scale());
     apply_fonts();
 
     auto& main = m_surface.root().add<Container>("main", StackDirection::Horizontal);

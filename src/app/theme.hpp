@@ -1,5 +1,5 @@
 #pragma once
 
-#include <imgui-ui/style/theme.hpp>
+#include <arbor/style/theme.hpp>
 
 ui::Theme musiq_theme();

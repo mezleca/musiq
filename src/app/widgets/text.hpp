@@ -1,6 +1,6 @@
 #pragma once
 
-#include <imgui-ui/widgets/text.hpp>
+#include <arbor/widgets/text.hpp>
 
 class MusiqText : public ui::TextWidget {
 public:

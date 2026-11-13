@@ -1,3 +1,7 @@
+# v0.5.0
+- UI(Settings): Added interface scale option
+- UI: updated framework to the latest version
+
 # v0.4.1
 - Core(Fonts): Fix high memory usage
 

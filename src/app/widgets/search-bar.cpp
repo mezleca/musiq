@@ -4,12 +4,12 @@
 #include "../../utils/text.hpp"
 #include "../../youtube/schema/catalog.hpp"
 
-#include <imgui-ui/layout/layer-container.hpp>
-#include <imgui-ui/resources/texture-registry.hpp>
-#include <imgui-ui/runtime.hpp>
-#include <imgui-ui/surface.hpp>
-#include <imgui-ui/widgets/text-input.hpp>
-#include <imgui-ui/widgets/image.hpp>
+#include <arbor/layout/layer-container.hpp>
+#include <arbor/resources/texture-registry.hpp>
+#include <arbor/runtime.hpp>
+#include <arbor/surface.hpp>
+#include <arbor/widgets/text-input.hpp>
+#include <arbor/widgets/image.hpp>
 #include <algorithm>
 #include <utility>
 
@@ -132,9 +132,9 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
 
     m_input->on_submit([this] { confirm_query(); });
     m_input->on_event(EventType::KeyDown, [this](UiEvent& event) {
-        if (event.key == Key::Up || event.key == Key::Down) {
-            move_selection(event.key == Key::Up ? -1 : 1);
-        } else if (event.key == Key::Enter && m_selected >= 0) {
+        if (event.key == ImGuiKey_UpArrow || event.key == ImGuiKey_DownArrow) {
+            move_selection(event.key == ImGuiKey_UpArrow ? -1 : 1);
+        } else if (event.key == ImGuiKey_Enter && m_selected >= 0) {
             replace_query(m_choice_buttons[m_selected]->text());
         } else {
             return;
