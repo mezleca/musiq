@@ -8,9 +8,12 @@
 #include "../utils/future.hpp"
 #include "../utils/thread-pool.hpp"
 #include "../utils/log.hpp"
+#include "../utils/media.hpp"
 
 #include <utility>
 #include <memory>
+#include <algorithm>
+#include <cmath>
 
 static PlaybackPage catalog_tracks(MusicPage page) {
     PlaybackPage result;
@@ -48,7 +51,40 @@ static YoutubeResult<PlaybackPage> read_more(const YoutubeMusicSession& session,
 }
 
 PlaybackController::PlaybackController(ThreadPool& workers, MpvPlayer& player)
-    : m_workers(workers), m_player(player), m_media_stream(std::make_shared<YoutubeMediaStream>()) {}
+    : m_workers(workers), m_player(player), m_media_stream(std::make_shared<YoutubeMediaStream>()) {
+    m_media_session.on_play([this] {
+        if (m_queue.current() && !resolving() && (paused() || !m_player.state().loaded)) {
+            toggle_pause();
+        }
+    });
+
+    m_media_session.on_pause([this] {
+        if (m_player.state().loaded && !m_player.state().paused) {
+            m_player.pause(true);
+            m_changed = true;
+        }
+    });
+
+    m_media_session.on_next([this] { m_queue.advance(); });
+    m_media_session.on_previous([this] { m_queue.previous(); });
+    m_media_session.on_seek([this](double seconds) { seek(seconds); });
+    m_media_session.on_shuffle([this](bool enabled) {
+        m_queue.set_random(enabled);
+        m_media_session.set_shuffle(m_queue.random());
+    });
+    m_media_session.on_loop([this](const std::string& status) {
+        m_queue.set_loop(status == "Track" ? LoopMode::Track : status == "Playlist" ? LoopMode::Playlist : LoopMode::None);
+        m_media_session.set_loop(status);
+    });
+}
+
+void PlaybackController::on_volume(std::function<void(int)> callback) {
+    m_media_session.on_volume([this, callback = std::move(callback)](double volume) {
+        callback(static_cast<int>(std::lround(std::clamp(volume, 0.0, 1.0) * 100)));
+        m_media_session.set_volume(m_player.state().volume / 100.0);
+        m_changed = true;
+    });
+}
 
 PlaybackController::~PlaybackController() {
     m_resolve_stop.request_stop();
@@ -134,9 +170,61 @@ void PlaybackController::collect_page() {
 }
 
 bool PlaybackController::update() {
+    m_media_session.update();
+
     collect_page();
     update_player();
+    update_media_session();
+
     return std::exchange(m_changed, false);
+}
+
+void PlaybackController::update_media_session() {
+    const auto* track = m_queue.current();
+    const auto id = track ? track->id : 0;
+    const auto& state = m_player.state();
+
+    if (id != m_media_track_id || state.duration != m_media_duration) {
+        MediaMetadata metadata;
+        if (track) {
+            metadata.id = id;
+            metadata.title = track->media.title;
+            metadata.artist = utils::media::media_artist(track->media);
+            metadata.album = track->media.album.text;
+            if (!track->media.thumbnails.empty()) metadata.artwork = track->media.thumbnails.back().url;
+            metadata.duration = state.duration;
+        }
+        m_media_session.set_metadata(metadata);
+        m_media_track_id = id;
+        m_media_duration = state.duration;
+    }
+
+    m_media_session.set_playing(track && state.loaded && !paused());
+    m_media_session.set_position(state.position);
+    m_media_session.set_shuffle(m_queue.random());
+    m_media_session.set_loop(
+        m_queue.loop() == LoopMode::Track      ? "Track"
+        : m_queue.loop() == LoopMode::Playlist ? "Playlist"
+                                               : "None"
+    );
+    m_media_session.set_volume(state.volume / 100.0);
+    m_media_session.set_controls(
+        track != nullptr, m_queue.can_advance(), m_queue.position() > 0,
+        track && track->id == m_track_id && state.loaded && state.duration > 0 && !resolving()
+    );
+}
+
+void PlaybackController::seek(double seconds) {
+    const auto* track = m_queue.current();
+    const auto& state = m_player.state();
+    if (!track || track->id != m_track_id || !state.loaded || state.duration <= 0 || resolving()) {
+        return;
+    }
+
+    seconds = std::clamp(seconds, 0.0, state.duration);
+    m_player.seek(seconds);
+    m_media_session.seeked(seconds);
+    m_changed = true;
 }
 
 void PlaybackController::resolve_current() {
@@ -248,6 +336,6 @@ void PlaybackController::update_player() {
 
     // a manual retry restores the position after the new stream has loaded
     if (state.loaded && m_resume > 0) {
-        m_player.seek(std::exchange(m_resume, 0));
+        seek(std::exchange(m_resume, 0));
     }
 }

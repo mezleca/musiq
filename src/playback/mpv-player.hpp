@@ -11,6 +11,7 @@ struct MpvDeleter {
 struct PlayerState {
     double position = 0;
     double duration = 0;
+    int volume = 80;
     bool paused = true;
     bool buffering = false;
     bool loaded = false;

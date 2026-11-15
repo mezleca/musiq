@@ -12,6 +12,7 @@ using namespace sqlite_orm;
 struct SettingsData {
     int id = 1;
     int volume = 80;
+    int repeat_mode = static_cast<int>(LoopMode::None);
     float interface_scale = 1.0f;
     std::string main_font;
     std::string fallback_font;
@@ -21,6 +22,7 @@ static auto make_musiq_storage(const std::string& path) {
     return make_storage(
         path, make_table(
                   "settings", make_column("id", &SettingsData::id, primary_key()), make_column("volume", &SettingsData::volume),
+                  make_column("repeat_mode", &SettingsData::repeat_mode, default_value(0)),
                   make_column("main_font", &SettingsData::main_font, default_value("")),
                   make_column("fallback_font", &SettingsData::fallback_font, default_value("")),
                   make_column("interface_scale", &SettingsData::interface_scale, default_value(1.0f))
@@ -52,6 +54,15 @@ int MusiqSettings::volume() const {
 
 void MusiqSettings::set_volume(int volume) {
     settings_storage->update_all(set(c(&SettingsData::volume) = std::clamp(volume, 0, 100)), where(c(&SettingsData::id) == 1));
+}
+
+LoopMode MusiqSettings::repeat_mode() const {
+    const auto mode = settings_storage->get<SettingsData>(1).repeat_mode;
+    return static_cast<LoopMode>(mode);
+}
+
+void MusiqSettings::set_repeat_mode(LoopMode mode) {
+    settings_storage->update_all(set(c(&SettingsData::repeat_mode) = static_cast<int>(mode)), where(c(&SettingsData::id) == 1));
 }
 
 float MusiqSettings::interface_scale() const {

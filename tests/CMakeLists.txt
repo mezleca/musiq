@@ -2,12 +2,13 @@ file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
     "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
-list(FILTER TEST_SOURCES EXCLUDE REGEX "/src/main\\.cpp$|/webview/(linux|windows)/")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "/src/main\\.cpp$|/(webview|media)/(linux|windows)/")
 
 if(WIN32)
     list(APPEND TEST_SOURCES "${PROJECT_SOURCE_DIR}/src/webview/windows/impl.cpp")
 else()
     list(APPEND TEST_SOURCES "${PROJECT_SOURCE_DIR}/src/webview/linux/impl.cpp")
+    list(APPEND TEST_SOURCES "${PROJECT_SOURCE_DIR}/src/media/linux/session.cpp")
 endif()
 
 add_executable(tests ${TEST_SOURCES})
@@ -25,6 +26,10 @@ target_link_libraries(tests PRIVATE
     webview::core
     sqlite_orm::sqlite_orm
 )
+
+if(NOT WIN32)
+    target_link_libraries(tests PRIVATE SDBusCpp::sdbus-c++)
+endif()
 
 target_compile_definitions(tests PRIVATE
     MUSIQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

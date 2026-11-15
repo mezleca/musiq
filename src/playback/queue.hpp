@@ -7,6 +7,13 @@ struct QueueEntry {
     MusicItem media;
 };
 
+enum class LoopMode {
+    None,
+    Once,
+    Track,
+    Playlist
+};
+
 class PlaybackQueue {
 public:
     void replace(std::vector<MusicItem> tracks, std::size_t start = 0, std::string source = {});
@@ -20,6 +27,7 @@ public:
     void previous();
     void set_random(bool enabled);
     void set_repeat(bool enabled);
+    void set_loop(LoopMode mode);
     bool take_repeat();
 
     bool random() const {
@@ -27,7 +35,11 @@ public:
     }
 
     bool repeat() const {
-        return m_repeat_id != 0;
+        return m_loop != LoopMode::None;
+    }
+
+    LoopMode loop() const {
+        return m_loop;
     }
 
     const QueueEntry* current() const;
@@ -56,6 +68,6 @@ private:
     std::size_t m_position = 0;
     std::uint64_t m_next_id = 1;
     std::uint64_t m_revision = 0;
-    std::uint64_t m_repeat_id = 0;
     bool m_random = false;
+    LoopMode m_loop = LoopMode::None;
 };

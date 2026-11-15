@@ -6,7 +6,7 @@
 
 void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source) {
     m_source = std::move(source);
-    m_repeat_id = 0;
+
     m_entries.clear();
     m_entries.reserve(tracks.size());
 
@@ -47,7 +47,6 @@ void PlaybackQueue::select(std::uint64_t id) {
     if (position == m_position) return;
 
     m_position = position;
-    if (id != m_repeat_id) m_repeat_id = 0;
     ++m_revision;
 }
 
@@ -58,7 +57,6 @@ bool PlaybackQueue::remove(std::uint64_t id) {
     const auto position = static_cast<std::size_t>(entry - m_entries.begin());
     m_source.clear();
     m_entries.erase(entry);
-    if (id == m_repeat_id) m_repeat_id = 0;
 
     // removing a row before the cursor shifts it down, removing the last row moves the cursor back
     if (m_position > 0 && (position < m_position || m_position == m_entries.size())) {
@@ -96,27 +94,26 @@ bool PlaybackQueue::move(std::uint64_t id, std::size_t position) {
 bool PlaybackQueue::advance() {
     if (!can_advance()) return false;
 
-    if (m_random) {
+    if (m_random && m_entries.size() > 1) {
         auto position = utils::random::random_index(m_entries.size() - 1);
         if (position >= m_position) ++position;
         m_position = position;
     } else {
-        ++m_position;
+        m_position = (m_position + 1) % m_entries.size();
     }
 
-    m_repeat_id = 0;
     ++m_revision;
     return true;
 }
 
 bool PlaybackQueue::can_advance() const {
+    if (m_loop == LoopMode::Playlist && !m_entries.empty()) return true;
     return m_random ? m_entries.size() > 1 : remaining() > 0;
 }
 
 void PlaybackQueue::previous() {
     if (m_position == 0) return;
     --m_position;
-    m_repeat_id = 0;
     ++m_revision;
 }
 
@@ -126,15 +123,28 @@ void PlaybackQueue::set_random(bool enabled) {
 }
 
 void PlaybackQueue::set_repeat(bool enabled) {
-    const auto* entry = current();
-    m_repeat_id = enabled && entry ? entry->id : 0;
+    set_loop(enabled && current() ? LoopMode::Once : LoopMode::None);
+}
+
+void PlaybackQueue::set_loop(LoopMode mode) {
+    if (m_loop == mode) {
+        return;
+    }
+
+    m_loop = mode;
     ++m_revision;
 }
 
 bool PlaybackQueue::take_repeat() {
-    if (!m_repeat_id) return false;
+    if (current() && (m_loop == LoopMode::Track || (m_loop == LoopMode::Playlist && m_entries.size() == 1))) {
+        return true;
+    }
 
-    m_repeat_id = 0;
+    if (m_loop != LoopMode::Once || !current()) {
+        return false;
+    }
+
+    m_loop = LoopMode::None;
     ++m_revision;
     return true;
 }

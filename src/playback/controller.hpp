@@ -5,6 +5,7 @@
 #include "../youtube/schema/continuation.hpp"
 #include "../youtube/error.hpp"
 #include "audio-source.hpp"
+#include "../media/session.hpp"
 
 #include <future>
 #include <memory>
@@ -36,10 +37,13 @@ public:
     void remove(std::uint64_t id);
     bool update();
     void toggle_pause();
+    void seek(double seconds);
+    void on_volume(std::function<void(int)> callback);
     bool paused() const;
     bool resolving() const {
         return m_stream_task.valid();
     }
+
     const std::string& playback_error() const {
         return m_audio_error;
     }
@@ -64,6 +68,7 @@ private:
     void switch_track(const QueueEntry* track);
     void resolve_current();
     void collect_stream();
+    void update_media_session();
 
     ThreadPool& m_workers;
     MpvPlayer& m_player;
@@ -80,4 +85,7 @@ private:
     std::string m_audio_error;
     bool m_at_end = false;
     double m_resume = 0;
+    MediaSession m_media_session{"musiq"};
+    std::uint64_t m_media_track_id = 0;
+    double m_media_duration = 0;
 };

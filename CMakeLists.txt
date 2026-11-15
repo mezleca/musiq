@@ -19,12 +19,13 @@ include(cmake/dependencies.cmake)
 include(CheckIPOSupported)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX "/webview/(linux|windows)/")
+list(FILTER SOURCES EXCLUDE REGEX "/(webview|media)/(linux|windows)/")
 
 if(WIN32)
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/windows/impl.cpp")
 else()
     list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/webview/linux/impl.cpp")
+    list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/media/linux/session.cpp")
 endif()
 
 file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "src/*.hpp")
@@ -86,6 +87,10 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     mpv::mpv
     miniz
 )
+
+if(NOT WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SDBusCpp::sdbus-c++)
+endif()
 
 if(WIN32)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

@@ -70,7 +70,7 @@ void MpvPlayer::restart() {
 }
 
 void MpvPlayer::load_command(const char** arguments) {
-    m_state = {};
+    m_state = {.volume = m_state.volume, .error = {}};
     m_state.buffering = true;
     m_entry_id = -1;
     command(arguments);
@@ -79,7 +79,7 @@ void MpvPlayer::load_command(const char** arguments) {
 
 void MpvPlayer::stop() {
     m_stream.clear();
-    m_state = {};
+    m_state = {.volume = m_state.volume, .error = {}};
     m_entry_id = -1;
 
     const char* arguments[] = {"stop", nullptr};
@@ -101,7 +101,8 @@ void MpvPlayer::seek(double seconds) {
 }
 
 void MpvPlayer::set_volume(int volume) {
-    const auto value = std::to_string(std::clamp(volume, 0, 100));
+    m_state.volume = std::clamp(volume, 0, 100);
+    const auto value = std::to_string(m_state.volume);
     const char* arguments[] = {"set", "volume", value.c_str(), nullptr};
     command(arguments);
 }

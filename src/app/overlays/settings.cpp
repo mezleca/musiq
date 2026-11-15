@@ -36,10 +36,10 @@ protected:
 
 SettingsOverlay::SettingsOverlay(
     FontRegistry& font_registry, std::function<void()> log_out, std::function<void(int)> volume_changed,
-    std::function<void()> clear_cookies, std::function<void()> fonts_changed
+    std::function<void()> clear_cookies, std::function<void()> fonts_changed, PlaybackQueue& queue
 )
     : Container("settings", StackDirection::Vertical), m_volume_changed(std::move(volume_changed)),
-      m_fonts_changed(std::move(fonts_changed)) {
+      m_fonts_changed(std::move(fonts_changed)), m_queue(queue) {
     set_type_name("SettingsOverlay");
     set_size({grow(), grow()});
     set_spacing(12.0f);
@@ -104,6 +104,30 @@ SettingsOverlay::SettingsOverlay(
     m_volume_text = &row.add<MusiqText>(std::format("{}%", static_cast<int>(m_volume)));
     volume.on_change([this] { save_volume(); });
 
+    auto& playback = add<SettingsSectionWidget>("playback");
+    playback.add<MusiqText>("Playback", FontWeight::Bold, 22.0f);
+    m_queue.set_loop(settings.repeat_mode());
+    m_repeat_mode = std::to_string(static_cast<int>(m_queue.loop()));
+    auto& repeat_mode = playback.add<DropdownWidget>(
+        m_repeat_mode,
+        std::vector<DropdownOption>{
+            {.label = "Off", .value = std::to_string(static_cast<int>(LoopMode::None)), .description = {}},
+            {.label = "Once", .value = std::to_string(static_cast<int>(LoopMode::Once)), .description = {}},
+            {.label = "Track", .value = std::to_string(static_cast<int>(LoopMode::Track)), .description = {}},
+            {.label = "Playlist", .value = std::to_string(static_cast<int>(LoopMode::Playlist)), .description = {}}
+        },
+        "Repeat mode"
+    );
+    repeat_mode.set_size({grow(), fit()});
+    repeat_mode.on_select([this] {
+        m_queue.set_loop(static_cast<LoopMode>(std::stoi(m_repeat_mode)));
+        update_repeat_description();
+        save_repeat_mode();
+    });
+    m_repeat_description = &playback.add<MusiqText>("");
+    m_repeat_description->set_size({grow(), fit()});
+    update_repeat_description();
+
     m_account = &add<SettingsSectionWidget>("account");
     m_account->add<MusiqText>("Account", FontWeight::Bold, 22.0f);
 
@@ -156,6 +180,49 @@ void SettingsOverlay::update(float dt) {
     if (m_scale_debounce.poll()) save_scale();
 
     Container::update(dt);
+}
+
+void SettingsOverlay::refresh_playback() {
+    const auto repeat_mode = std::to_string(static_cast<int>(m_queue.loop()));
+    if (m_repeat_mode != repeat_mode) {
+        m_repeat_mode = repeat_mode;
+        update_repeat_description();
+        save_repeat_mode();
+    }
+}
+
+void SettingsOverlay::update_repeat_description() {
+    m_repeat_description->set_visible(!m_repeat_mode.empty());
+    if (m_repeat_mode.empty()) return;
+
+    switch (m_queue.loop()) {
+        case LoopMode::None:
+            m_repeat_description->set_text("Tracks are not repeated and the queue does not loop back to the beginning.");
+            break;
+        case LoopMode::Once:
+            m_repeat_description->set_text("Repeat the selected track once, then turn repeat off and continue.");
+            break;
+        case LoopMode::Track:
+            m_repeat_description->set_text(
+                "Repeat the selected track continuously. Selecting another track repeats that track instead."
+            );
+            break;
+        case LoopMode::Playlist:
+            m_repeat_description->set_text(
+                "Return to the first track after the last track in the queue. With shuffle enabled, tracks are chosen randomly."
+            );
+            break;
+    }
+}
+
+void SettingsOverlay::save_repeat_mode() {
+    try {
+        MusiqSettings::instance().set_repeat_mode(m_queue.loop());
+        m_status->set_text("Changes are saved automatically.");
+    } catch (const std::exception& error) {
+        LOG_ERROR("[settings] could not save repeat mode: {}", error.what());
+        m_status->set_text("Could not save changes. Try again.");
+    }
 }
 
 void SettingsOverlay::set_volume(int volume) {

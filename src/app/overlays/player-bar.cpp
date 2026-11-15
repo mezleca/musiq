@@ -122,7 +122,7 @@ PlayerBarOverlay::PlayerBarOverlay(
 
     auto& seek = progress.add<MusiqSliderWidget>(m_progress);
     seek.set_commit_on_release(true);
-    seek.on_change([this] { m_player.seek(m_progress * m_player.state().duration / 100.0); });
+    seek.on_change([this] { m_playback.seek(m_progress * m_player.state().duration / 100.0); });
     seek.set_enabled(false);
     m_seek = &seek;
     m_duration = &progress.add<MusiqText>("0:00");
@@ -164,6 +164,11 @@ void PlayerBarOverlay::refresh() {
     m_random->set_selected(queue.random());
     m_repeat->set_enabled(current != nullptr);
     m_repeat->set_selected(queue.repeat());
+    m_repeat->set_tooltip(
+        queue.loop() == LoopMode::Track      ? "Disable track repeat"
+        : queue.loop() == LoopMode::Playlist ? "Disable playlist repeat"
+                                             : "Repeat this track once"
+    );
 
     const auto& state = m_player.state();
     const bool loading = m_playback.resolving() || state.buffering;

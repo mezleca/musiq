@@ -1,3 +1,8 @@
+# Unreleased
+- UI: Updated "Repeat" and "Shuffle / Random" icons 
+- UI(Settings) + Playback: Added Loop mode (Off, Once, Track, Playlist)
+- Core(Linux): Added Media Session (mpris)
+
 # v0.5.0
 - UI(Settings): Added interface scale option
 - UI: updated framework to the latest version

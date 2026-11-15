@@ -127,11 +127,13 @@ void MusiqApp::build_pages(Container& content) {
             m_player_bar->set_volume(volume);
             m_player.set_volume(volume);
         },
-        [this] { clear_browser_cookies(); }, [this] { m_fonts_changed = true; }
+        [this] { clear_browser_cookies(); }, [this] { m_fonts_changed = true; }, m_playback.queue()
     );
 }
 
 void MusiqApp::build_player() {
+    m_playback.on_volume([this](int volume) { m_settings_overlay->set_volume(volume); });
+
     auto& player = m_surface.root().add<Container>("player", StackDirection::Vertical);
     player.set_size({grow(), fit()});
     m_player_bar = &player.add<PlayerBarOverlay>(m_thumbnails, m_player, m_playback, [this](int volume) {
@@ -539,6 +541,7 @@ void MusiqApp::update_playback() {
     if (!changed && !queue_changed) return;
 
     m_queue_revision = m_playback.queue().revision();
+    m_settings_overlay->refresh_playback();
     m_player_bar->refresh();
     m_queue_overlay->refresh();
 
