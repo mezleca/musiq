@@ -11,8 +11,8 @@ static std::string optional_text(const json& data, std::string_view key) {
     return field == data.end() ? std::string{} : music_text(*field);
 }
 
-// datasync ids arrive as "<id>||<channel>" or "||<id>", the account id is the part before or after the separator
 static std::string sync_id(std::string value) {
+    // datasync ids arrive as "<id>||<channel>" or "||<id>", the account id is the part before or after the separator
     const auto separator = value.find("||");
     if (separator == std::string::npos) return value;
     return separator == 0 ? value.substr(2) : value.substr(0, separator);

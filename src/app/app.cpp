@@ -2,24 +2,20 @@
 #include "theme.hpp"
 #include "widgets/text.hpp"
 #include "../utils/media.hpp"
-#include "../utils/path.hpp"
-#include "../constants.hpp"
 #include "../database/cache.hpp"
 #include "../database/settings.hpp"
-#include "../utils/future.hpp"
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
-#include "../webview/webview.hpp"
+#include "../webview/login.hpp"
 
 #include <arbor/backends/opengl/texture-loader.hpp>
 #include <arbor/backends/sdl/backend.hpp>
 #include <arbor/layout/container.hpp>
-#include <arbor/resources/texture-registry.hpp>
-#include <SDL3/SDL_events.h>
-#include <exception>
-#include <stdexcept>
+#include <algorithm>
 #include <memory>
 #include <utility>
+
+static constexpr size_t MAX_PAGES = 8;
 
 using namespace ui;
 using namespace utils::media;
@@ -62,17 +58,25 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
 
     m_loading = &m_surface.root().add<LoadingOverlay>();
     m_channel_picker = &m_surface.root().add<ChannelPickerOverlay>(*m_profile, [this](std::string identity) {
-        authenticate(m_session_token, std::move(identity));
+        // channel selection reuses the credentials already owned by the authenticated session
+        authenticate({}, std::move(identity));
     });
 }
 
 void MusiqApp::apply_fonts() {
+    FontRequest fonts;
     auto& settings = MusiqSettings::instance();
+
     const auto main_font = settings.main_font();
     const auto fallback_font = settings.fallback_font();
-    FontRequest fonts;
-    if (!main_font.empty()) fonts.main = FontSelection::family(main_font);
-    if (!fallback_font.empty()) fonts.fallback = FontSelection::family(fallback_font);
+
+    if (!main_font.empty()) {
+        fonts.main = FontSelection::family(main_font);
+    }
+
+    if (!fallback_font.empty()) {
+        fonts.fallback = FontSelection::family(fallback_font);
+    }
 
     m_surface.set_primary_font(m_runtime.fonts().set("interface", fonts));
     m_surface.set_theme(m_surface.theme());
@@ -127,7 +131,7 @@ void MusiqApp::build_pages(Container& content) {
             m_player_bar->set_volume(volume);
             m_player.set_volume(volume);
         },
-        [this] { clear_browser_cookies(); }, [this] { m_fonts_changed = true; }, m_playback.queue()
+        [this] { clear_browser_cookies(m_surface); }, [this] { m_fonts_changed = true; }, m_playback.queue()
     );
 }
 
@@ -145,271 +149,8 @@ void MusiqApp::build_player() {
         m_queue_overlay->show();
         event.stop_propagation();
     });
+
     m_queue_overlay = &m_surface.root().add<QueueOverlay>(m_playback, m_thumbnails);
-}
-
-std::string MusiqApp::open_sign_in() {
-    try {
-        std::string token;
-        bool reading = false;
-
-        auto window = WebView::create("Sign in");
-        window->run(MUSIC_LOGIN_URL, [&] {
-            if (reading || !token.empty() || !window->url().starts_with(MUSIC_HOME_URL)) {
-                return;
-            }
-            reading = true;
-            window->cookies(MUSIC_HOME_URL, [&](std::string cookies) {
-                reading = false;
-                if (!YoutubeMusicSession::has_session_cookie(cookies)) {
-                    return;
-                }
-                token = std::move(cookies);
-                window->close();
-            });
-        });
-        return token;
-    } catch (std::exception& error) {
-        LOG_ERROR("[login] failed to open sign-in window: {}", error.what());
-    }
-
-    return {};
-}
-
-void MusiqApp::sign_in() {
-    SDL_Window* window = SDL_GL_GetCurrentWindow();
-    SDL_GLContext context = SDL_GL_GetCurrentContext();
-
-    // gtk changes egl state without updating sdl's cached current context
-    if (!SDL_GL_MakeCurrent(nullptr, nullptr)) {
-        LOG_ERROR("[login] could not release the graphics context: {}", SDL_GetError());
-        m_surface.exit();
-        return;
-    }
-
-    auto token = open_sign_in();
-
-    if (!SDL_GL_MakeCurrent(window, context)) {
-        LOG_ERROR("[login] could not restore the graphics context: {}", SDL_GetError());
-        m_surface.exit();
-        return;
-    }
-
-    // discard clicks queued while the modal browser was handling input
-    SDL_PumpEvents();
-    SDL_FlushEvents(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP);
-    if (token.empty()) {
-        m_profile->set_busy(false);
-        return;
-    }
-
-    authenticate(std::move(token));
-}
-
-void MusiqApp::log_out() {
-    clear_session();
-    LOG_INFO("[login] logged out");
-}
-
-void MusiqApp::clear_browser_cookies() {
-    auto* window = SDL_GL_GetCurrentWindow();
-    auto context = SDL_GL_GetCurrentContext();
-    if (!SDL_GL_MakeCurrent(nullptr, nullptr)) throw std::runtime_error(SDL_GetError());
-
-    std::exception_ptr failure;
-    try {
-        auto browser = WebView::create("Clear cookies");
-        browser->clear_cookies();
-    } catch (...) {
-        failure = std::current_exception();
-    }
-
-    if (!SDL_GL_MakeCurrent(window, context)) {
-        m_surface.exit();
-        throw std::runtime_error(SDL_GetError());
-    }
-    if (failure) std::rethrow_exception(failure);
-    LOG_INFO("[login] browser cookies cleared");
-}
-
-void MusiqApp::run_session(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> task) {
-    m_session =
-        m_workers.enqueue([session = m_youtube_session, task = std::move(task)]() mutable -> YoutubeResult<YoutubeMusicSession> {
-            auto result = task(session);
-            if (!result) return std::unexpected(std::move(result.error()));
-            return session;
-        });
-    m_session_action = action;
-}
-
-void MusiqApp::authenticate(std::string token, std::string identity) {
-    try {
-        run_session(SessionAction::SignIn, [token, identity = std::move(identity)](YoutubeMusicSession& session) {
-            return session.identities().empty() ? session.authenticate(token, identity) : session.select_identity(identity);
-        });
-
-        m_session_token = std::move(token);
-        m_channel_picker->close_popup();
-        m_profile->set_busy(true);
-        m_loading->show("Signing in...");
-        LOG_INFO("[login] starting authentication");
-    } catch (std::exception& error) {
-        LOG_ERROR("[login] could not start authentication: {}", error.what());
-        m_profile->set_busy(false);
-    }
-}
-
-void MusiqApp::refresh_session() {
-    run_session(SessionAction::Refresh, [](YoutubeMusicSession& session) { return session.select_identity(session.identity()); });
-}
-
-void MusiqApp::choose_channel() {
-    m_channel_picker->show(m_youtube_session.identities());
-    if (m_session.valid() && m_session_action == SessionAction::Channels) return;
-    run_session(SessionAction::Channels, [](YoutubeMusicSession& session) { return session.load_identities(); });
-}
-
-void MusiqApp::load_avatar() {
-    m_avatar = {};
-    const auto& user = m_youtube_session.user();
-    if (!user || user->avatar_url.empty() || !MusiqCache::instance().get("auth.avatar:" + user->avatar_url).empty()) return;
-    m_avatar =
-        m_workers.enqueue([url = user->avatar_url] { return std::pair{url, fetch_thumbnail(url)}; }, TaskPriority::Background);
-}
-
-void MusiqApp::clear_session() {
-    m_session = {};
-    m_avatar = {};
-    m_youtube_session = YoutubeMusicSession{};
-    m_session_token.clear();
-    MusiqCache::instance().erase_prefix("auth.");
-    m_loading->set_visible(false);
-    m_channel_picker->close_popup();
-    m_channel_picker->set_visible(false);
-    update_profile();
-}
-
-void MusiqApp::cancel_channel_selection() {
-    if (m_youtube_session.user()) return;
-    clear_session();
-    LOG_INFO("[login] channel selection cancelled");
-}
-
-void MusiqApp::update_session() {
-    if (future_ready(m_avatar)) {
-        try {
-            auto [url, bytes] = m_avatar.get();
-            const auto& user = m_youtube_session.user();
-            if (user && user->avatar_url == url && !bytes.empty()) {
-                MusiqCache::instance().set("auth.avatar:" + url, bytes);
-                refresh_profile();
-            }
-        } catch (const std::exception& error) {
-            LOG_WARN("[login] avatar failed: {}", error.what());
-        }
-    }
-
-    if (m_channel_picker->take_dismissed() && !m_session.valid()) cancel_channel_selection();
-    if (!future_ready(m_session)) return;
-
-    m_loading->set_visible(false);
-    m_profile->set_busy(false);
-
-    auto session = take_result(m_session);
-    if (!session) {
-        const auto& error = session.error();
-        LOG_WARN("[login] session request failed: {} (status={})", error.message, error.status);
-
-        // a network outage must not discard a restored session, only an authentication rejection does
-        const bool rejected = error.status == 401 || error.status == 403 ||
-                              (m_session_action == SessionAction::Refresh && error.kind == YoutubeErrorKind::Authentication);
-        if (rejected) {
-            clear_session();
-            return;
-        }
-
-        if (m_session_action == SessionAction::Refresh) {
-            return;
-        }
-
-        if (m_session_action == SessionAction::Channels) {
-            if (m_channel_picker->visible()) m_channel_picker->refresh(m_youtube_session.identities(), true);
-            return;
-        }
-
-        if (!m_youtube_session.identities().empty()) {
-            m_channel_picker->show(m_youtube_session.identities(), true);
-        } else if (!m_youtube_session.user()) {
-            if (error.kind == YoutubeErrorKind::Authentication) {
-                clear_session();
-            } else {
-                navigate("home");
-            }
-        }
-
-        return;
-    }
-
-    const auto previous_avatar = m_youtube_session.user() ? m_youtube_session.user()->avatar_url : std::string{};
-    m_youtube_session = std::move(*session);
-    if (m_session_action == SessionAction::Channels) {
-        if (m_channel_picker->visible()) m_channel_picker->refresh(m_youtube_session.identities());
-        if (m_youtube_session.user()) MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
-        return;
-    }
-
-    if (!m_youtube_session.user()) {
-        m_channel_picker->show(m_youtube_session.identities());
-        return;
-    }
-
-    if (m_session_action == SessionAction::Refresh) {
-        // metadata refresh must not invalidate the home request already using the restored credentials
-        m_playback.set_session(m_youtube_session);
-        refresh_profile();
-    } else {
-        update_profile();
-    }
-
-    MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
-    if (!m_avatar.valid() || previous_avatar != m_youtube_session.user()->avatar_url) {
-        load_avatar();
-    }
-
-    LOG_INFO("[login] session ready");
-
-    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) {
-        refresh_page();
-    }
-}
-
-void MusiqApp::update_profile() {
-    m_playback.set_session(m_youtube_session);
-    for (const auto& playlist : m_playlists) {
-        playlist.second->invalidate();
-    }
-
-    m_catalog.set_session(m_youtube_session);
-    m_sidebar->set_playlists({});
-    show_page();
-    refresh_profile();
-}
-
-void MusiqApp::refresh_profile() {
-    auto& profile = *m_profile;
-    m_settings_overlay->set_authenticated(m_youtube_session.user().has_value());
-    if (!m_youtube_session.user()) {
-        profile.clear_user();
-        return;
-    }
-
-    const auto& user = *m_youtube_session.user();
-    Texture* avatar = nullptr;
-    const auto bytes = MusiqCache::instance().get("auth.avatar:" + user.avatar_url);
-    if (!bytes.empty()) {
-        avatar = m_runtime.textures().add("profile:" + user.avatar_url, std::string_view(bytes));
-    }
-    profile.set_user(user.name, avatar);
 }
 
 void MusiqApp::navigate(std::string_view page) {
@@ -422,6 +163,7 @@ void MusiqApp::show_page() {
     m_sidebar->select(route.page == "playlist" ? route.query : route.page);
     m_back->set_enabled(m_history.can_back());
     m_forward->set_enabled(m_history.can_forward());
+
     const bool settings_open = route.page == "settings";
     m_search_bar->set_visible(!settings_open);
     m_navigation_title->set_text(settings_open ? "Settings" : "");
@@ -446,7 +188,11 @@ void MusiqApp::show_page() {
         entry->second->show(m_catalog.search_state());
         next = entry->second;
     } else if (route.page == "playlist") {
-        auto* view = m_playlists.at(route.query);
+        auto [entry, created] = m_playlists.try_emplace(route.query, nullptr);
+        if (created) {
+            entry->second = &m_pages->add<PlaylistOverlay>(m_playlist_items.at(route.query), m_thumbnails, m_workers, m_playback);
+        }
+        auto* view = entry->second;
         view->load(m_youtube_session);
         next = view;
     } else {
@@ -459,7 +205,29 @@ void MusiqApp::show_page() {
         next->set_visible(true);
         m_current_page = next;
     }
+
     update_tracks(*m_current_page);
+
+    if (route.page == "search" || route.page == "playlist") {
+        std::erase(m_page_order, route);
+        m_page_order.push_back(route);
+    }
+    prune_pages();
+}
+
+void MusiqApp::prune_pages() {
+    while (m_page_order.size() > MAX_PAGES) {
+        const PageRoute oldest = std::move(m_page_order.front());
+        m_page_order.erase(m_page_order.begin());
+        if (oldest.page == "search") {
+            m_pages->remove(*m_searches.at(oldest.query));
+            m_searches.erase(oldest.query);
+        } else {
+            // history keeps playlist ids, so recreating an evicted view still needs its source item
+            m_pages->remove(*m_playlists.at(oldest.query));
+            m_playlists.erase(oldest.query);
+        }
+    }
 }
 
 void MusiqApp::submit_search(std::string query) {
@@ -469,6 +237,7 @@ void MusiqApp::submit_search(std::string query) {
 
 void MusiqApp::refresh_page() {
     const auto& route = m_history.current();
+
     if (route.page == "home") {
         m_catalog.home(true);
     } else if (route.page == "search") {
@@ -485,7 +254,7 @@ void MusiqApp::update_catalog() {
     if (changed.library) m_sidebar->set_playlists(m_catalog.library_playlists());
 
     if (changed.home) {
-        m_home->show(m_catalog.home_state(), changed.home_append);
+        m_home->show(m_catalog.home_state());
         update_tracks(*m_home);
     }
 
@@ -522,10 +291,7 @@ CatalogActions MusiqApp::catalog_actions() {
 
 void MusiqApp::open_playlist(MusicItem item) {
     const auto id = item.endpoint.browse_id;
-    auto [entry, created] = m_playlists.try_emplace(id, nullptr);
-    if (created) {
-        entry->second = &m_pages->add<PlaylistOverlay>(std::move(item), m_thumbnails, m_workers, m_playback);
-    }
+    m_playlist_items.insert_or_assign(id, std::move(item));
 
     m_history.visit({"playlist", id});
     show_page();
@@ -545,8 +311,8 @@ void MusiqApp::update_playback() {
     m_player_bar->refresh();
     m_queue_overlay->refresh();
 
-    for (const auto& playlist : m_playlists) {
-        if (playlist.second->visible()) playlist.second->update_playback();
+    if (auto* playlist = dynamic_cast<PlaylistOverlay*>(m_current_page)) {
+        playlist->update_playback();
     }
 
     if (queue_changed) {
@@ -570,9 +336,10 @@ void MusiqApp::initialize() {
     if (!token.empty()) {
         const auto saved = json::parse(token, nullptr, false);
         if (m_youtube_session.restore(saved)) {
-            m_session_token = saved.at("cookies").get<std::string>();
             update_profile();
-            refresh_session();
+            run_session(SessionAction::Refresh, [](YoutubeMusicSession& session) {
+                return session.select_identity(session.identity());
+            });
             load_avatar();
             LOG_INFO("[login] restored cached session");
         } else {
@@ -580,11 +347,7 @@ void MusiqApp::initialize() {
         }
     }
 
-    if (m_session.valid() && m_session_action == SessionAction::SignIn) {
-        CatalogPageState waiting;
-        waiting.loading = true;
-        m_home->show(waiting);
-    } else if (!m_youtube_session.user()) {
+    if (!m_youtube_session.user()) {
         navigate("home");
     }
 

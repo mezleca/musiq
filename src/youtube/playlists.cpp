@@ -18,13 +18,13 @@ YoutubeResult<std::vector<MusicItem>> YoutubeMusicPlaylists::library(const Music
     std::unordered_set<std::string> tokens;
 
     while (page) {
-        auto continuation = page->continuation;
+        auto continuation = std::move(page->continuation);
         for (auto& shelf : page->shelves) {
             for (auto& item : shelf.items) {
                 const auto& id = item.endpoint.browse_id;
                 if (id.starts_with("VL") && ids.insert(id).second) playlists.push_back(std::move(item));
             }
-            if (!continuation && shelf.continuation) continuation = shelf.continuation;
+            if (!continuation && shelf.continuation) continuation = std::move(shelf.continuation);
         }
 
         if (!continuation) return playlists;

@@ -180,6 +180,7 @@ bool PlaybackController::update() {
 }
 
 void PlaybackController::update_media_session() {
+#ifndef _WIN32
     const auto* track = m_queue.current();
     const auto id = track ? track->id : 0;
     const auto& state = m_player.state();
@@ -212,6 +213,7 @@ void PlaybackController::update_media_session() {
         track != nullptr, m_queue.can_advance(), m_queue.position() > 0,
         track && track->id == m_track_id && state.loaded && state.duration > 0 && !resolving()
     );
+#endif
 }
 
 void PlaybackController::seek(double seconds) {

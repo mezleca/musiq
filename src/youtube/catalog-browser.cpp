@@ -7,6 +7,7 @@
 #include "../utils/thread-pool.hpp"
 
 #include <format>
+#include <algorithm>
 #include <utility>
 
 static YoutubeResult<MusicPage> read_page(const YoutubeMusicSession& session, const std::string& query) {
@@ -27,6 +28,7 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_session = session;
     m_home = {};
     m_searches.clear();
+    m_search_order.clear();
     m_library.clear();
     m_library_task = {};
     if (session.user()) {
@@ -79,6 +81,9 @@ bool CatalogBrowser::search(std::string query, bool refresh) {
     m_query = std::move(query);
     if (m_query.empty()) return false;
 
+    std::erase(m_search_order, m_query);
+    m_search_order.push_back(m_query);
+
     auto& state = m_searches[m_query];
     if (state.loading || (!refresh && state.page)) return false;
 
@@ -87,6 +92,18 @@ bool CatalogBrowser::search(std::string query, bool refresh) {
     queue_page(m_query);
     suggest({});
     return true;
+}
+
+void CatalogBrowser::prune_searches() {
+    for (auto entry = m_search_order.begin(); m_searches.size() > 12 && entry != m_search_order.end();) {
+        const auto state = m_searches.find(*entry);
+        if (*entry != m_query && !state->second.loading) {
+            m_searches.erase(state);
+            entry = m_search_order.erase(entry);
+        } else {
+            ++entry;
+        }
+    }
 }
 
 void CatalogBrowser::suggest(std::string query) {
@@ -117,17 +134,7 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
         auto result = take_result(m_home_more_task);
         m_home.loading = false;
         if (result) {
-            // existing cards retain their page snapshot while new sections use the extended page
-            auto page = std::make_shared<MusicPage>(*m_home.page);
-            for (auto& shelf : result->shelves) {
-                page->shelves.push_back(std::move(shelf));
-            }
-            page->continuation = std::move(result->continuation);
-            if (page->continuation && page->continuation->token == m_home.page->continuation->token) {
-                page->continuation.reset();
-            }
-            m_home.page = std::move(page);
-            changed.home_append = true;
+            m_home.page->append(std::move(*result));
         } else {
             m_home.error = result.error().message;
             LOG_ERROR("[catalog] home continuation failed: {}", m_home.error);
@@ -184,5 +191,6 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
             m_workers.enqueue([session = m_session, query = m_running_suggestion] { return read_suggestions(session, query); });
     }
 
+    prune_searches();
     return changed;
 }

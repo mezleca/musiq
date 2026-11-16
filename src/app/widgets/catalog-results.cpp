@@ -8,6 +8,7 @@
 #include <arbor/widgets/context-menu.hpp>
 
 #include <algorithm>
+#include <ranges>
 #include <utility>
 
 using namespace ui;
@@ -74,9 +75,9 @@ CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, Th
     set_size({grow(), grow()});
     set_spacing(16.0f);
 
-    m_title = &add<MusiqText>(std::move(title), FontWeight::Bold, 22.0f);
-    m_title->set_size({grow(), fit()});
-    m_title->set_overflow(TextOverflow::Ellipsis);
+    auto& heading = add<MusiqText>(std::move(title), FontWeight::Bold, 22.0f);
+    heading.set_size({grow(), fit()});
+    heading.set_overflow(TextOverflow::Ellipsis);
     m_status = &add<MusiqText>("");
 
     m_rows = &add<Container>("results", StackDirection::Vertical);
@@ -93,22 +94,39 @@ bool CatalogResultsWidget::near_bottom() const {
     return m_rows->layout().size().y > 0.0f && m_rows->scroll().max().y - m_rows->scroll().position().y < 400.0f;
 }
 
-void CatalogResultsWidget::show(const CatalogPageState& state, bool append) {
+void CatalogResultsWidget::show(const CatalogPageState& state) {
     if (m_page != state.page) {
-        const auto first = append && m_page ? m_page->shelves.size() : 0;
-        if (!append) m_rows->clear();
+        m_rows->clear();
         m_page = state.page;
-        rebuild(first);
-        if (!append) m_rows->scroll().seek_to({0.0f, 0.0f}, ScrollBehavior::Instant);
+        m_shelf_count = 0;
+        m_rows->scroll().seek_to({0.0f, 0.0f}, ScrollBehavior::Instant);
+    }
+
+    rebuild(m_shelf_count);
+    m_shelf_count = m_page ? m_page->shelves.size() : 0;
+
+    if (state.loading && !m_page) {
+        if (m_rows->find("loading") == nullptr) {
+            auto& tracks = m_rows->add<TrackList>("loading");
+            tracks.set_size({grow(), fit()});
+            tracks.set_spacing(8.0f);
+            tracks.set_items(12, [&tracks, this](std::size_t index) -> Node& {
+                if (auto* card = tracks.find_track(index)) return *card;
+                return tracks.add_track(index, MusicItem{}, m_thumbnails, true);
+            });
+        }
+    } else if (auto* loading = m_rows->find("loading")) {
+        m_rows->remove(*loading);
     }
 
     std::string status;
+
     if (!state.error.empty()) {
         status = state.error;
     } else if (state.loading) {
-        status = "Loading...";
+        if (state.page) status = "Loading...";
     } else if (!state.page && state.query.empty()) {
-        status = "Type a search and press Enter.";
+        status = "Type a query and press Enter.";
     } else if (!m_page || std::ranges::none_of(m_page->shelves, [](const MusicShelf& shelf) { return !shelf.items.empty(); })) {
         status = "No results found.";
     }
@@ -118,37 +136,42 @@ void CatalogResultsWidget::show(const CatalogPageState& state, bool append) {
 }
 
 void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
-    if (!m_page) return;
+    if (!m_page) {
+        return;
+    }
+
+    const auto same_card_type = [](const MusicItem& left, const MusicItem& right) {
+        return is_playlist_card(left) == is_playlist_card(right);
+    };
 
     for (std::size_t shelf_index = first_shelf; shelf_index < m_page->shelves.size(); ++shelf_index) {
         const auto& shelf = m_page->shelves[shelf_index];
-        if (shelf.items.empty()) continue;
+        if (shelf.items.empty()) {
+            continue;
+        }
 
         auto& section = m_rows->add<Container>("", StackDirection::Vertical);
         section.set_size({grow(), fit()});
         section.set_spacing(8.0f);
-        if (!shelf.title.empty()) section.add<MusiqText>(shelf.title, FontWeight::Bold, 22.0f);
 
-        // preserve shelf order while laying out playlist runs as grids and track runs as lists
-        for (std::size_t first = 0; first < shelf.items.size();) {
-            const bool playlists = is_playlist_card(shelf.items[first]);
-            auto end = first + 1;
-            while (end < shelf.items.size() && is_playlist_card(shelf.items[end]) == playlists) {
-                ++end;
-            }
+        if (!shelf.title.empty()) {
+            section.add<MusiqText>(shelf.title, FontWeight::Bold, 22.0f);
+        }
 
-            if (playlists) {
-                section.add<PlaylistGridWidget>(m_page, shelf_index, first, end - first, m_thumbnails, m_actions.play);
+        for (const auto group : std::views::chunk_by(shelf.items, same_card_type)) {
+            const auto first = static_cast<std::size_t>(group.begin() - shelf.items.begin());
+            if (is_playlist_card(group.front())) {
+                section.add<PlaylistGridWidget>(m_page, shelf_index, first, group.size(), m_thumbnails, m_actions.play);
             } else {
-                section.add<CatalogTracksWidget>(m_page, shelf_index, first, end - first, m_thumbnails, m_actions);
+                section.add<CatalogTracksWidget>(m_page, shelf_index, first, group.size(), m_thumbnails, m_actions);
             }
-            first = end;
         }
     }
 }
 
 void CatalogResultsWidget::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
+
     configure_all_styles([](Style& style) { style.padding({16.0f, 0.0f, 16.0f, 16.0f}); });
     m_rows->configure_all_styles([](Style& style) { style.padding({12.0f, 0.0f, 12.0f, 0.0f}); });
 }

@@ -28,8 +28,8 @@ std::string utils::media::subtitle_part(const MusicItem& item, int index) {
     return text;
 }
 
-// prefer linked creators, falling back to the artist segment when the response has no channel link
 std::string utils::media::media_artist(const MusicItem& item) {
+    // prefer linked creators, falling back to the artist segment when the response has no channel link
     std::string artist;
     for (const auto& run : item.subtitle) {
         if (!run.endpoint.browse_id.starts_with("UC")) continue;

@@ -67,30 +67,6 @@ bool PlaybackQueue::remove(std::uint64_t id) {
     return true;
 }
 
-bool PlaybackQueue::move(std::uint64_t id, std::size_t position) {
-    const auto entry = std::ranges::find(m_entries, id, &QueueEntry::id);
-    if (entry == m_entries.end()) {
-        return false;
-    }
-
-    position = std::min(position, m_entries.size() - 1);
-    if (entry == m_entries.begin() + position) {
-        return false;
-    }
-
-    m_source.clear();
-
-    // save the selected id before erasing, then reselect it after insertion to keep the same track playing
-    const auto selected = current()->id;
-    auto moved = std::move(*entry);
-    m_entries.erase(entry);
-    m_entries.insert(m_entries.begin() + position, std::move(moved));
-
-    ++m_revision;
-    select(selected);
-    return true;
-}
-
 bool PlaybackQueue::advance() {
     if (!can_advance()) return false;
 

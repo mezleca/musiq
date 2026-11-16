@@ -10,7 +10,7 @@ std::string music_text(const json& data) {
     if (simple != data.end()) return simple->get<std::string>();
     std::string text;
     for (const auto& run : data.at("runs")) {
-        text += run.at("text").get<std::string>();
+        text += run.at("text").get_ref<const std::string&>();
     }
     return text;
 }

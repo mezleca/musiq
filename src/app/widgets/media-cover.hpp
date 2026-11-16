@@ -6,7 +6,6 @@
 
 class ThumbnailCache;
 struct ThumbnailRequest;
-class SpinnerWidget;
 
 class MediaCoverWidget final : public ui::ImageWidget {
 public:
@@ -16,10 +15,10 @@ public:
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
     void draw_before() override;
+    void paint_content(const ui::PaintContext& context) override;
 
 private:
     ThumbnailCache& m_thumbnails;
-    SpinnerWidget* m_spinner;
     std::string m_url;
     std::shared_ptr<ThumbnailRequest> m_download;
     const float m_size;

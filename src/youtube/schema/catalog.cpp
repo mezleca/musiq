@@ -2,6 +2,19 @@
 
 #include <stdexcept>
 #include <utility>
+#include <type_traits>
+
+void MusicPage::append(MusicPage page) {
+    static_assert(std::is_nothrow_move_constructible_v<MusicShelf>);
+    if (continuation && page.continuation && continuation->token == page.continuation->token) {
+        page.continuation.reset();
+    }
+
+    // moving a shelf preserves its item buffer, including pointers held by existing card callbacks
+    for (auto& shelf : page.shelves)
+        shelves.push_back(std::move(shelf));
+    continuation = std::move(page.continuation);
+}
 
 void MusicPage::set_scope(MusicRoute route, const MusicRequestOptions& options, std::string_view identity) {
     if (continuation) continuation->set_scope(route, options, identity);

@@ -71,7 +71,7 @@ Testing/
 dist/
 *.AppImage
 
-# local docs / notes about future changes
+# local docs (api endpoints, actions, etc)
 docs/
 
 # other

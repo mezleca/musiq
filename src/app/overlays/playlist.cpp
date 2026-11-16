@@ -65,7 +65,13 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
     m_tracks->set_spacing(6.0f);
     m_tracks->set_overscan(2);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
-        if (auto* card = m_tracks->find_track(index)) return *card;
+        if (auto* card = m_tracks->find_track(index)) {
+            return *card;
+        }
+
+        if (m_browser.loading() && !m_browser.appending()) {
+            return m_tracks->add_track(index, MusicItem{}, m_thumbnails, true);
+        }
 
         auto& card = m_tracks->add_track(index, m_browser.playlist().tracks[index], m_thumbnails);
         card.on_click([this, index] { play(index); });
@@ -99,16 +105,13 @@ void PlaylistOverlay::poll() {
 
     const auto& playlist = m_browser.playlist();
     if (!m_browser.appending()) {
+        m_tracks->clear_tracks();
         MusicItem cover = m_item;
         if (!playlist.thumbnails.empty()) cover.thumbnails = playlist.thumbnails;
         m_cover->set_item(cover);
     }
 
     refresh();
-    if (!m_browser.error().empty()) {
-        m_status->set_text(m_browser.error());
-        m_status->set_visible(true);
-    }
 }
 
 void PlaylistOverlay::play(std::size_t start) {
@@ -150,16 +153,15 @@ void PlaylistOverlay::refresh() {
     }
     details += playlist.duration;
     m_details->set_text(std::move(details));
-    m_details->set_visible(!m_details->empty());
-
     m_description->set_text(playlist.description);
-    m_description->set_visible(!m_description->empty());
 
     m_play->set_enabled(!playlist.tracks.empty());
     update_playback();
-    m_tracks->set_items(playlist.tracks.size());
 
-    m_status->set_text(m_browser.loading() ? "Loading tracks..." : "");
+    // reserve track geometry without requesting artwork while the playlist loads
+    m_tracks->set_items(m_browser.loading() && !m_browser.appending() ? 12 : playlist.tracks.size());
+
+    m_status->set_text(m_browser.error());
     m_status->set_visible(!m_status->empty());
 
     m_more->set_visible(playlist.continuation.has_value());

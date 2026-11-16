@@ -1,11 +1,13 @@
 # Unreleased
-- UI: Updated "Repeat" and "Shuffle / Random" icons 
+- UI: Updated framework to the latest commit
+- UI: Updated "Repeat" and "Shuffle / Random" icons
+- UI(Track, Cover): Use skeleton while loading
 - UI(Settings) + Playback: Added Loop mode (Off, Once, Track, Playlist)
 - Core(Linux): Added Media Session (mpris)
 
 # v0.5.0
 - UI(Settings): Added interface scale option
-- UI: updated framework to the latest version
+- UI: updated framework to the latest commit
 
 # v0.4.1
 - Core(Fonts): Fix high memory usage

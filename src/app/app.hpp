@@ -27,6 +27,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 enum class SessionAction {
     SignIn,
@@ -45,30 +46,31 @@ private:
     void build_navigation(ui::Container& content);
     void build_pages(ui::Container& content);
     void build_player();
+
     void sign_in();
     void log_out();
     void clear_session();
-    void clear_browser_cookies();
-    std::string open_sign_in();
     void run_session(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> task);
     void authenticate(std::string token, std::string identity = {});
-    void refresh_session();
     void choose_channel();
     void load_avatar();
     void cancel_channel_selection();
     void update_session();
-    void update_shortcuts();
     void update_profile();
     void refresh_profile();
+
     void navigate(std::string_view page);
     void show_page();
+    void prune_pages();
     void submit_search(std::string query);
     void refresh_page();
+
     void update_catalog();
     CatalogActions catalog_actions();
     void update_playback();
     void update_tracks(ui::Node& root);
     void open_playlist(MusicItem item);
+    void update_shortcuts();
 
     YoutubeMusicSession m_youtube_session;
     SideBarOverlay* m_sidebar = nullptr;
@@ -76,13 +78,14 @@ private:
     LoadingOverlay* m_loading = nullptr;
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
-    std::string m_session_token;
     PageHistory m_history;
     ThreadPool m_workers;
     CatalogBrowser m_catalog;
     CatalogResultsWidget* m_home = nullptr;
     std::unordered_map<std::string, CatalogResultsWidget*> m_searches;
     std::unordered_map<std::string, PlaylistOverlay*> m_playlists;
+    std::unordered_map<std::string, MusicItem> m_playlist_items;
+    std::vector<PageRoute> m_page_order;
     ui::Container* m_pages = nullptr;
     ui::Container* m_current_page = nullptr;
     MusiqButtonWidget* m_back = nullptr;

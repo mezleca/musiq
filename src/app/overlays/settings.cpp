@@ -192,9 +192,6 @@ void SettingsOverlay::refresh_playback() {
 }
 
 void SettingsOverlay::update_repeat_description() {
-    m_repeat_description->set_visible(!m_repeat_mode.empty());
-    if (m_repeat_mode.empty()) return;
-
     switch (m_queue.loop()) {
         case LoopMode::None:
             m_repeat_description->set_text("Tracks are not repeated and the queue does not loop back to the beginning.");

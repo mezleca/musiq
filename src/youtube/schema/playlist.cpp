@@ -27,9 +27,10 @@ static const json& playlist_shelf(const json& data) {
     throw std::invalid_argument("missing playlist tracks");
 }
 
-// newer playlist pages put the next token in the last row instead of the shelf's continuations field
 static std::optional<MusicContinuation> playlist_continuation(const json& rows) {
     if (rows.empty()) return std::nullopt;
+
+    // newer playlist pages put the next token in the last row instead of the shelf's continuations field
     const json::json_pointer endpoint("/continuationItemRenderer/continuationEndpoint");
     const auto& last = rows.back();
     if (!last.contains(endpoint)) return std::nullopt;

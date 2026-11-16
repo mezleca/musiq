@@ -15,13 +15,6 @@ MediaCoverWidget::MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbn
     set_size({px(size), px(size)});
     set_fit(ImageFit::Cover);
 
-    m_spinner = &add<SpinnerWidget>();
-    m_spinner->set_layout(
-        {.size = {px(24), px(24)},
-         .placement = {.anchor = Anchor::Center, .origin = Anchor::Center, .offset = {}},
-         .in_flow = false}
-    );
-
     set_item(item);
 }
 
@@ -31,7 +24,6 @@ void MediaCoverWidget::set_item(const MusicItem& item) {
     m_download = {};
     m_loaded = false;
     set_texture(nullptr);
-    m_spinner->set_visible(!m_url.empty());
 }
 
 void MediaCoverWidget::apply_theme_defaults(const Theme& theme) {
@@ -43,7 +35,6 @@ void MediaCoverWidget::apply_theme_defaults(const Theme& theme) {
 }
 
 void MediaCoverWidget::draw_before() {
-    // skip if we already loaded the texture
     if (m_loaded) {
         return;
     }
@@ -60,5 +51,14 @@ void MediaCoverWidget::draw_before() {
 
     set_texture(std::move(image));
     m_loaded = true;
-    m_spinner->set_visible(false);
+}
+
+void MediaCoverWidget::paint_content(const PaintContext& context) {
+    ImageWidget::paint_content(context);
+    if (m_loaded || m_url.empty()) return;
+
+    const auto rect = context.painter.to_screen(context.content_rect);
+    if (!ImGui::IsRectVisible(rect.min, rect.max)) return;
+
+    paint_spinner(context.painter, context.content_rect, surface().theme().text_color);
 }

@@ -7,7 +7,7 @@ class ThumbnailCache;
 
 class MediaCardWidget final : public MusiqButtonWidget {
 public:
-    MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails);
+    MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails, bool loading = false);
     void set_selected(bool selected);
 
 protected:
@@ -19,7 +19,7 @@ private:
 
 class PlaylistCardWidget final : public MusiqButtonWidget {
 public:
-    PlaylistCardWidget(const MusicItem& item, ThumbnailCache& thumbnails);
+    PlaylistCardWidget(const MusicItem& item, ThumbnailCache& thumbnails, bool loading = false);
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;

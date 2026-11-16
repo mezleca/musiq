@@ -15,14 +15,13 @@ class ThreadPool;
 
 struct CatalogPageState {
     std::string query;
-    std::shared_ptr<const MusicPage> page;
+    std::shared_ptr<MusicPage> page;
     std::string error;
     bool loading = false;
 };
 
 struct CatalogChanges {
     bool home = false;
-    bool home_append = false;
     std::string search;
     bool suggestions = false;
     bool library = false;
@@ -59,11 +58,13 @@ public:
 
 private:
     void queue_page(std::string query);
+    void prune_searches();
 
     YoutubeMusicSession m_session;
     ThreadPool& m_workers;
     CatalogPageState m_home;
     std::unordered_map<std::string, CatalogPageState> m_searches;
+    std::deque<std::string> m_search_order;
     std::string m_query;
     MusicSuggestions m_suggestions;
     std::vector<MusicItem> m_library;

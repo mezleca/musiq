@@ -20,7 +20,6 @@ public:
     void play_next(MusicItem track);
     void append(MusicItem track, bool preserve_source = false);
     bool remove(std::uint64_t id);
-    bool move(std::uint64_t id, std::size_t position);
     void select(std::uint64_t id);
     bool advance();
     bool can_advance() const;

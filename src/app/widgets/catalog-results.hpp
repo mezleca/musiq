@@ -19,7 +19,7 @@ struct CatalogActions {
 class CatalogResultsWidget final : public ui::Container {
 public:
     CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails);
-    void show(const CatalogPageState& state, bool append = false);
+    void show(const CatalogPageState& state);
     bool near_bottom() const;
     void set_actions(CatalogActions actions);
 
@@ -31,8 +31,8 @@ private:
 
     ThumbnailCache& m_thumbnails;
     CatalogActions m_actions;
-    MusiqText* m_title;
     MusiqText* m_status;
     ui::Container* m_rows;
     std::shared_ptr<const MusicPage> m_page;
+    std::size_t m_shelf_count = 0;
 };

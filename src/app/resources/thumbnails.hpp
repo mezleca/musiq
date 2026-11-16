@@ -19,13 +19,13 @@ class ThumbnailCache {
 public:
     explicit ThumbnailCache(ThreadPool& workers);
 
-    // keep the returned request alive while its artwork is needed
-    std::shared_ptr<ThumbnailRequest> request(const std::string& url);
     // resolves cached artwork or starts a shared request for a visible cover
     ui::TextureHandle resolve(ui::TextureRegistry& textures, const std::string& url, std::shared_ptr<ThumbnailRequest>& pending);
     void collect();
 
 private:
+    std::shared_ptr<ThumbnailRequest> request(const std::string& url);
+
     std::unordered_map<std::string, std::weak_ptr<ThumbnailRequest>> m_requests;
     ThreadPool& m_workers;
 };
