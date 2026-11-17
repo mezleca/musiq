@@ -1,6 +1,5 @@
 #include "app.hpp"
 #include "../database/cache.hpp"
-#include "../utils/future.hpp"
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
 #include "../utils/media.hpp"
@@ -25,24 +24,11 @@ void MusiqApp::log_out() {
     LOG_INFO("[login] logged out");
 }
 
-void MusiqApp::run_session(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> task) {
-    m_session =
-        m_workers.enqueue([session = m_youtube_session, task = std::move(task)]() mutable -> YoutubeResult<YoutubeMusicSession> {
-            auto result = task(session);
-            if (!result) return std::unexpected(std::move(result.error()));
-            return session;
-        });
-    m_session_action = action;
-}
-
 void MusiqApp::authenticate(std::string token, std::string identity) {
     try {
-        run_session(
-            SessionAction::SignIn,
-            [token = std::move(token), identity = std::move(identity)](YoutubeMusicSession& session) mutable {
-                return session.identities().empty() ? session.authenticate(std::move(token), identity)
-                                                    : session.select_identity(identity);
-            }
+        m_session.authenticate(
+            std::move(token), std::move(identity),
+            [this](SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) { finish_session(action, std::move(outcome)); }
         );
 
         m_channel_picker->close_popup();
@@ -56,25 +42,43 @@ void MusiqApp::authenticate(std::string token, std::string identity) {
 }
 
 void MusiqApp::choose_channel() {
-    m_channel_picker->show(m_youtube_session.identities());
-    if (m_session.valid() && m_session_action == SessionAction::Channels) return;
-    run_session(SessionAction::Channels, [](YoutubeMusicSession& session) { return session.load_identities(); });
+    m_channel_picker->show(m_session.youtube().identities());
+    if (m_session.running() && m_session.action() == SessionAction::Channels) return;
+    m_session.load_channels([this](SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) {
+        finish_session(action, std::move(outcome));
+    });
 }
 
 void MusiqApp::load_avatar() {
-    m_avatar = {};
-    const auto& user = m_youtube_session.user();
+    const auto& user = m_session.youtube().user();
     if (!user || user->avatar_url.empty() || !MusiqCache::instance().get("auth.avatar:" + user->avatar_url).empty()) return;
-    m_avatar = m_workers.enqueue(
-        [url = user->avatar_url] { return std::pair{url, utils::media::fetch_thumbnail(url)}; }, TaskPriority::Background
+    m_tasks.enqueue(
+        [url = user->avatar_url] { return std::pair{url, utils::media::fetch_thumbnail(url)}; },
+        [this](TaskOutcome<std::pair<std::string, std::string>> outcome) {
+            if (!outcome) {
+                try {
+                    std::rethrow_exception(outcome.error());
+                } catch (const std::exception& error) {
+                    LOG_WARN("[login] avatar failed: {}", error.what());
+                } catch (...) {
+                    LOG_WARN("[login] avatar failed with an unknown exception");
+                }
+                return;
+            }
+
+            auto [url, bytes] = std::move(*outcome);
+            const auto& user = m_session.youtube().user();
+            if (user && user->avatar_url == url && !bytes.empty()) {
+                MusiqCache::instance().set("auth.avatar:" + url, bytes);
+                refresh_profile();
+            }
+        },
+        TaskPriority::Background
     );
 }
 
 void MusiqApp::clear_session() {
-    m_session = {};
-    m_avatar = {};
-    m_youtube_session = YoutubeMusicSession{};
-    MusiqCache::instance().erase_prefix("auth.");
+    m_session.logout();
     m_loading->set_visible(false);
     m_channel_picker->close_popup();
     m_channel_picker->set_visible(false);
@@ -82,56 +86,55 @@ void MusiqApp::clear_session() {
 }
 
 void MusiqApp::cancel_channel_selection() {
-    if (m_youtube_session.user()) return;
+    if (m_session.youtube().user()) return;
     clear_session();
     LOG_INFO("[login] channel selection cancelled");
 }
 
 void MusiqApp::update_session() {
-    if (future_ready(m_avatar)) {
-        try {
-            auto [url, bytes] = m_avatar.get();
-            const auto& user = m_youtube_session.user();
-            if (user && user->avatar_url == url && !bytes.empty()) {
-                MusiqCache::instance().set("auth.avatar:" + url, bytes);
-                refresh_profile();
-            }
-        } catch (const std::exception& error) {
-            LOG_WARN("[login] avatar failed: {}", error.what());
-        }
-    }
+    if (m_channel_picker->take_dismissed() && !m_session.running()) cancel_channel_selection();
+}
 
-    if (m_channel_picker->take_dismissed() && !m_session.valid()) cancel_channel_selection();
-    if (!future_ready(m_session)) return;
-
+void MusiqApp::finish_session(SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) {
     m_loading->set_visible(false);
     m_profile->set_busy(false);
 
-    auto session = take_result(m_session);
+    if (!outcome) {
+        try {
+            std::rethrow_exception(outcome.error());
+        } catch (const std::exception& error) {
+            LOG_WARN("[login] session task failed: {}", error.what());
+        } catch (...) {
+            LOG_WARN("[login] session task failed with an unknown exception");
+        }
+        return;
+    }
+
+    auto& session = *outcome;
     if (!session) {
         const auto& error = session.error();
         LOG_WARN("[login] session request failed: {} (status={})", error.message, error.status);
 
         // a network outage must not discard a restored session, only an authentication rejection does
         const bool rejected = error.status == 401 || error.status == 403 ||
-                              (m_session_action == SessionAction::Refresh && error.kind == YoutubeErrorKind::Authentication);
+                              (action == SessionAction::Refresh && error.kind == YoutubeErrorKind::Authentication);
         if (rejected) {
             clear_session();
             return;
         }
 
-        if (m_session_action == SessionAction::Refresh) {
+        if (action == SessionAction::Refresh) {
             return;
         }
 
-        if (m_session_action == SessionAction::Channels) {
-            if (m_channel_picker->visible()) m_channel_picker->refresh(m_youtube_session.identities(), true);
+        if (action == SessionAction::Channels) {
+            if (m_channel_picker->visible()) m_channel_picker->refresh(m_session.youtube().identities(), true);
             return;
         }
 
-        if (!m_youtube_session.identities().empty()) {
-            m_channel_picker->show(m_youtube_session.identities(), true);
-        } else if (!m_youtube_session.user()) {
+        if (!m_session.youtube().identities().empty()) {
+            m_channel_picker->show(m_session.youtube().identities(), true);
+        } else if (!m_session.youtube().user()) {
             if (error.kind == YoutubeErrorKind::Authentication) {
                 clear_session();
             } else {
@@ -142,31 +145,25 @@ void MusiqApp::update_session() {
         return;
     }
 
-    const auto previous_avatar = m_youtube_session.user() ? m_youtube_session.user()->avatar_url : std::string{};
-    m_youtube_session = std::move(*session);
-    if (m_session_action == SessionAction::Channels) {
-        if (m_channel_picker->visible()) m_channel_picker->refresh(m_youtube_session.identities());
-        if (m_youtube_session.user()) MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
+    if (action == SessionAction::Channels) {
+        if (m_channel_picker->visible()) m_channel_picker->refresh(m_session.youtube().identities());
         return;
     }
 
-    if (!m_youtube_session.user()) {
-        m_channel_picker->show(m_youtube_session.identities());
+    if (!m_session.youtube().user()) {
+        m_channel_picker->show(m_session.youtube().identities());
         return;
     }
 
-    if (m_session_action == SessionAction::Refresh) {
+    if (action == SessionAction::Refresh) {
         // metadata refresh must not invalidate the home request already using the restored credentials
-        m_playback.set_session(m_youtube_session);
+        m_playback.set_session(m_session.youtube());
         refresh_profile();
     } else {
         update_profile();
     }
 
-    MusiqCache::instance().set("auth.session", m_youtube_session.snapshot().dump());
-    if (!m_avatar.valid() || previous_avatar != m_youtube_session.user()->avatar_url) {
-        load_avatar();
-    }
+    load_avatar();
 
     LOG_INFO("[login] session ready");
 
@@ -176,12 +173,12 @@ void MusiqApp::update_session() {
 }
 
 void MusiqApp::update_profile() {
-    m_playback.set_session(m_youtube_session);
+    m_playback.set_session(m_session.youtube());
     for (const auto& playlist : m_playlists) {
         playlist.second->invalidate();
     }
 
-    m_catalog.set_session(m_youtube_session);
+    m_catalog.set_session(m_session.youtube());
     m_sidebar->set_playlists({});
     show_page();
     refresh_profile();
@@ -189,13 +186,13 @@ void MusiqApp::update_profile() {
 
 void MusiqApp::refresh_profile() {
     auto& profile = *m_profile;
-    m_settings_overlay->set_authenticated(m_youtube_session.user().has_value());
-    if (!m_youtube_session.user()) {
+    m_settings_overlay->set_authenticated(m_session.youtube().user().has_value());
+    if (!m_session.youtube().user()) {
         profile.clear_user();
         return;
     }
 
-    const auto& user = *m_youtube_session.user();
+    const auto& user = *m_session.youtube().user();
     ui::Texture* avatar = nullptr;
 
     const auto bytes = MusiqCache::instance().get("auth.avatar:" + user.avatar_url);

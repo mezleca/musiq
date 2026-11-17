@@ -3,8 +3,10 @@
 #include "../youtube/session.hpp"
 #include "../youtube/catalog-browser.hpp"
 #include "page-history.hpp"
+#include "musiq-session.hpp"
 #include "resources/thumbnails.hpp"
 #include "overlays/channel-picker.hpp"
+#include "overlays/playlist-editor.hpp"
 #include "overlays/loading.hpp"
 #include "overlays/player-bar.hpp"
 #include "overlays/playlist.hpp"
@@ -17,23 +19,16 @@
 #include "widgets/user-profile.hpp"
 #include "../playback/controller.hpp"
 #include "../playback/mpv-player.hpp"
-#include "../utils/thread-pool.hpp"
-
+#include "../utils/task-queue.hpp"
 #include <SDL3/SDL_video.h>
 #include <arbor/runtime.hpp>
 #include <arbor/surface.hpp>
 #include <functional>
-#include <future>
+#include <filesystem>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-enum class SessionAction {
-    SignIn,
-    Refresh,
-    Channels
-};
 
 class MusiqApp {
 public:
@@ -50,12 +45,12 @@ private:
     void sign_in();
     void log_out();
     void clear_session();
-    void run_session(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> task);
     void authenticate(std::string token, std::string identity = {});
     void choose_channel();
     void load_avatar();
     void cancel_channel_selection();
     void update_session();
+    void finish_session(SessionAction action, TaskOutcome<YoutubeResult<void>> outcome);
     void update_profile();
     void refresh_profile();
 
@@ -70,16 +65,24 @@ private:
     void update_playback();
     void update_tracks(ui::Node& root);
     void open_playlist(MusicItem item);
+    void save_playlist(PlaylistDraft draft);
+    void
+    create_playlist(std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path);
+    void edit_playlist(
+        std::string id, std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path
+    );
+    void upload_playlist_cover(std::string id, std::filesystem::path cover_path);
     void update_shortcuts();
 
-    YoutubeMusicSession m_youtube_session;
+    MusiqSession m_session;
     SideBarOverlay* m_sidebar = nullptr;
     UserProfileWidget* m_profile = nullptr;
     LoadingOverlay* m_loading = nullptr;
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
+    PlaylistEditorOverlay* m_playlist_editor = nullptr;
     PageHistory m_history;
-    ThreadPool m_workers;
+    TaskQueue& m_tasks = TaskQueue::instance();
     CatalogBrowser m_catalog;
     CatalogResultsWidget* m_home = nullptr;
     std::unordered_map<std::string, CatalogResultsWidget*> m_searches;
@@ -97,13 +100,8 @@ private:
     PlaybackController m_playback;
     PlayerBarOverlay* m_player_bar = nullptr;
     QueueOverlay* m_queue_overlay = nullptr;
-    std::uint64_t m_queue_revision = 0;
 
     ui::Runtime m_runtime;
     ui::Surface m_surface;
     bool m_fonts_changed = false;
-
-    SessionAction m_session_action = SessionAction::SignIn;
-    std::future<YoutubeResult<YoutubeMusicSession>> m_session;
-    std::future<std::pair<std::string, std::string>> m_avatar;
 };

@@ -1,5 +1,7 @@
 #include "sidebar.hpp"
+#include "../widgets/button.hpp"
 #include "../widgets/options.hpp"
+#include "../widgets/text.hpp"
 #include "../../youtube/schema/common.hpp"
 
 #include <utility>
@@ -7,10 +9,11 @@
 using namespace ui;
 
 SideBarOverlay::SideBarOverlay(
-    ThumbnailCache& thumbnails, std::function<void(std::string_view)> navigate, std::function<void(MusicItem)> open_playlist
+    ThumbnailCache& thumbnails, std::function<void(std::string_view)> navigate, std::function<void(MusicItem)> open_playlist,
+    std::function<void()> create_playlist
 )
     : ResizableContainer("sidebar"), m_thumbnails(thumbnails), m_navigate(std::move(navigate)),
-      m_open_playlist(std::move(open_playlist)) {
+      m_open_playlist(std::move(open_playlist)), m_create_playlist(std::move(create_playlist)) {
     set_type_name("SideBarOverlay");
     set_resize(ResizeAxes::X);
     set_size({px(280), grow()});
@@ -23,6 +26,20 @@ SideBarOverlay::SideBarOverlay(
     add_option("home", "Home", "icons/home.svg", true);
     add_option("search", "Search", "icons/search.svg");
     add_option("settings", "Settings", "icons/settings.svg");
+
+    auto& header = add<Container>("playlists-header", StackDirection::Horizontal);
+    header.set_size({grow(), fit()});
+    header.set_content_alignment(Anchor::CenterLeft);
+
+    auto& label = header.add<MusiqText>("Playlists", FontWeight::Bold);
+    label.set_size({grow(), fit()});
+    label.configure_all_styles([](Style& style) { style.margin_left(8.0f); });
+
+    auto& create = header.add<MusiqIconButtonWidget>("icons/plus.svg", 28.0f);
+    create.set_tooltip("Create playlist");
+    create.on_click([this] {
+        if (m_create_playlist) m_create_playlist();
+    });
 
     m_playlists = &add<Container>("user-playlists", StackDirection::Vertical);
     m_playlists->set_size({grow(), grow()});

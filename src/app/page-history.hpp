@@ -13,7 +13,6 @@ struct PageRoute {
 
 class PageHistory {
 public:
-    // visiting a different route after going back replaces the forward branch
     void visit(PageRoute route);
     bool back();
     bool forward();

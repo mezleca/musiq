@@ -1,9 +1,15 @@
 # Unreleased
+
+# v0.6.0
 - UI: Updated framework to the latest commit
-- UI: Updated "Repeat" and "Shuffle / Random" icons
+- UI(Catalog): Removed unecessary padding that was causing early clipping
+- UI(Playback): Updated "Repeat" and "Shuffle / Random" icons
+- UI(Playlist / Sidebar): Create and modify playlist button
 - UI(Track, Cover): Use skeleton while loading
 - UI(Settings) + Playback: Added Loop mode (Off, Once, Track, Playlist)
 - Core(Linux): Added Media Session (mpris)
+- Core: Execute tasks using TaskQueue system
+- Core: Added "MUSIQ_ENABLE_DEBUGGER" env var
 
 # v0.5.0
 - UI(Settings): Added interface scale option

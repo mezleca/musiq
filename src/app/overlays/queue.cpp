@@ -58,10 +58,10 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
 
 void QueueOverlay::show() {
     set_visible(true);
-    refresh();
+    refresh(true);
 }
 
-void QueueOverlay::refresh() {
+void QueueOverlay::refresh(bool entries_changed) {
     if (!visible()) return;
 
     auto& queue = m_playback.queue();
@@ -71,8 +71,7 @@ void QueueOverlay::refresh() {
     m_tracks->set_current(current ? current->media.endpoint.video_id : "");
 
     // cards stay mapped by entry id, so a removal only drops the matching card
-    if (queue.revision() != m_revision) {
-        m_revision = queue.revision();
+    if (entries_changed) {
         std::unordered_set<std::uint64_t> ids;
         ids.reserve(entries.size());
         for (const auto& entry : entries) {

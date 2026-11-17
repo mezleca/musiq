@@ -3,13 +3,13 @@
 #include "playlists.hpp"
 #include "catalog.hpp"
 #include "../utils/media.hpp"
-#include "../utils/future.hpp"
-#include "../utils/thread-pool.hpp"
 #include "../utils/log.hpp"
 
 #include <utility>
 
 using namespace utils::media;
+
+PlaylistBrowser::PlaylistBrowser() = default;
 
 static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& session, const MusicItem& item) {
     const YoutubeMusicClient client(session);
@@ -40,8 +40,6 @@ static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& ses
     return result;
 }
 
-PlaylistBrowser::PlaylistBrowser(ThreadPool& workers) : m_workers(workers) {}
-
 bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& item, bool reload) {
     if (m_loaded && !reload) return false;
 
@@ -50,41 +48,82 @@ bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& 
     m_appending = false;
     m_error.clear();
     m_session = session;
-    m_task = m_workers.enqueue([session = m_session, item] { return read_playlist(session, item); });
+    m_loading = true;
+    m_changed = false;
+    const auto generation = ++m_generation;
+    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_tasks.enqueue(
+        [session = m_session, item] { return read_playlist(session, item); },
+        [this, generation, lifetime](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
+            if (lifetime.expired()) {
+                return;
+            }
+            accept_task(generation, std::move(outcome));
+        }
+    );
     return true;
 }
 
 void PlaylistBrowser::invalidate() {
     m_loaded = false;
-    m_task = {};
+    ++m_generation;
+    m_loading = false;
+    m_changed = false;
 }
 
 void PlaylistBrowser::load_more() {
     m_appending = true;
     m_error.clear();
-    m_task = m_workers.enqueue([session = m_session, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
-        const YoutubeMusicClient client(session);
-        auto page = YoutubeMusicPlaylists(client).more(continuation);
-        if (!page) return std::unexpected(std::move(page.error()));
-        MusicPlaylist result;
-        result.tracks = std::move(page->tracks);
-        result.continuation = std::move(page->continuation);
-        return result;
-    });
+    m_loading = true;
+    m_changed = false;
+    const auto generation = ++m_generation;
+    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_tasks.enqueue(
+        [session = m_session, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
+            const YoutubeMusicClient client(session);
+            auto page = YoutubeMusicPlaylists(client).more(continuation);
+            if (!page) {
+                return std::unexpected(std::move(page.error()));
+            }
+            MusicPlaylist result;
+            result.tracks = std::move(page->tracks);
+            result.continuation = std::move(page->continuation);
+            return result;
+        },
+        [this, generation, lifetime](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
+            if (lifetime.expired()) {
+                return;
+            }
+            accept_task(generation, std::move(outcome));
+        }
+    );
 }
 
 bool PlaylistBrowser::poll() {
-    if (!future_ready(m_task)) return false;
+    return std::exchange(m_changed, false);
+}
 
-    auto result = take_result(m_task);
-    if (result) {
-        accept_page(std::move(*result));
-    } else {
-        m_error = result.error().message;
-        LOG_ERROR("[playlist] page failed: {}", m_error);
+void PlaylistBrowser::accept_task(std::uint64_t generation, TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
+    if (generation != m_generation) {
+        return;
     }
 
-    return true;
+    m_loading = false;
+    m_changed = true;
+    if (!outcome) {
+        m_error = "Playlist request failed.";
+        LOG_ERROR("[playlist] page failed: {}", m_error);
+        return;
+    }
+
+    auto result = std::move(*outcome);
+    if (!result) {
+        m_error = result.error().message;
+        LOG_ERROR("[playlist] page failed: {}", m_error);
+        return;
+    }
+
+    accept_page(std::move(*result));
 }
 
 void PlaylistBrowser::accept_page(MusicPlaylist page) {

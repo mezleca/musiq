@@ -22,9 +22,12 @@ protected:
     }
 };
 
-PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, ThreadPool& workers, PlaybackController& playback)
+PlaylistOverlay::PlaylistOverlay(
+    MusicItem item, ThumbnailCache& thumbnails, PlaybackController& playback,
+    std::function<void(const MusicPlaylist&)> edit_playlist
+)
     : Container("playlist", StackDirection::Vertical), m_item(std::move(item)), m_thumbnails(thumbnails), m_playback(playback),
-      m_browser(workers) {
+      m_edit_playlist(std::move(edit_playlist)) {
     set_type_name("PlaylistOverlay");
     set_size({grow(), grow()});
     set_spacing(16.0f);
@@ -48,7 +51,11 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
         text->set_overflow(TextOverflow::Ellipsis);
     }
 
-    m_play = &details.add<PlaylistPlayButtonWidget>();
+    auto& controls = details.add<Container>("controls", StackDirection::Horizontal);
+    controls.set_size({fit(), fit()});
+    controls.set_spacing(8.0f);
+
+    m_play = &controls.add<PlaylistPlayButtonWidget>();
     m_play->set_tooltip("Play");
     m_play->on_click([this] {
         if (m_playback.queue().source() == m_item.endpoint.browse_id) {
@@ -56,6 +63,13 @@ PlaylistOverlay::PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, Thr
         } else {
             play(0);
         }
+    });
+
+    m_edit = &controls.add<MusiqIconButtonWidget>("icons/settings.svg", 42.0f);
+    m_edit->set_tooltip("Edit playlist");
+    m_edit->set_visible(false);
+    m_edit->on_click([this] {
+        if (m_edit_playlist) m_edit_playlist(m_browser.playlist());
     });
 
     m_status = &add<MusiqText>("");
@@ -100,9 +114,12 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, bool reload) {
     refresh();
 }
 
-void PlaylistOverlay::poll() {
-    if (!m_browser.poll()) return;
+bool PlaylistOverlay::poll() {
+    if (!m_browser.poll()) {
+        return false;
+    }
 
+    const bool missing = m_browser.error() == "missing playlist tracks and header";
     const auto& playlist = m_browser.playlist();
     if (!m_browser.appending()) {
         m_tracks->clear_tracks();
@@ -112,6 +129,7 @@ void PlaylistOverlay::poll() {
     }
 
     refresh();
+    return missing;
 }
 
 void PlaylistOverlay::play(std::size_t start) {
@@ -156,6 +174,7 @@ void PlaylistOverlay::refresh() {
     m_description->set_text(playlist.description);
 
     m_play->set_enabled(!playlist.tracks.empty());
+    m_edit->set_visible(playlist.owned);
     update_playback();
 
     // reserve track geometry without requesting artwork while the playlist loads

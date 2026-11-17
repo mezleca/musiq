@@ -4,6 +4,16 @@
 #include <algorithm>
 #include <utility>
 
+void PlaybackQueue::on_change(std::function<void()> callback) {
+    m_on_change = std::move(callback);
+}
+
+void PlaybackQueue::changed() {
+    if (m_on_change) {
+        m_on_change();
+    }
+}
+
 void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source) {
     m_source = std::move(source);
 
@@ -15,20 +25,20 @@ void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, st
     }
 
     m_position = m_entries.empty() ? 0 : std::min(start, m_entries.size() - 1);
-    ++m_revision;
+    changed();
 }
 
 void PlaybackQueue::append(MusicItem track, bool preserve_source) {
     if (!preserve_source) m_source.clear();
     m_entries.push_back({m_next_id++, std::move(track)});
-    ++m_revision;
+    changed();
 }
 
 void PlaybackQueue::play_next(MusicItem track) {
     m_source.clear();
     const auto position = m_entries.empty() ? 0 : m_position + 1;
     m_entries.insert(m_entries.begin() + static_cast<std::ptrdiff_t>(position), {m_next_id++, std::move(track)});
-    ++m_revision;
+    changed();
 }
 
 const QueueEntry* PlaybackQueue::current() const {
@@ -47,7 +57,7 @@ void PlaybackQueue::select(std::uint64_t id) {
     if (position == m_position) return;
 
     m_position = position;
-    ++m_revision;
+    changed();
 }
 
 bool PlaybackQueue::remove(std::uint64_t id) {
@@ -63,7 +73,7 @@ bool PlaybackQueue::remove(std::uint64_t id) {
         --m_position;
     }
 
-    ++m_revision;
+    changed();
     return true;
 }
 
@@ -78,7 +88,7 @@ bool PlaybackQueue::advance() {
         m_position = (m_position + 1) % m_entries.size();
     }
 
-    ++m_revision;
+    changed();
     return true;
 }
 
@@ -90,12 +100,15 @@ bool PlaybackQueue::can_advance() const {
 void PlaybackQueue::previous() {
     if (m_position == 0) return;
     --m_position;
-    ++m_revision;
+    changed();
 }
 
 void PlaybackQueue::set_random(bool enabled) {
+    if (m_random == enabled) {
+        return;
+    }
     m_random = enabled;
-    ++m_revision;
+    changed();
 }
 
 void PlaybackQueue::set_repeat(bool enabled) {
@@ -108,7 +121,7 @@ void PlaybackQueue::set_loop(LoopMode mode) {
     }
 
     m_loop = mode;
-    ++m_revision;
+    changed();
 }
 
 bool PlaybackQueue::take_repeat() {
@@ -121,6 +134,6 @@ bool PlaybackQueue::take_repeat() {
     }
 
     m_loop = LoopMode::None;
-    ++m_revision;
+    changed();
     return true;
 }

@@ -17,7 +17,10 @@ enum class TaskPriority {
 
 class ThreadPool {
 public:
-    ThreadPool();
+    static ThreadPool& instance();
+
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
 
     template <typename F>
     auto enqueue(F&& callback, TaskPriority priority = TaskPriority::Foreground) -> std::future<std::invoke_result_t<F>> {
@@ -36,6 +39,8 @@ public:
     }
 
 private:
+    ThreadPool();
+
     std::mutex m_mutex;
     std::condition_variable_any m_ready;
     std::queue<std::move_only_function<void()>> m_tasks;

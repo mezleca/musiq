@@ -4,7 +4,8 @@
 #include "../../youtube/playlist-browser.hpp"
 #include "../widgets/track-list.hpp"
 
-class ThreadPool;
+#include <functional>
+
 class ThumbnailCache;
 class PlaybackController;
 class MediaCoverWidget;
@@ -14,11 +15,17 @@ class MusiqIconButtonWidget;
 
 class PlaylistOverlay final : public ui::Container {
 public:
-    PlaylistOverlay(MusicItem item, ThumbnailCache& thumbnails, ThreadPool& workers, PlaybackController& playback);
+    explicit PlaylistOverlay(
+        MusicItem item, ThumbnailCache& thumbnails, PlaybackController& playback,
+        std::function<void(const MusicPlaylist&)> edit_playlist = {}
+    );
     void load(const YoutubeMusicSession& session, bool reload = false);
     void invalidate();
-    void poll();
+    bool poll();
     void update_playback();
+    const std::string& browse_id() const {
+        return m_item.endpoint.browse_id;
+    }
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -39,6 +46,8 @@ private:
     MusiqText* m_description;
     MusiqText* m_status;
     MusiqIconButtonWidget* m_play;
+    MusiqIconButtonWidget* m_edit;
     MusiqButtonWidget* m_more;
     TrackList* m_tracks;
+    std::function<void(const MusicPlaylist&)> m_edit_playlist;
 };

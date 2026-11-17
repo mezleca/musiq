@@ -6,12 +6,12 @@
 #include "../youtube/error.hpp"
 #include "audio-source.hpp"
 #include "../media/session.hpp"
+#include "../utils/task-queue.hpp"
 
-#include <future>
+#include <cstdint>
 #include <memory>
 #include <stop_token>
 
-class ThreadPool;
 class MpvPlayer;
 class YoutubeMediaStream;
 
@@ -22,7 +22,7 @@ struct PlaybackPage {
 
 class PlaybackController {
 public:
-    PlaybackController(ThreadPool& workers, MpvPlayer& player);
+    explicit PlaybackController(MpvPlayer& player);
     ~PlaybackController();
 
     PlaybackController(const PlaybackController&) = delete;
@@ -39,9 +39,10 @@ public:
     void toggle_pause();
     void seek(double seconds);
     void on_volume(std::function<void(int)> callback);
+    void on_queue_change(std::function<void()> callback);
     bool paused() const;
     bool resolving() const {
-        return m_stream_task.valid();
+        return m_resolving;
     }
 
     const std::string& playback_error() const {
@@ -53,7 +54,7 @@ public:
     }
 
     bool loading() const {
-        return m_task.valid();
+        return m_page_loading;
     }
 
     const std::string& error() const {
@@ -61,25 +62,29 @@ public:
     }
 
 private:
-    void collect_page();
     void radio(std::string video_id);
     void reset_source();
     void update_player();
     void switch_track(const QueueEntry* track);
     void resolve_current();
-    void collect_stream();
+    void finish_page(std::uint64_t generation, TaskOutcome<YoutubeResult<PlaybackPage>> outcome);
+    void finish_stream(std::uint64_t generation, TaskOutcome<YoutubeResult<AudioSource>> outcome);
     void update_media_session();
 
-    ThreadPool& m_workers;
     MpvPlayer& m_player;
+    std::function<void()> m_on_queue_change;
     YoutubeMusicSession m_session;
     std::shared_ptr<YoutubeMediaStream> m_media_stream;
     PlaybackQueue m_queue;
-    std::future<YoutubeResult<PlaybackPage>> m_task;
+    TaskQueue& m_tasks = TaskQueue::instance();
+    std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
     std::optional<MusicContinuation> m_continuation;
     std::string m_error;
     bool m_changed = false;
-    std::future<YoutubeResult<AudioSource>> m_stream_task;
+    std::uint64_t m_page_generation = 0;
+    std::uint64_t m_stream_generation = 0;
+    bool m_page_loading = false;
+    bool m_resolving = false;
     std::stop_source m_resolve_stop;
     std::uint64_t m_track_id = 0;
     std::string m_audio_error;

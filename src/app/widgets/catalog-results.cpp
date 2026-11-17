@@ -26,7 +26,9 @@ public:
 
         // keep the page alive while cards and their callbacks reference its items
         set_items(count, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            if (auto* card = find_track(index)) return *card;
+            if (auto* card = find_track(index)) {
+                return *card;
+            }
 
             const auto* item = &page->shelves[shelf].items[first + index];
             auto& card = add_track(index, *item, thumbnails);
@@ -37,10 +39,12 @@ public:
                 ContextMenuItem::action("Play next", [this, item](ContextMenuWidget&) { m_actions.play_next(*item); }),
                 ContextMenuItem::action("Add to queue", [this, item](ContextMenuWidget&) { m_actions.append(*item); })
             });
+
             card.on_event(EventType::ContextClick, [&menu](UiEvent& event) {
                 menu.open_at(event.position);
                 event.stop_propagation();
             });
+
             return card;
         });
     }
@@ -172,6 +176,6 @@ void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
 void CatalogResultsWidget::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
 
-    configure_all_styles([](Style& style) { style.padding({16.0f, 0.0f, 16.0f, 16.0f}); });
+    configure_all_styles([](Style& style) { style.padding({16.0f, 0.0f, 16.0f, 0.0f}); });
     m_rows->configure_all_styles([](Style& style) { style.padding({12.0f, 0.0f, 12.0f, 0.0f}); });
 }

@@ -14,7 +14,7 @@ class SideBarOverlay final : public ui::ResizableContainer {
 public:
     explicit SideBarOverlay(
         ThumbnailCache& thumbnails, std::function<void(std::string_view)> navigate = {},
-        std::function<void(MusicItem)> open_playlist = {}
+        std::function<void(MusicItem)> open_playlist = {}, std::function<void()> create_playlist = {}
     );
     void select(std::string_view id);
     void set_playlists(const std::vector<MusicItem>& playlists);
@@ -31,5 +31,6 @@ private:
     OptionsWidget* m_selected_option = nullptr;
     std::function<void(std::string_view)> m_navigate;
     std::function<void(MusicItem)> m_open_playlist;
+    std::function<void()> m_create_playlist;
     std::string m_selected_id = "home";
 };

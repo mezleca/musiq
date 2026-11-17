@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../youtube/schema/common.hpp"
+#include <functional>
 
 struct QueueEntry {
     std::uint64_t id;
@@ -16,6 +17,7 @@ enum class LoopMode {
 
 class PlaybackQueue {
 public:
+    void on_change(std::function<void()> callback);
     void replace(std::vector<MusicItem> tracks, std::size_t start = 0, std::string source = {});
     void play_next(MusicItem track);
     void append(MusicItem track, bool preserve_source = false);
@@ -52,21 +54,18 @@ public:
         return m_entries;
     }
 
-    std::uint64_t revision() const {
-        return m_revision;
-    }
-
     const std::string& source() const {
         return m_source;
     }
 
 private:
+    void changed();
     std::vector<QueueEntry> m_entries;
+    std::function<void()> m_on_change;
 
     std::string m_source;
     std::size_t m_position = 0;
     std::uint64_t m_next_id = 1;
-    std::uint64_t m_revision = 0;
     bool m_random = false;
     LoopMode m_loop = LoopMode::None;
 };

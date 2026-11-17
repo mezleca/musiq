@@ -1,0 +1,20 @@
+{
+  "responseContext": {
+    "visitorData": "visitor"
+  },
+  "status": "STATUS_SUCCEEDED",
+  "playlistEditResults": [
+    {
+      "playlistEditVideoAddedResultData": {
+        "videoId": "one",
+        "setVideoId": "entry-one"
+      }
+    },
+    {
+      "playlistEditVideoAddedResultData": {
+        "videoId": "two",
+        "setVideoId": "entry-two"
+      }
+    }
+  ]
+}

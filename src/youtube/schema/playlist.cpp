@@ -8,9 +8,101 @@ void to_json(json& data, const MusicPlaylistRequest& value) {
     data = {{"browseId", value.playlist_id.starts_with("VL") ? value.playlist_id : "VL" + value.playlist_id}};
 }
 
-static const json& playlist_shelf(const json& data) {
+std::string_view playlist_privacy_value(MusicPlaylistPrivacy privacy) {
+    switch (privacy) {
+        case MusicPlaylistPrivacy::Private:
+            return "PRIVATE";
+        case MusicPlaylistPrivacy::Unlisted:
+            return "UNLISTED";
+        case MusicPlaylistPrivacy::Public:
+            return "PUBLIC";
+    }
+
+    return "PRIVATE";
+}
+
+std::optional<MusicPlaylistPrivacy> playlist_privacy_from(std::string_view value) {
+    if (value == "PRIVATE") return MusicPlaylistPrivacy::Private;
+    if (value == "UNLISTED") return MusicPlaylistPrivacy::Unlisted;
+    if (value == "PUBLIC") return MusicPlaylistPrivacy::Public;
+    return std::nullopt;
+}
+
+// write routes expect the playlist id without the VL prefix used by browse
+static std::string write_playlist_id(const std::string& playlist_id) {
+    return playlist_id.starts_with("VL") ? playlist_id.substr(2) : playlist_id;
+}
+
+void to_json(json& data, const MusicPlaylistCreateRequest& value) {
+    data = {{"title", value.title}, {"privacyStatus", std::string(playlist_privacy_value(value.privacy))}};
+    if (!value.description.empty()) data["description"] = value.description;
+    if (!value.video_ids.empty()) data["videoIds"] = value.video_ids;
+}
+
+void to_json(json& data, const MusicPlaylistAddRequest& value) {
+    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    for (const auto& video_id : value.video_ids) {
+        json action{{"action", "ACTION_ADD_VIDEO"}, {"addedVideoId", video_id}};
+        // skip the server's duplicate rejection when duplicates were explicitly allowed
+        if (value.allow_duplicates) action["dedupeOption"] = "DEDUPE_OPTION_SKIP";
+        data["actions"].push_back(std::move(action));
+    }
+}
+
+void to_json(json& data, const MusicPlaylistRemoveRequest& value) {
+    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    for (const auto& entry : value.entries) {
+        data["actions"].push_back(
+            {{"action", "ACTION_REMOVE_VIDEO"}, {"setVideoId", entry.set_video_id}, {"removedVideoId", entry.video_id}}
+        );
+    }
+}
+
+void to_json(json& data, const MusicPlaylistUpdateRequest& value) {
+    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    if (value.title) {
+        data["actions"].push_back({{"action", "ACTION_SET_PLAYLIST_NAME"}, {"playlistName", *value.title}});
+    }
+    if (value.description) {
+        data["actions"].push_back({{"action", "ACTION_SET_PLAYLIST_DESCRIPTION"}, {"playlistDescription", *value.description}});
+    }
+    if (value.privacy) {
+        data["actions"].push_back(
+            {{"action", "ACTION_SET_PLAYLIST_PRIVACY"}, {"playlistPrivacy", std::string(playlist_privacy_value(*value.privacy))}}
+        );
+    }
+    if (value.thumbnail_blob_id) {
+        data["actions"].push_back(
+            {{"action", "ACTION_SET_CUSTOM_THUMBNAIL"},
+             {"playlistId", write_playlist_id(value.playlist_id)},
+             {"addedCustomThumbnail",
+              {{"imageKey", {{"type", "PLAYLIST_IMAGE_TYPE_CUSTOM_THUMBNAIL"}, {"name", "studio_square_thumbnail"}}},
+               {"playlistScottyEncryptedBlobId", *value.thumbnail_blob_id}}}}
+        );
+    }
+}
+
+void from_json(const json& data, MusicPlaylistCreated& value) {
+    value.id = data.value("playlistId", std::string{});
+    value.status = data.value("status", std::string{});
+}
+
+void from_json(const json& data, MusicPlaylistEditResult& value) {
+    value.status = data.value("status", std::string{});
+
+    const auto results = data.find("playlistEditResults");
+    if (results == data.end() || !results->is_array()) return;
+
+    for (const auto& entry : *results) {
+        const auto added = entry.find("playlistEditVideoAddedResultData");
+        if (added == entry.end()) continue;
+        value.added.push_back({added->value("videoId", std::string{}), added->value("setVideoId", std::string{})});
+    }
+}
+
+static const json* find_playlist_shelf(const json& data) {
     const json::json_pointer continuation("/continuationContents/musicPlaylistShelfContinuation");
-    if (data.contains(continuation)) return data.at(continuation);
+    if (data.contains(continuation)) return &data.at(continuation);
 
     static const auto paths = {
         json::json_pointer("/contents/twoColumnBrowseResultsRenderer/secondaryContents/sectionListRenderer/contents"),
@@ -20,11 +112,17 @@ static const json& playlist_shelf(const json& data) {
         if (!data.contains(path)) continue;
         for (const auto& section : data.at(path)) {
             const auto shelf = section.find("musicPlaylistShelfRenderer");
-            if (shelf != section.end()) return *shelf;
+            if (shelf != section.end()) return &*shelf;
         }
     }
 
-    throw std::invalid_argument("missing playlist tracks");
+    return nullptr;
+}
+
+static const json& playlist_shelf(const json& data) {
+    const auto* shelf = find_playlist_shelf(data);
+    if (!shelf) throw std::invalid_argument("missing playlist tracks");
+    return *shelf;
 }
 
 static std::optional<MusicContinuation> playlist_continuation(const json& rows) {
@@ -107,12 +205,32 @@ static const json* playlist_header(const json& data, MusicPlaylist& playlist) {
         const auto& header = editable == entry.end() ? entry : editable->at("header");
         if (editable != entry.end()) {
             playlist.owned = true;
-            playlist.privacy = editable->at("editHeader").at("musicPlaylistEditHeaderRenderer").at("privacy").get<std::string>();
+            const auto privacy =
+                editable->at("editHeader").at("musicPlaylistEditHeaderRenderer").at("privacy").get<std::string>();
+            playlist.privacy = playlist_privacy_from(privacy).value_or(MusicPlaylistPrivacy::Public);
         }
 
         for (const auto key : {"musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"}) {
             const auto renderer = header.find(key);
             if (renderer != header.end()) return &*renderer;
+        }
+    }
+
+    const json::json_pointer editable_header(
+        "/contents/twoColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer/contents/0/"
+        "musicEditablePlaylistDetailHeaderRenderer"
+    );
+    if (data.contains(editable_header)) {
+        const auto& editable = data.at(editable_header);
+        playlist.owned = true;
+        const json::json_pointer privacy_path("/editHeader/musicPlaylistEditHeaderRenderer/privacy");
+        if (editable.contains(privacy_path)) {
+            playlist.privacy =
+                playlist_privacy_from(editable.at(privacy_path).get<std::string>()).value_or(MusicPlaylistPrivacy::Public);
+        }
+        for (const auto key : {"musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"}) {
+            const auto renderer = editable.at("header").find(key);
+            if (renderer != editable.at("header").end()) return &*renderer;
         }
     }
 
@@ -169,14 +287,17 @@ static void playlist_author(const json& header, MusicPlaylist& playlist) {
 
 void from_json(const json& data, MusicPlaylist& value) {
     MusicPlaylist playlist;
-    const auto& shelf = playlist_shelf(data);
-    playlist.id = shelf.value("playlistId", shelf.value("targetId", std::string{}));
-
-    auto page = playlist_tracks(shelf);
-    playlist.tracks = std::move(page.tracks);
-    playlist.continuation = std::move(page.continuation);
-
+    const auto* shelf = find_playlist_shelf(data);
     const auto* header = playlist_header(data, playlist);
+    if (!shelf && !header) throw std::invalid_argument("missing playlist tracks and header");
+    if (shelf) playlist.id = shelf->value("playlistId", shelf->value("targetId", std::string{}));
+
+    if (shelf) {
+        auto page = playlist_tracks(*shelf);
+        playlist.tracks = std::move(page.tracks);
+        playlist.continuation = std::move(page.continuation);
+    }
+
     if (header) {
         playlist.title = music_text(header->at("title"));
         playlist_author(*header, playlist);

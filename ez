@@ -10,7 +10,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-RELEASE_VERSION = "v0.5.0"
+RELEASE_VERSION = "v0.6.0"
 CWD = Path(__file__).resolve().parent
 RESOURCES_DIR = CWD / "resources"
 BUILD_DIR = CWD / "build"
@@ -281,7 +281,9 @@ def main() -> None:
         resources_link = build_dir / "resources"
         if not resources_link.is_symlink():
             resources_link.symlink_to(RESOURCES_DIR, target_is_directory=True)
-        run([str(build_dir / "musiq")])
+        environment = os.environ.copy()
+        environment["MUSIQ_ENABLE_DEBUGGER"] = "1"
+        run([str(build_dir / "musiq")], env=environment)
 
 if __name__ == "__main__":
     main()

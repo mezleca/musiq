@@ -11,6 +11,7 @@
 #include <cpr/cprtypes.h>
 
 #include <string_view>
+#include <filesystem>
 
 class YoutubeMusicSession;
 
@@ -27,6 +28,7 @@ public:
         std::string_view endpoint, json body, const MusicRequestOptions& options, std::string_view identity = {},
         cpr::Parameters parameters = {}
     ) const;
+    YoutubeResult<std::string> upload_playlist_thumbnail(const std::filesystem::path& path) const;
 
 private:
     YoutubeResult<cpr::Header> headers(const MusicRequestOptions& options) const;

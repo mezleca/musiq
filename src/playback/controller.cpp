@@ -5,8 +5,6 @@
 #include "../youtube/queue.hpp"
 #include "../youtube/playlists.hpp"
 #include "../youtube/catalog.hpp"
-#include "../utils/future.hpp"
-#include "../utils/thread-pool.hpp"
 #include "../utils/log.hpp"
 #include "../utils/media.hpp"
 
@@ -50,8 +48,14 @@ static YoutubeResult<PlaybackPage> read_more(const YoutubeMusicSession& session,
     return catalog_tracks(std::move(*page));
 }
 
-PlaybackController::PlaybackController(ThreadPool& workers, MpvPlayer& player)
-    : m_workers(workers), m_player(player), m_media_stream(std::make_shared<YoutubeMediaStream>()) {
+PlaybackController::PlaybackController(MpvPlayer& player)
+    : m_player(player), m_media_stream(std::make_shared<YoutubeMediaStream>()) {
+    m_queue.on_change([this] {
+        m_changed = true;
+        if (m_on_queue_change) {
+            m_on_queue_change();
+        }
+    });
     m_media_session.on_play([this] {
         if (m_queue.current() && !resolving() && (paused() || !m_player.state().loaded)) {
             toggle_pause();
@@ -90,8 +94,13 @@ PlaybackController::~PlaybackController() {
     m_resolve_stop.request_stop();
 }
 
+void PlaybackController::on_queue_change(std::function<void()> callback) {
+    m_on_queue_change = std::move(callback);
+}
+
 void PlaybackController::reset_source() {
-    m_task = {};
+    ++m_page_generation;
+    m_page_loading = false;
     m_continuation.reset();
     m_error.clear();
     m_changed = true;
@@ -107,18 +116,30 @@ void PlaybackController::remove(std::uint64_t id) {
 }
 
 void PlaybackController::radio(std::string video_id) {
-    m_task = m_workers.enqueue([session = m_session, video_id = std::move(video_id)]() -> YoutubeResult<PlaybackPage> {
-        const YoutubeMusicClient client(session);
-        auto page = YoutubeMusicQueue(client).next({video_id, {}});
-        if (!page) return std::unexpected(std::move(page.error()));
+    const auto generation = ++m_page_generation;
+    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_page_loading = true;
+    m_tasks.enqueue(
+        [session = m_session, video_id = std::move(video_id)]() -> YoutubeResult<PlaybackPage> {
+            const YoutubeMusicClient client(session);
+            auto page = YoutubeMusicQueue(client).next({video_id, {}});
+            if (!page) {
+                return std::unexpected(std::move(page.error()));
+            }
 
-        // next includes its seed track, which is already present in the local queue
-        auto& tracks = page->items;
-        if (!tracks.empty() && tracks.front().endpoint.video_id == video_id) {
-            tracks.erase(tracks.begin());
+            auto& tracks = page->items;
+            // next repeats the seed track already present in the local queue
+            if (!tracks.empty() && tracks.front().endpoint.video_id == video_id) {
+                tracks.erase(tracks.begin());
+            }
+            return PlaybackPage{std::move(tracks), std::move(page->continuation)};
+        },
+        [this, generation, lifetime](TaskOutcome<YoutubeResult<PlaybackPage>> outcome) {
+            if (!lifetime.expired()) {
+                finish_page(generation, std::move(outcome));
+            }
         }
-        return PlaybackPage{std::move(tracks), std::move(page->continuation)};
-    });
+    );
     m_changed = true;
 }
 
@@ -144,17 +165,33 @@ void PlaybackController::load_more() {
         return;
     }
 
-    m_task =
-        m_workers.enqueue([session = m_session, continuation = *m_continuation] { return read_more(session, continuation); });
+    const auto generation = ++m_page_generation;
+    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_page_loading = true;
+    m_tasks.enqueue(
+        [session = m_session, continuation = *m_continuation] { return read_more(session, continuation); },
+        [this, generation, lifetime](TaskOutcome<YoutubeResult<PlaybackPage>> outcome) {
+            if (!lifetime.expired()) {
+                finish_page(generation, std::move(outcome));
+            }
+        }
+    );
     m_changed = true;
 }
 
-void PlaybackController::collect_page() {
-    if (!future_ready(m_task)) return;
-
+void PlaybackController::finish_page(std::uint64_t generation, TaskOutcome<YoutubeResult<PlaybackPage>> outcome) {
+    if (generation != m_page_generation) {
+        return;
+    }
+    m_page_loading = false;
     m_changed = true;
 
-    auto page = take_result(m_task);
+    if (!outcome) {
+        m_error = "Queue request failed.";
+        LOG_ERROR("[queue] load failed: {}", m_error);
+        return;
+    }
+    auto page = std::move(*outcome);
     if (!page) {
         m_error = page.error().message;
         LOG_ERROR("[queue] load failed: {} (status={})", m_error, page.error().status);
@@ -172,7 +209,6 @@ void PlaybackController::collect_page() {
 bool PlaybackController::update() {
     m_media_session.update();
 
-    collect_page();
     update_player();
     update_media_session();
 
@@ -237,8 +273,10 @@ void PlaybackController::resolve_current() {
     m_resolve_stop.request_stop();
     m_resolve_stop = {};
 
-    // keep the resolver and its visitor cache alive until this job finishes
-    m_stream_task = m_workers.enqueue(
+    const auto generation = ++m_stream_generation;
+    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_resolving = true;
+    m_tasks.enqueue(
         [stream = m_media_stream, session = m_session, video = track.media.endpoint.video_id,
          stop = m_resolve_stop.get_token()]() -> YoutubeResult<AudioSource> {
             for (unsigned attempt = 0;; ++attempt) {
@@ -246,6 +284,11 @@ void PlaybackController::resolve_current() {
                 auto source = stream->resolve(session, video);
                 if (source || attempt == 3 || stop.stop_requested()) return source;
                 LOG_WARN("[player] audio resolution retry {}/3: {}", attempt + 1, source.error().message);
+            }
+        },
+        [this, generation, lifetime](TaskOutcome<YoutubeResult<AudioSource>> outcome) {
+            if (!lifetime.expired()) {
+                finish_stream(generation, std::move(outcome));
             }
         }
     );
@@ -279,7 +322,8 @@ void PlaybackController::switch_track(const QueueEntry* track) {
     m_resolve_stop.request_stop();
 
     // discard the previous resolver result and recovery state before starting another track
-    m_stream_task = {};
+    ++m_stream_generation;
+    m_resolving = false;
     m_track_id = track ? track->id : 0;
     m_at_end = false;
     m_resume = 0;
@@ -290,12 +334,25 @@ void PlaybackController::switch_track(const QueueEntry* track) {
     }
 }
 
-void PlaybackController::collect_stream() {
-    if (!future_ready(m_stream_task)) {
+void PlaybackController::finish_stream(std::uint64_t generation, TaskOutcome<YoutubeResult<AudioSource>> outcome) {
+    if (generation != m_stream_generation) {
         return;
     }
 
-    auto source = take_result(m_stream_task);
+    m_resolving = false;
+    // the queue may change before the next player update invalidates the old resolver
+    const auto* current = m_queue.current();
+    if (!current || current->id != m_track_id) {
+        return;
+    }
+    if (!outcome) {
+        m_audio_error = "Audio resolution failed.";
+        LOG_ERROR("[player] resolve failed: {}", m_audio_error);
+        m_changed = true;
+        return;
+    }
+
+    auto source = std::move(*outcome);
     if (source) {
         m_player.load(std::move(*source));
     } else {
@@ -333,7 +390,6 @@ void PlaybackController::update_player() {
         }
     }
 
-    collect_stream();
     const auto& state = m_player.state();
 
     // a manual retry restores the position after the new stream has loaded

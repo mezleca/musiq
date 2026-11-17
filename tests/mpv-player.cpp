@@ -51,9 +51,8 @@ TEST_CASE("libmpv loads pauses seeks and reports natural completion", "[playback
         output.write(wave.data(), wave.size());
     }
 
-    ThreadPool workers;
     MpvPlayer player(true);
-    PlaybackController playback(workers, player);
+    PlaybackController playback(player);
     player.load_file(path.string());
     REQUIRE(wait_for_player(player, [&] { return player.state().loaded && player.state().duration > 0; }));
     player.pause(true);

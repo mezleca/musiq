@@ -13,7 +13,7 @@ class QueueOverlay final : public ModalOverlay {
 public:
     QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbnails);
     void show();
-    void refresh();
+    void refresh(bool entries_changed = false);
 
 protected:
     void event(ui::UiEvent& event) override;
@@ -24,5 +24,4 @@ private:
     TrackList* m_tracks;
     MusiqText* m_status;
     MusiqButtonWidget* m_more;
-    std::uint64_t m_revision = 0;
 };

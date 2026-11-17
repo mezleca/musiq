@@ -2,6 +2,11 @@
 
 #include <algorithm>
 
+ThreadPool& ThreadPool::instance() {
+    static ThreadPool pool;
+    return pool;
+}
+
 ThreadPool::ThreadPool() {
     // with multiple workers, reserve one for user requests so artwork cannot occupy the whole pool
     const auto count = std::clamp(std::thread::hardware_concurrency(), 1u, 4u);

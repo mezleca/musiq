@@ -47,7 +47,7 @@ TEST_CASE("playlist details preserve metadata repeated tracks and unavailable en
     REQUIRE(playlist.track_count == 1234);
     REQUIRE(playlist.views == "2,345 views");
     REQUIRE(playlist.duration == "6+ hours");
-    REQUIRE(playlist.privacy == "PUBLIC");
+    REQUIRE(playlist.privacy == MusicPlaylistPrivacy::Public);
     REQUIRE_FALSE(playlist.owned);
 
     REQUIRE(playlist.tracks.size() == 2);
@@ -75,11 +75,28 @@ TEST_CASE("owned empty playlists retain their privacy and header", "[youtube][pl
 
     const auto playlist = data.get<MusicPlaylist>();
     REQUIRE(playlist.owned);
-    REQUIRE(playlist.privacy == "PRIVATE");
+    REQUIRE(playlist.privacy == MusicPlaylistPrivacy::Private);
     REQUIRE(playlist.title == "Example playlist");
     REQUIRE(playlist.track_count == 0);
     REQUIRE(playlist.tracks.empty());
     REQUIRE_FALSE(playlist.continuation);
+}
+
+TEST_CASE("owned playlist headers parse without a track shelf", "[youtube][playlist]") {
+    auto data = fixture("playlist.json");
+    auto& entry = data.at(header_path);
+    auto header = entry.at("musicResponsiveHeaderRenderer");
+    entry.clear();
+    auto& editable = entry["musicEditablePlaylistDetailHeaderRenderer"];
+    editable["header"]["musicResponsiveHeaderRenderer"] = std::move(header);
+    editable["editHeader"]["musicPlaylistEditHeaderRenderer"]["privacy"] = "UNLISTED";
+    data["contents"]["twoColumnBrowseResultsRenderer"].erase("secondaryContents");
+
+    const auto playlist = data.get<MusicPlaylist>();
+    REQUIRE(playlist.owned);
+    REQUIRE(playlist.privacy == MusicPlaylistPrivacy::Unlisted);
+    REQUIRE(playlist.title == "Example playlist");
+    REQUIRE(playlist.tracks.empty());
 }
 
 TEST_CASE("playlist rows permit empty album columns", "[youtube][playlist]") {
@@ -161,4 +178,13 @@ TEST_CASE("playlist pagination handles action envelopes and legacy shelves", "[y
     REQUIRE(legacy.get<MusicPlaylistPage>().tracks.size() == 2);
 
     REQUIRE_THROWS_AS(json::object().get<MusicPlaylist>(), std::invalid_argument);
+}
+
+TEST_CASE("playlist updates serialize custom thumbnail actions", "[youtube][playlist][write]") {
+    const auto request = json(MusicPlaylistUpdateRequest{.playlist_id = "VLPLexample", .thumbnail_blob_id = "encrypted-blob"});
+    const auto& action = request.at("actions").at(0);
+    REQUIRE(action.at("action") == "ACTION_SET_CUSTOM_THUMBNAIL");
+    REQUIRE(action.at("playlistId") == "PLexample");
+    REQUIRE(action.at("addedCustomThumbnail").at("imageKey").at("name") == "studio_square_thumbnail");
+    REQUIRE(action.at("addedCustomThumbnail").at("playlistScottyEncryptedBlobId") == "encrypted-blob");
 }
