@@ -4,7 +4,6 @@
 #include "../utils/log.hpp"
 
 #include <utility>
-#include <unordered_set>
 
 YoutubeMusicPlaylists::YoutubeMusicPlaylists(const YoutubeMusicClient& client) : m_client(client) {}
 
@@ -13,37 +12,18 @@ static MusicRequestOptions write_options(MusicRequestOptions options) {
     return options;
 }
 
-static bool succeeded(const MusicPlaylistEditResult& result) {
-    return result.status.find("SUCCEEDED") != std::string::npos;
+static YoutubeResult<MusicPlaylistEditResult>
+edit_playlist(const YoutubeMusicClient& client, json request, const MusicRequestOptions& options, const char* failure) {
+    auto result =
+        youtube_parse<MusicPlaylistEditResult>(client.post("browse/edit_playlist", std::move(request), write_options(options)));
+    if (result && result->status.find("SUCCEEDED") == std::string::npos) {
+        return youtube_error(YoutubeErrorKind::Api, result->status.empty() ? failure : result->status);
+    }
+    return result;
 }
 
-YoutubeResult<std::vector<MusicItem>> YoutubeMusicPlaylists::library(const MusicRequestOptions& options) const {
-    auto authenticated = options;
-    authenticated.auth = MusicAuth::Required;
-    const YoutubeMusicCatalog catalog(m_client);
-    auto page = catalog.browse({.browse_id = "FEmusic_liked_playlists", .params = {}}, authenticated);
-    std::vector<MusicItem> playlists;
-    std::unordered_set<std::string> ids;
-    std::unordered_set<std::string> tokens;
-
-    while (page) {
-        auto continuation = std::move(page->continuation);
-        for (auto& shelf : page->shelves) {
-            for (auto& item : shelf.items) {
-                const auto& id = item.endpoint.browse_id;
-                if (id.starts_with("VL") && ids.insert(id).second) playlists.push_back(std::move(item));
-            }
-            if (!continuation && shelf.continuation) continuation = std::move(shelf.continuation);
-        }
-
-        if (!continuation) return playlists;
-        if (!tokens.insert(continuation->token).second) {
-            return youtube_error(YoutubeErrorKind::Api, "repeated library playlist continuation");
-        }
-        page = catalog.more(*continuation);
-    }
-
-    return std::unexpected(std::move(page.error()));
+YoutubeResult<MusicPage> YoutubeMusicPlaylists::library(const MusicRequestOptions& options) const {
+    return YoutubeMusicCatalog(m_client).browse({.browse_id = "FEmusic_liked_playlists", .params = {}}, write_options(options));
 }
 
 YoutubeResult<MusicPlaylist> YoutubeMusicPlaylists::get(std::string_view playlist_id, const MusicRequestOptions& options) const {
@@ -105,11 +85,8 @@ YoutubeMusicPlaylists::add(const MusicPlaylistAddRequest& request, const MusicRe
     if (request.playlist_id.empty()) return youtube_error(YoutubeErrorKind::Api, "playlist id required");
     if (request.video_ids.empty()) return youtube_error(YoutubeErrorKind::Api, "no videos to add");
 
-    auto result = youtube_parse<MusicPlaylistEditResult>(m_client.post("browse/edit_playlist", request, write_options(options)));
-    if (!result) return std::unexpected(std::move(result.error()));
-    if (!succeeded(*result)) {
-        return youtube_error(YoutubeErrorKind::Api, result->status.empty() ? "playlist add failed" : result->status);
-    }
+    auto result = edit_playlist(m_client, request, options, "playlist add failed");
+    if (!result) return result;
 
     LOG_INFO("[playlist] added {} track(s)", request.video_ids.size());
     return result;
@@ -126,11 +103,8 @@ YoutubeMusicPlaylists::remove(const MusicPlaylistRemoveRequest& request, const M
         }
     }
 
-    auto result = youtube_parse<MusicPlaylistEditResult>(m_client.post("browse/edit_playlist", request, write_options(options)));
-    if (!result) return std::unexpected(std::move(result.error()));
-    if (!succeeded(*result)) {
-        return youtube_error(YoutubeErrorKind::Api, result->status.empty() ? "playlist removal failed" : result->status);
-    }
+    auto result = edit_playlist(m_client, request, options, "playlist removal failed");
+    if (!result) return result;
 
     LOG_INFO("[playlist] removed {} track(s)", request.entries.size());
     return result;
@@ -151,11 +125,8 @@ YoutubeMusicPlaylists::update(const MusicPlaylistUpdateRequest& request, const M
         update.thumbnail_blob_id = std::move(*uploaded);
         update.thumbnail_path.reset();
     }
-    auto result = youtube_parse<MusicPlaylistEditResult>(m_client.post("browse/edit_playlist", update, write_options(options)));
-    if (!result) return std::unexpected(std::move(result.error()));
-    if (!succeeded(*result)) {
-        return youtube_error(YoutubeErrorKind::Api, result->status.empty() ? "playlist update failed" : result->status);
-    }
+    auto result = edit_playlist(m_client, update, options, "playlist update failed");
+    if (!result) return result;
 
     LOG_INFO("[playlist] updated {}", request.playlist_id);
     return result;

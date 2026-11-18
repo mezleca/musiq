@@ -1,0 +1,17 @@
+{
+  "responseContext": {"visitorData": "local-visitor"},
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [{
+        "tabRenderer": {
+          "content": {
+            "sectionListRenderer": {
+              "contents": [],
+              "continuations": [{"nextContinuationData": {"continuation": "browse-token"}}]
+            }
+          }
+        }
+      }]
+    }
+  }
+}

@@ -9,13 +9,26 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <stop_token>
 #include <type_traits>
 #include <utility>
 
-using TaskOutcomeError = std::exception_ptr;
-
 template <typename T>
-using TaskOutcome = std::expected<T, TaskOutcomeError>;
+using TaskOutcome = std::expected<T, std::exception_ptr>;
+
+class TaskScope {
+public:
+    TaskScope() = default;
+    ~TaskScope();
+    TaskScope(const TaskScope&) = delete;
+    TaskScope& operator=(const TaskScope&) = delete;
+
+    void clear();
+    std::stop_token token() const;
+
+private:
+    std::stop_source m_stop;
+};
 
 class TaskQueueState {
 public:
@@ -43,16 +56,24 @@ public:
     TaskQueue& operator=(const TaskQueue&) = delete;
 
     template <typename Work, typename Completion>
-    void enqueue(Work&& work, Completion&& completion, TaskPriority priority = TaskPriority::Foreground) {
+    void enqueue(const TaskScope& scope, Work&& work, Completion&& completion, TaskPriority priority = TaskPriority::Foreground) {
+        enqueue(std::forward<Work>(work), std::forward<Completion>(completion), priority, scope.token());
+    }
+
+    template <typename Work, typename Completion>
+    void
+    enqueue(Work&& work, Completion&& completion, TaskPriority priority = TaskPriority::Foreground, std::stop_token stop = {}) {
         using Result = std::invoke_result_t<Work>;
 
         const auto generation = m_state->generation();
         auto state = m_state;
         m_workers.enqueue(
-            [state, generation, work = std::forward<Work>(work), completion = std::forward<Completion>(completion)]() mutable {
-                if (!state->current(generation)) {
+            [state, generation, stop, work = std::forward<Work>(work),
+             completion = std::forward<Completion>(completion)]() mutable {
+                if (stop.stop_requested() || !state->current(generation)) {
                     return;
                 }
+
                 TaskOutcome<Result> outcome = [&]() -> TaskOutcome<Result> {
                     try {
                         if constexpr (std::is_void_v<Result>) {
@@ -66,8 +87,11 @@ public:
                     }
                 }();
 
-                state->post(generation, [completion = std::move(completion), outcome = std::move(outcome)]() mutable {
-                    std::invoke(completion, std::move(outcome));
+                state->post(generation, [stop, completion = std::move(completion), outcome = std::move(outcome)]() mutable {
+                    // the owner may have been destroyed while the worker was running
+                    if (!stop.stop_requested()) {
+                        std::invoke(completion, std::move(outcome));
+                    }
                 });
             },
             priority

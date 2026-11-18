@@ -1,0 +1,26 @@
+{
+  "header": {
+    "musicResponsiveHeaderRenderer": {
+      "title": {"runs": [{"text": "Local playlist"}]}
+    }
+  },
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [{
+        "tabRenderer": {
+          "content": {
+            "sectionListRenderer": {
+              "contents": [{
+                "musicPlaylistShelfRenderer": {
+                  "playlistId": "PLlocal-created",
+                  "contents": [],
+                  "continuations": [{"nextContinuationData": {"continuation": "playlist-token"}}]
+                }
+              }]
+            }
+          }
+        }
+      }]
+    }
+  }
+}

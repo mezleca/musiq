@@ -89,7 +89,6 @@ PlayerBarOverlay::PlayerBarOverlay(
     m_random->on_click([this] { m_playback.queue().set_random(!m_playback.queue().random()); });
 
     m_previous = &controls.add<MusiqIconButtonWidget>("icons/skip-previous.svg");
-    m_previous->set_tooltip("Previous track");
     m_previous->on_click([this] { m_playback.queue().previous(); });
     m_previous->set_enabled(false);
 
@@ -105,7 +104,6 @@ PlayerBarOverlay::PlayerBarOverlay(
     m_spinner->set_visible(false);
 
     m_next = &controls.add<MusiqIconButtonWidget>("icons/skip-next.svg");
-    m_next->set_tooltip("Next track");
     m_next->on_click([this] { m_playback.queue().advance(); });
     m_next->set_enabled(false);
 
@@ -177,7 +175,6 @@ void PlayerBarOverlay::refresh() {
     m_spinner->set_visible(loading);
     m_play->set_icon(loading ? "" : playing ? "icons/pause.svg" : "icons/play.svg");
     m_play->set_enabled(current && !loading);
-    m_play->set_tooltip(playing ? "Pause" : "Play");
     m_seek->set_enabled(state.loaded && state.duration > 0);
 
     if (!m_seek->dragging()) m_progress = state.duration > 0 ? state.position * 100.0 / state.duration : 0;
@@ -197,7 +194,6 @@ void PlayerBarOverlay::refresh() {
     const auto& error = m_playback.playback_error().empty() ? state.error : m_playback.playback_error();
     m_status->set_text(error);
     m_status->set_visible(!error.empty());
-    m_status->set_tooltip(error);
 }
 
 void PlayerBarOverlay::apply_theme_defaults(const Theme& theme) {

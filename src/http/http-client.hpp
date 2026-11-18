@@ -11,11 +11,7 @@
 
 enum class HttpMethod {
     Get,
-    Post,
-    Put,
-    Patch,
-    Delete,
-    Head
+    Post
 };
 
 struct HttpRequest {

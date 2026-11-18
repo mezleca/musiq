@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/json.hpp"
+#include "config.hpp"
 #include "error.hpp"
 #include "schema/account.hpp"
 #include "schema/player.hpp"
@@ -11,13 +12,14 @@
 #include <cpr/cprtypes.h>
 
 #include <string_view>
+#include <string>
 #include <filesystem>
 
 class YoutubeMusicSession;
 
 class YoutubeMusicClient {
 public:
-    explicit YoutubeMusicClient(const YoutubeMusicSession& session);
+    explicit YoutubeMusicClient(const YoutubeMusicSession& session, YoutubeMusicConfig config = {});
     YoutubeResult<MusicAccountMenu> account_menu(std::string_view identity = {}) const;
     YoutubeResult<MusicAccountsList> accounts_list() const;
     YoutubeResult<MusicVisitorData> visitor_data() const;
@@ -34,4 +36,5 @@ private:
     YoutubeResult<cpr::Header> headers(const MusicRequestOptions& options) const;
 
     const YoutubeMusicSession& m_session;
+    YoutubeMusicConfig m_config;
 };

@@ -2,9 +2,8 @@
 #include "../src/utils/thread-pool.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-#include <algorithm>
+#include <atomic>
 #include <chrono>
-#include <latch>
 #include <stdexcept>
 #include <thread>
 
@@ -25,29 +24,41 @@ TEST_CASE("thread pool drains work and preserves task errors", "[thread-pool]") 
     }
 }
 
-TEST_CASE("foreground requests remain available while artwork workers are busy", "[thread-pool]") {
-    const auto workers = std::clamp(std::thread::hardware_concurrency(), 1u, 4u);
-    if (workers == 1) SKIP("requires more than one worker");
-
+TEST_CASE("network requests and artwork have independent concurrency", "[thread-pool][io]") {
     auto& pool = ThreadPool::instance();
-    std::latch started(workers - 1);
     std::promise<void> release;
     const auto gate = release.get_future().share();
-    for (unsigned index = 1; index < workers; ++index) {
-        pool.enqueue(
-            [&started, gate] {
-                started.count_down();
+    std::promise<void> artwork_started;
+    auto artwork_ready = artwork_started.get_future();
+    std::promise<void> requests_started;
+    auto requests_ready = requests_started.get_future();
+    std::atomic<unsigned> artwork_count = 0;
+    std::atomic<unsigned> request_count = 0;
+    std::vector<std::future<void>> pending;
+
+    for (unsigned index = 0; index < 8; ++index) {
+        pending.push_back(pool.enqueue(
+            [&] {
+                if (++artwork_count == 8) artwork_started.set_value();
                 gate.wait();
             },
             TaskPriority::Background
-        );
+        ));
     }
-    started.wait();
-    auto request = pool.enqueue([] { return 42; });
-    const auto status = request.wait_for(std::chrono::seconds(1));
+    const auto artwork_status = artwork_ready.wait_for(std::chrono::seconds(2));
+    for (unsigned index = 0; index < 4; ++index) {
+        pending.push_back(pool.enqueue([&] {
+            if (++request_count == 4) requests_started.set_value();
+            gate.wait();
+        }));
+    }
+    const auto request_status = requests_ready.wait_for(std::chrono::seconds(2));
     release.set_value();
-    REQUIRE(status == std::future_status::ready);
-    REQUIRE(request.get() == 42);
+    for (auto& task : pending)
+        task.get();
+
+    REQUIRE(artwork_status == std::future_status::ready);
+    REQUIRE(request_status == std::future_status::ready);
 }
 
 TEST_CASE("task queue runs completions on the caller thread", "[task-queue]") {

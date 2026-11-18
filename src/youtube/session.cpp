@@ -96,12 +96,12 @@ json YoutubeMusicSession::snapshot() const {
     return data;
 }
 
-YoutubeResult<void> YoutubeMusicSession::authenticate(std::string cookies, std::string_view identity) {
+YoutubeResult<void> YoutubeMusicSession::authenticate(std::string cookies, std::string_view identity, YoutubeMusicConfig config) {
     if (!has_session_cookie(cookies)) return youtube_error(YoutubeErrorKind::Authentication, "invalid session cookie");
     YoutubeMusicSession session;
     session.m_sapisid = cookie_sapisid(cookies);
     session.m_cookies = std::move(cookies);
-    auto result = session.load_identities();
+    auto result = session.load_identities(config);
     if (!result) return result;
 
     if (identity.empty() && session.m_identities.size() == 1) {
@@ -109,7 +109,7 @@ YoutubeResult<void> YoutubeMusicSession::authenticate(std::string cookies, std::
     }
 
     if (!identity.empty()) {
-        result = session.select_identity(identity);
+        result = session.select_identity(identity, config);
         if (!result) return result;
     }
 
@@ -117,22 +117,22 @@ YoutubeResult<void> YoutubeMusicSession::authenticate(std::string cookies, std::
     return {};
 }
 
-YoutubeResult<void> YoutubeMusicSession::load_identities() {
-    auto response = YoutubeMusicClient(*this).accounts_list();
+YoutubeResult<void> YoutubeMusicSession::load_identities(YoutubeMusicConfig config) {
+    auto response = YoutubeMusicClient(*this, std::move(config)).accounts_list();
     if (!response) return std::unexpected(std::move(response.error()));
     if (response->identities.empty()) return youtube_error(YoutubeErrorKind::Api, "no selectable YouTube channels returned");
     m_identities = std::move(response->identities);
     return {};
 }
 
-YoutubeResult<void> YoutubeMusicSession::select_identity(std::string_view identity) {
+YoutubeResult<void> YoutubeMusicSession::select_identity(std::string_view identity, YoutubeMusicConfig config) {
     const auto selected = std::ranges::find(m_identities, identity, &MusicIdentity::data_sync_id);
 
     if (selected == m_identities.end()) {
         return youtube_error(YoutubeErrorKind::Authentication, "selected channel is unavailable");
     }
 
-    auto response = YoutubeMusicClient(*this).account_menu(identity);
+    auto response = YoutubeMusicClient(*this, std::move(config)).account_menu(identity);
     if (!response) {
         return std::unexpected(std::move(response.error()));
     }

@@ -11,14 +11,45 @@
 using namespace ui;
 using namespace utils::media;
 
-class PlaylistPlayButtonWidget final : public MusiqIconButtonWidget {
+class PlaylistControlWidget final : public MusiqIconButtonWidget {
 public:
-    PlaylistPlayButtonWidget() : MusiqIconButtonWidget("icons/play.svg", 42.0f) {}
+    explicit PlaylistControlWidget(std::string icon) : MusiqIconButtonWidget(std::move(icon), 42.0f) {}
 
 protected:
     void apply_theme_defaults(const Theme& theme) override {
         MusiqIconButtonWidget::apply_theme_defaults(theme);
-        configure_all_styles([&theme](Style& style) { style.background_color(theme.controls.hover_color); });
+
+        configure_all_styles([&theme](Style& style) {
+            style.background_color(theme.transparent);
+            style.color(theme.accent_color);
+            style.padding({4.0f, 0.0f, 4.0f, 0.0f});
+        });
+
+        style(StyleType::HOVER).color(theme.accent_hover_color);
+        style(StyleType::DISABLED).color(theme.text_secondary_color);
+    }
+};
+
+class PlaylistDetailsWidget final : public Container {
+public:
+    PlaylistDetailsWidget() : Container("details", StackDirection::Horizontal) {
+        set_size({grow(), fit()});
+        set_spacing(20.0f);
+        set_content_alignment(Anchor::TopLeft);
+    }
+
+protected:
+    void apply_theme_defaults(const Theme& theme) override {
+        Container::apply_theme_defaults(theme);
+
+        configure_all_styles([&theme](Style& style) {
+            style.padding({20.0f});
+            style.border_radius(10.0f);
+            style.background_color(gradient(
+                GradientType::Linear, {{0.0f, theme.background_color}, {1.0f, theme.background_secondary_color}}, {0.0f, 0.0f},
+                {0.0f, 1.0f}
+            ));
+        });
     }
 };
 
@@ -31,16 +62,17 @@ PlaylistOverlay::PlaylistOverlay(
     set_type_name("PlaylistOverlay");
     set_size({grow(), grow()});
     set_spacing(16.0f);
+    set_scrollable(true);
     set_visible(false);
 
-    auto& header = add<Container>("details", StackDirection::Horizontal);
-    header.set_size({grow(), fit()});
-    header.set_spacing(20.0f);
+    auto& header = add<PlaylistDetailsWidget>();
     m_cover = &header.add<MediaCoverWidget>(m_item, m_thumbnails, 180.0f);
+    m_cover->set_size({{px(180), px(180)}, {px(180), px(180)}});
 
     auto& details = header.add<Container>("info", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(8.0f);
+    details.configure_all_styles([](Style& style) { style.padding_right(50.0f); });
     m_title = &details.add<MusiqText>(m_item.title, FontWeight::Bold, 22.0f);
     m_author = &details.add<MusiqText>(media_artist(m_item));
     m_details = &details.add<MusiqText>("");
@@ -55,8 +87,7 @@ PlaylistOverlay::PlaylistOverlay(
     controls.set_size({fit(), fit()});
     controls.set_spacing(8.0f);
 
-    m_play = &controls.add<PlaylistPlayButtonWidget>();
-    m_play->set_tooltip("Play");
+    m_play = &controls.add<PlaylistControlWidget>("icons/play.svg");
     m_play->on_click([this] {
         if (m_playback.queue().source() == m_item.endpoint.browse_id) {
             m_playback.toggle_pause();
@@ -65,8 +96,12 @@ PlaylistOverlay::PlaylistOverlay(
         }
     });
 
-    m_edit = &controls.add<MusiqIconButtonWidget>("icons/settings.svg", 42.0f);
-    m_edit->set_tooltip("Edit playlist");
+    m_edit = &header.add<PlaylistControlWidget>("icons/edit.svg");
+    m_edit->set_layout({
+        .size = {px(42), px(42)},
+        .placement = {.anchor = Anchor::TopRight, .origin = Anchor::TopRight},
+        .in_flow = false,
+    });
     m_edit->set_visible(false);
     m_edit->on_click([this] {
         if (m_edit_playlist) m_edit_playlist(m_browser.playlist());
@@ -74,26 +109,37 @@ PlaylistOverlay::PlaylistOverlay(
 
     m_status = &add<MusiqText>("");
 
+    auto& separator = add<Container>("separator");
+    separator.set_size({grow(), px(1)});
+
     m_tracks = &add<TrackList>();
-    m_tracks->set_size({grow(), grow()});
-    m_tracks->set_spacing(6.0f);
+    m_tracks->set_size({grow(), fit()});
+    m_tracks->set_scrollable(false);
+    m_tracks->set_item_height(56.0f);
+    m_tracks->set_spacing(0.0f);
     m_tracks->set_overscan(2);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
+        if (index + 8 >= m_browser.playlist().tracks.size()) {
+            m_browser.load_more();
+        }
+
         if (auto* card = m_tracks->find_track(index)) {
             return *card;
         }
 
-        if (m_browser.loading() && !m_browser.appending()) {
-            return m_tracks->add_track(index, MusicItem{}, m_thumbnails, true);
+        const bool loading = m_browser.loading() && !m_browser.appending();
+        const MusicItem empty;
+        const auto& item = loading ? empty : m_browser.playlist().tracks[index];
+
+        auto& card = m_tracks->add_track(index, item, m_thumbnails, loading, index + 1);
+        card.configure_all_styles([](Style& style) { style.padding({8.0f, 4.0f}); });
+
+        if (!loading) {
+            card.on_click([this, index] { play(index); });
         }
 
-        auto& card = m_tracks->add_track(index, m_browser.playlist().tracks[index], m_thumbnails);
-        card.on_click([this, index] { play(index); });
         return card;
     });
-
-    m_more = &add<MusiqButtonWidget>("Load more");
-    m_more->on_click([this] { load_more(); });
 }
 
 void PlaylistOverlay::invalidate() {
@@ -108,23 +154,29 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, bool reload) {
 
     m_tracks->clear_tracks();
     m_tracks->set_items(0);
-    m_tracks->scroll().seek_to({}, ScrollBehavior::Instant);
+    scroll().seek_to({}, ScrollBehavior::Instant);
 
     m_cover->set_item(m_item);
     refresh();
 }
 
 bool PlaylistOverlay::poll() {
-    if (!m_browser.poll()) {
+    const auto change = m_browser.poll();
+    if (change == PlaylistChange::None) {
         return false;
     }
 
     const bool missing = m_browser.error() == "missing playlist tracks and header";
     const auto& playlist = m_browser.playlist();
-    if (!m_browser.appending()) {
+    if (change == PlaylistChange::Loaded) {
+        // loading rows share source indices with real tracks, so replace them on the first response
         m_tracks->clear_tracks();
+
         MusicItem cover = m_item;
-        if (!playlist.thumbnails.empty()) cover.thumbnails = playlist.thumbnails;
+        if (!playlist.thumbnails.empty()) {
+            cover.thumbnails = playlist.thumbnails;
+        }
+
         m_cover->set_item(cover);
     }
 
@@ -152,12 +204,6 @@ void PlaylistOverlay::update_playback() {
     const auto& queue = m_playback.queue();
     const bool paused = queue.source() != m_item.endpoint.browse_id || m_playback.paused();
     m_play->set_icon(paused ? "icons/play.svg" : "icons/pause.svg");
-    m_play->set_tooltip(paused ? "Play" : "Pause");
-}
-
-void PlaylistOverlay::load_more() {
-    m_browser.load_more();
-    refresh();
 }
 
 void PlaylistOverlay::refresh() {
@@ -172,6 +218,9 @@ void PlaylistOverlay::refresh() {
     details += playlist.duration;
     m_details->set_text(std::move(details));
     m_description->set_text(playlist.description);
+    m_author->set_visible(!m_author->empty());
+    m_details->set_visible(!m_details->empty());
+    m_description->set_visible(!m_description->empty());
 
     m_play->set_enabled(!playlist.tracks.empty());
     m_edit->set_visible(playlist.owned);
@@ -182,12 +231,12 @@ void PlaylistOverlay::refresh() {
 
     m_status->set_text(m_browser.error());
     m_status->set_visible(!m_status->empty());
-
-    m_more->set_visible(playlist.continuation.has_value());
-    m_more->set_enabled(!m_browser.loading());
 }
 
 void PlaylistOverlay::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
-    configure_all_styles([](Style& style) { style.padding({24.0f, 16.0f, 24.0f, 16.0f}); });
+    configure_all_styles([](Style& style) { style.padding({24.0f, 0.0f}); });
+    static_cast<Container*>(find("separator"))->configure_all_styles([&theme](Style& style) {
+        style.background_color(theme.transparent).border_top(1.0f).border_color(theme.border_color).border_radius(0.0f);
+    });
 }

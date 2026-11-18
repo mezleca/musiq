@@ -12,6 +12,7 @@ public:
     }
 
 protected:
+    void event(ui::UiEvent& event) override;
     void apply_theme_defaults(const ui::Theme& theme) override;
 
 private:

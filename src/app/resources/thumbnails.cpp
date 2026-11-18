@@ -3,6 +3,7 @@
 #include "../../utils/path.hpp"
 #include "../../utils/log.hpp"
 
+#include <arbor/backends/opengl/texture-loader.hpp>
 #include <arbor/resources/texture-registry.hpp>
 #include <algorithm>
 #include <utility>
@@ -18,17 +19,19 @@ std::shared_ptr<ThumbnailRequest> ThumbnailCache::request(const std::string& url
 
     auto pending = std::make_shared<ThumbnailRequest>();
     entry = pending;
-    const std::weak_ptr<ThumbnailRequest> interest = pending;
+
     m_tasks.enqueue(
-        [url, interest] {
-            // skip queued downloads after every visible cover has released the request
-            const auto active = interest.lock();
-            if (!active) return std::string{};
-            return fetch_thumbnail(url);
+        pending->scope,
+        [url, stop = pending->scope.token()]() -> std::unique_ptr<Texture> {
+            const auto bytes = fetch_thumbnail(url, stop);
+            if (bytes.empty() || stop.stop_requested()) {
+                return {};
+            }
+
+            // decode without a graphics context, the texture uploads when drawn on the ui thread
+            return OpenGLTextureLoader{}.load(std::string_view(bytes), url);
         },
-        [interest, url](TaskOutcome<std::string> outcome) {
-            const auto active = interest.lock();
-            if (!active) return;
+        [pending = pending.get(), url](TaskOutcome<std::unique_ptr<Texture>> outcome) {
             if (!outcome) {
                 try {
                     std::rethrow_exception(outcome.error());
@@ -37,14 +40,17 @@ std::shared_ptr<ThumbnailRequest> ThumbnailCache::request(const std::string& url
                 } catch (...) {
                     LOG_ERROR("[artwork] thumbnail failed: unknown error ({})", url);
                 }
-                active->complete = true;
+
+                pending->complete = true;
                 return;
             }
-            active->bytes = std::move(*outcome);
-            active->complete = true;
+
+            pending->texture = std::move(*outcome);
+            pending->complete = true;
         },
         TaskPriority::Background
     );
+
     return pending;
 }
 
@@ -61,8 +67,8 @@ ThumbnailCache::resolve(TextureRegistry& textures, const std::string& url, std::
     if (!pending) pending = request(url);
     if (!pending->complete) return {};
 
-    if (!pending->bytes.empty()) {
-        auto image = textures.acquire("thumbnail:" + url, std::string_view(pending->bytes));
+    if (pending->texture) {
+        auto image = textures.acquire("thumbnail:" + url, std::move(pending->texture));
         if (image) {
             pending.reset();
             return image;

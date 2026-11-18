@@ -15,9 +15,6 @@ public:
     void show();
     void refresh(bool entries_changed = false);
 
-protected:
-    void event(ui::UiEvent& event) override;
-
 private:
     PlaybackController& m_playback;
     ThumbnailCache& m_thumbnails;

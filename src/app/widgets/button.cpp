@@ -33,6 +33,7 @@ void MusiqIconButtonWidget::apply_theme_defaults(const Theme& theme) {
     configure_all_styles([this, &theme](Style& style) {
         style.padding({})
             .background_color(m_selected ? theme.controls.hover_color : theme.transparent)
+            .color(theme.text_color)
             .border_thickness(0.0f)
             .border_radius(8.0f);
     });
@@ -40,9 +41,7 @@ void MusiqIconButtonWidget::apply_theme_defaults(const Theme& theme) {
     style(StyleType::HOVER).background_color(m_selected ? theme.transparent : theme.controls.hover_color);
     load_icon();
 
-    m_icon->configure_all_styles([&theme](Style& style) { style.color(theme.text_color); });
-
-    m_icon->style(StyleType::DISABLED).color(theme.text_secondary_color);
+    style(StyleType::DISABLED).color(theme.text_secondary_color);
 }
 
 void MusiqIconButtonWidget::set_selected(bool value) {

@@ -2,6 +2,7 @@
 
 #include <span>
 #include <string>
+#include <stop_token>
 
 struct MusicItem;
 struct MusicThumbnail;
@@ -13,5 +14,5 @@ namespace utils::media {
 
     // choose the smallest variant that fills a square in physical pixels, or the largest available
     const MusicThumbnail* select_thumbnail(std::span<const MusicThumbnail> thumbnails, float pixel_size);
-    std::string fetch_thumbnail(const std::string& url);
+    std::string fetch_thumbnail(const std::string& url, std::stop_token stop = {});
 } // namespace utils::media

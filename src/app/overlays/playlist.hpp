@@ -33,7 +33,6 @@ protected:
 private:
     void refresh();
     void play(std::size_t start);
-    void load_more();
 
     MusicItem m_item;
     ThumbnailCache& m_thumbnails;
@@ -47,7 +46,6 @@ private:
     MusiqText* m_status;
     MusiqIconButtonWidget* m_play;
     MusiqIconButtonWidget* m_edit;
-    MusiqButtonWidget* m_more;
     TrackList* m_tracks;
     std::function<void(const MusicPlaylist&)> m_edit_playlist;
 };

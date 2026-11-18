@@ -9,14 +9,29 @@
 #include <memory>
 #include <string>
 
+enum class PlaylistState {
+    Idle,
+    Loading,
+    Appending,
+    Ready,
+    Failed
+};
+
+enum class PlaylistChange {
+    None,
+    Loaded,
+    Appended,
+    Failed
+};
+
 class PlaylistBrowser {
 public:
-    PlaylistBrowser();
+    PlaylistBrowser() = default;
 
     bool load(const YoutubeMusicSession& session, const MusicItem& item, bool reload = false);
     void invalidate();
-    void load_more();
-    bool poll();
+    bool load_more();
+    PlaylistChange poll();
 
     const MusicPlaylist& playlist() const {
         return m_playlist;
@@ -27,25 +42,21 @@ public:
     }
 
     bool loading() const {
-        return m_loading;
+        return m_state == PlaylistState::Loading || m_state == PlaylistState::Appending;
     }
 
     bool appending() const {
-        return m_appending;
+        return m_state == PlaylistState::Appending;
     }
 
 private:
-    void accept_page(MusicPlaylist page);
-    void accept_task(std::uint64_t generation, TaskOutcome<YoutubeResult<MusicPlaylist>> outcome);
+    void accept(YoutubeResult<MusicPlaylist> result);
 
     TaskQueue& m_tasks = TaskQueue::instance();
     YoutubeMusicSession m_session;
     MusicPlaylist m_playlist;
     std::string m_error;
-    std::uint64_t m_generation = 0;
-    std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
-    bool m_appending = false;
-    bool m_loaded = false;
-    bool m_loading = false;
-    bool m_changed = false;
+    TaskScope m_scope;
+    PlaylistState m_state = PlaylistState::Idle;
+    PlaylistChange m_change = PlaylistChange::None;
 };

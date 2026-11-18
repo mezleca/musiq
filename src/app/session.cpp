@@ -3,7 +3,7 @@
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
 #include "../utils/media.hpp"
-#include "../webview/login.hpp"
+#include "login.hpp"
 
 #include <arbor/resources/texture-registry.hpp>
 #include <exception>
@@ -26,10 +26,9 @@ void MusiqApp::log_out() {
 
 void MusiqApp::authenticate(std::string token, std::string identity) {
     try {
-        m_session.authenticate(
-            std::move(token), std::move(identity),
-            [this](SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) { finish_session(action, std::move(outcome)); }
-        );
+        m_session.authenticate(std::move(token), std::move(identity), [this](SessionAction action, YoutubeResult<void> result) {
+            session_changed(action, std::move(result));
+        });
 
         m_channel_picker->close_popup();
         m_profile->set_busy(true);
@@ -43,9 +42,9 @@ void MusiqApp::authenticate(std::string token, std::string identity) {
 
 void MusiqApp::choose_channel() {
     m_channel_picker->show(m_session.youtube().identities());
-    if (m_session.running() && m_session.action() == SessionAction::Channels) return;
-    m_session.load_channels([this](SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) {
-        finish_session(action, std::move(outcome));
+    if (m_session.state() == SessionState::LoadingChannels) return;
+    m_session.load_channels([this](SessionAction action, YoutubeResult<void> result) {
+        session_changed(action, std::move(result));
     });
 }
 
@@ -95,22 +94,10 @@ void MusiqApp::update_session() {
     if (m_channel_picker->take_dismissed() && !m_session.running()) cancel_channel_selection();
 }
 
-void MusiqApp::finish_session(SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) {
+void MusiqApp::session_changed(SessionAction action, YoutubeResult<void> session) {
     m_loading->set_visible(false);
     m_profile->set_busy(false);
 
-    if (!outcome) {
-        try {
-            std::rethrow_exception(outcome.error());
-        } catch (const std::exception& error) {
-            LOG_WARN("[login] session task failed: {}", error.what());
-        } catch (...) {
-            LOG_WARN("[login] session task failed with an unknown exception");
-        }
-        return;
-    }
-
-    auto& session = *outcome;
     if (!session) {
         const auto& error = session.error();
         LOG_WARN("[login] session request failed: {} (status={})", error.message, error.status);
@@ -167,7 +154,7 @@ void MusiqApp::finish_session(SessionAction action, TaskOutcome<YoutubeResult<vo
 
     LOG_INFO("[login] session ready");
 
-    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) {
+    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading()) {
         refresh_page();
     }
 }

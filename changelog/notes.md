@@ -1,4 +1,11 @@
-# Unreleased
+# v0.6.1
+- Tests: Use a local python http server to test endpoint parsing, etc 
+- Core(ThreadPool): Separate workers by priority
+- Core: Simplified a bunch of fetch tasks by removing uncessary logic and using basic state machines
+- UI: Updated framework to the latest commit
+- UI: Removed a bunch of unecessary tooltips
+- UI(Playlist): Whole overlay revamp
+- UI(Playlist): Fixed tracks sometimes not loading properly on scroll
 
 # v0.6.0
 - UI: Updated framework to the latest commit
@@ -19,7 +26,6 @@
 - Core(Fonts): Fix high memory usage
 
 # v0.4.0
-
 - UI(Sidebar): Make it resizable
 - UI(Sidebar): Added Saved playlists section
 - UI(Catalog): Fixed Widgets dissapearing on resize
@@ -28,7 +34,6 @@
 - Core(Windows): Hide console window
 
 # v0.3.0
-
 - MPV: Enable "cache" and "cache-pause"
 - Queue: Removed "AutoPlay" (recommended songs are now loaded via the "load more" button)
 - Http: Reuse connection per thread (everything should load a bit faster)
@@ -40,7 +45,6 @@
 - UI(ChannelPicker): Fixed invisible border
 
 # v0.2.0
-
 - Inno(Windows), Portable(Windows) and tarball(arch linux) packaging
 - MIT -> GPL-3.0 license
 - Implemented Random & Repeat
@@ -50,11 +54,9 @@
 - Disable UI debugger on release builds
 
 # v0.1.1
-
 - Fix appimage packaging
 
 # v0.1.0
-
 ## Initial release
 
 - Home, Search and playlist browsing

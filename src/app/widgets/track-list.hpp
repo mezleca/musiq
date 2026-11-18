@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arbor/layout/virtual-layout.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -21,7 +22,8 @@ class TrackList : public ui::VirtualLayout {
 public:
     explicit TrackList(std::string id = "tracks");
 
-    MediaCardWidget& add_track(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails, bool loading = false);
+    MediaCardWidget&
+    add_track(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails, bool loading = false, std::size_t number = 0);
     MediaCardWidget* find_track(std::uint64_t key) const;
 
     void retain(const std::function<bool(std::uint64_t)>& keep);

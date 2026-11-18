@@ -1,0 +1,19 @@
+{
+  "contents": [
+    {
+      "searchSuggestionsSectionRenderer": {
+        "contents": [
+          {
+            "searchSuggestionRenderer": {
+              "navigationEndpoint": {
+                "searchEndpoint": {
+                  "query": "la vie en rose karaoke"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

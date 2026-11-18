@@ -20,7 +20,10 @@ MediaCoverWidget::MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbn
 
 void MediaCoverWidget::set_item(const MusicItem& item) {
     const auto* source = select_thumbnail(item.thumbnails, m_size);
-    m_url = source ? source->url : std::string{};
+    const auto url = source ? source->url : std::string{};
+    if (url == m_url) return;
+
+    m_url = url;
     m_download = {};
     m_loaded = false;
     set_texture(nullptr);

@@ -12,24 +12,36 @@
 #include <memory>
 #include <string_view>
 #include <cstdint>
+#include <unordered_set>
+
+enum class CatalogPageStatus {
+    Idle,
+    Loading,
+    Ready,
+    Failed
+};
 
 struct CatalogPageState {
+    bool loading() const {
+        return status == CatalogPageStatus::Loading;
+    }
+
     std::string query;
     std::shared_ptr<MusicPage> page;
     std::string error;
-    bool loading = false;
+    CatalogPageStatus status = CatalogPageStatus::Idle;
 };
 
 struct CatalogChanges {
     bool home = false;
-    std::string search;
+    std::vector<std::string> searches;
     bool suggestions = false;
     bool library = false;
 };
 
 class CatalogBrowser {
 public:
-    CatalogBrowser();
+    CatalogBrowser() = default;
     void set_session(const YoutubeMusicSession& session);
     const std::vector<MusicItem>& library_playlists() const {
         return m_library;
@@ -62,11 +74,9 @@ public:
 private:
     void queue_page(std::string query);
     void prune_searches();
-    void
-    finish_library(std::uint64_t generation, std::uint64_t request, TaskOutcome<YoutubeResult<std::vector<MusicItem>>> outcome);
-    void finish_home_more(std::uint64_t generation, TaskOutcome<YoutubeResult<MusicPage>> outcome);
-    void finish_page(std::uint64_t generation, std::string query, TaskOutcome<YoutubeResult<MusicPage>> outcome);
-    void finish_suggestions(std::uint64_t generation, std::string query, TaskOutcome<YoutubeResult<MusicSuggestions>> outcome);
+    void load_library_page(std::optional<MusicContinuation> continuation = {});
+    void accept_library(bool first, YoutubeResult<MusicPage> result);
+    void accept_page(std::string query, bool append, YoutubeResult<MusicPage> result);
 
     YoutubeMusicSession m_session;
     CatalogPageState m_home;
@@ -75,14 +85,13 @@ private:
     std::string m_query;
     MusicSuggestions m_suggestions;
     std::vector<MusicItem> m_library;
+    std::unordered_set<std::string> m_library_ids;
+    std::unordered_set<std::string> m_library_tokens;
     TaskQueue& m_tasks = TaskQueue::instance();
-    std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
+    TaskScope m_pages;
+    TaskScope m_library_tasks;
+    TaskScope m_suggestion_tasks;
     CatalogChanges m_changes;
-    std::deque<std::string> m_pages;
     std::string m_suggestion_query;
-    std::uint64_t m_generation = 0;
-    std::uint64_t m_library_request = 0;
-    bool m_page_loading = false;
-    bool m_suggestions_loading = false;
     Debounce m_suggestions_debounce{std::chrono::milliseconds(300)};
 };

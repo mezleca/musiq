@@ -40,13 +40,21 @@ static void add_card_cover(Container& container, const MusicItem& item, Thumbnai
     }
 }
 
-MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails, bool loading)
+MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnails, bool loading, std::size_t number)
     : MusiqButtonWidget("", {grow(), fit()}) {
     set_type_name("MediaCardWidget");
     set_direction(StackDirection::Horizontal);
     set_spacing(10.0f);
     set_content_alignment(Anchor::CenterLeft);
     set_enabled(!loading);
+
+    if (number != 0) {
+        auto& index = add<MusiqText>(std::to_string(number), FontWeight::Regular);
+        index.set_id("index");
+        index.set_size({px(28), fit()});
+        index.set_alignment({0.5f, 0.5f});
+    }
+
     add_card_cover(*this, item, thumbnails, 48.0f, loading);
 
     auto& details = add<Container>("details", StackDirection::Vertical);
@@ -60,14 +68,14 @@ MediaCardWidget::MediaCardWidget(const MusicItem& item, ThumbnailCache& thumbnai
 void MediaCardWidget::apply_theme_defaults(const Theme& theme) {
     MusiqButtonWidget::apply_theme_defaults(theme);
 
-    configure_all_styles([this, &theme](Style& style) {
-        style.padding({8.0f})
-            .background_color(m_selected ? theme.accent_color : theme.background_secondary_color)
-            .border_radius(theme.controls.rounding)
-            .border_thickness(0.0f);
+    configure_all_styles([&theme](Style& style) {
+        style.padding({8.0f}).background_color(theme.transparent).border_radius(theme.controls.rounding).border_thickness(0.0f);
     });
 
-    style(StyleType::HOVER).background_color(m_selected ? theme.accent_hover_color : theme.controls.hover_color);
+    style(StyleType::HOVER).background_color(theme.controls.hover_color);
+    static_cast<MusiqText*>(find("title"))->configure_all_styles([this, &theme](Style& style) {
+        style.color(m_selected ? theme.accent_color : theme.text_color);
+    });
 }
 
 void MediaCardWidget::set_selected(bool selected) {

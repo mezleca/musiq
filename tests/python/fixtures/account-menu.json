@@ -1,0 +1,13 @@
+{
+  "responseContext": {"mainAppWebResponseContext": {"datasyncId": "local-sync-id||channel"}},
+  "actions": [{
+    "openPopupAction": {"popup": {"multiPageMenuRenderer": {
+      "header": {"activeAccountHeaderRenderer": {
+        "accountName": {"simpleText": "Local User"},
+        "channelHandle": {"simpleText": "@local"},
+        "accountPhoto": {"thumbnails": [{"url": "https://example.invalid/avatar"}]},
+        "navigationEndpoint": {"browseEndpoint": {"browseId": "UCLOCAL"}}
+      }}
+    }}}
+  }]
+}

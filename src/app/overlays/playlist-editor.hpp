@@ -46,6 +46,7 @@ protected:
     void event(ui::UiEvent& event) override;
 
 private:
+    void show_form(const std::string& title, const std::string& description, MusicPlaylistPrivacy privacy);
     void pick_cover();
     void submit();
     void refresh_save_button();

@@ -2,8 +2,8 @@
 
 #include <exception>
 #include <expected>
-#include <future>
 #include <string>
+#include <utility>
 
 enum class YoutubeErrorKind {
     Authentication,
@@ -27,10 +27,16 @@ std::unexpected<YoutubeError> youtube_error(YoutubeErrorKind kind, std::string m
 std::unexpected<YoutubeError> youtube_transport_error(long status, int code);
 
 template <typename T>
-YoutubeResult<T> take_result(std::future<YoutubeResult<T>>& task) {
+YoutubeResult<T> youtube_result(std::expected<YoutubeResult<T>, std::exception_ptr> result) {
+    if (result) {
+        return std::move(*result);
+    }
+
     try {
-        return task.get();
+        std::rethrow_exception(result.error());
     } catch (const std::exception& error) {
         return youtube_error(YoutubeErrorKind::Transport, error.what());
+    } catch (...) {
+        return youtube_error(YoutubeErrorKind::Transport, "unknown task failure");
     }
 }

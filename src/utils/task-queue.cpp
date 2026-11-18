@@ -2,6 +2,19 @@
 
 #include <utility>
 
+TaskScope::~TaskScope() {
+    m_stop.request_stop();
+}
+
+void TaskScope::clear() {
+    m_stop.request_stop();
+    m_stop = {};
+}
+
+std::stop_token TaskScope::token() const {
+    return m_stop.get_token();
+}
+
 std::uint64_t TaskQueueState::generation() const {
     std::scoped_lock lock(m_mutex);
     return m_generation;

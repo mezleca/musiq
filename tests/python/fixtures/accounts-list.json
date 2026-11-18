@@ -1,0 +1,18 @@
+{
+  "responseContext": {"mainAppWebResponseContext": {"datasyncId": "local-sync-id||channel"}},
+  "actions": [{
+    "getMultiPageMenuAction": {"menu": {"multiPageMenuRenderer": {"sections": [{
+      "accountSectionListRenderer": {"contents": [{"accountItemSectionRenderer": {"contents": [{
+        "accountItem": {
+          "accountName": {"simpleText": "Local User"},
+          "channelHandle": {"simpleText": "@local"},
+          "isSelected": true,
+          "hasChannel": true,
+          "serviceEndpoint": {"selectActiveIdentityEndpoint": {"supportedTokens": [{
+            "datasyncIdToken": {"datasyncIdToken": "local-sync-id||channel"}
+          }]}}
+        }
+      }]}}]}
+    }]}}}
+  }]
+}

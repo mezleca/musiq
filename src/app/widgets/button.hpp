@@ -21,10 +21,6 @@ public:
     void set_icon(std::string path);
     void set_selected(bool value);
 
-    bool selected() const {
-        return m_selected;
-    }
-
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 

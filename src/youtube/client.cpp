@@ -8,6 +8,7 @@
 #include <iterator>
 #include <cctype>
 #include <algorithm>
+#include <cstdlib>
 #include <utility>
 
 static YoutubeResult<YoutubeResponse> read_response(const cpr::Response& response) {
@@ -25,7 +26,8 @@ static YoutubeResult<YoutubeResponse> read_response(const cpr::Response& respons
     return YoutubeResponse{std::move(data), response.status_code};
 }
 
-YoutubeMusicClient::YoutubeMusicClient(const YoutubeMusicSession& session) : m_session(session) {}
+YoutubeMusicClient::YoutubeMusicClient(const YoutubeMusicSession& session, YoutubeMusicConfig config)
+    : m_session(session), m_config(std::move(config)) {}
 
 YoutubeResult<MusicAccountMenu> YoutubeMusicClient::account_menu(std::string_view identity) const {
     return youtube_parse<MusicAccountMenu>(post("account/account_menu", json::object(), {.auth = MusicAuth::Required}, identity));
@@ -37,7 +39,7 @@ YoutubeResult<MusicAccountsList> YoutubeMusicClient::accounts_list() const {
 
 YoutubeResult<MusicVisitorData> YoutubeMusicClient::visitor_data() const {
     auto response = http::get(
-        "https://music.youtube.com/sw.js_data",
+        std::format("{}/sw.js_data", m_config.web_url),
         {{"User-Agent", std::string(music_client_profile(MusicClient::WebRemix).user_agent)}}
     );
     const auto start = response.text.find('[');
@@ -103,7 +105,9 @@ YoutubeResult<YoutubeResponse> YoutubeMusicClient::post(
     parameters.Add({"prettyPrint", "false"});
 
     return read_response(
-        http::post_json(std::format("{}/{}", MUSIC_API_URL, endpoint), body, std::move(*request_headers), std::move(parameters))
+        http::post_json(
+            std::format("{}/{}", m_config.api_url, endpoint), body, std::move(*request_headers), std::move(parameters)
+        )
     );
 }
 
@@ -131,7 +135,7 @@ YoutubeResult<std::string> YoutubeMusicClient::upload_playlist_thumbnail(const s
     auto request_headers = headers(options);
     if (!request_headers) return std::unexpected(std::move(request_headers.error()));
 
-    constexpr std::string_view endpoint = "https://music.youtube.com/playlist_image_upload/playlist_custom_thumbnail";
+    const auto endpoint = std::format("{}/playlist_image_upload/playlist_custom_thumbnail", m_config.web_url);
     auto handshake_headers = *request_headers;
     handshake_headers["Content-Type"] = "application/x-www-form-urlencoded;charset=utf-8";
     handshake_headers["X-Goog-Upload-Command"] = "start";
@@ -139,7 +143,7 @@ YoutubeResult<std::string> YoutubeMusicClient::upload_playlist_thumbnail(const s
     handshake_headers["X-Goog-Upload-Protocol"] = "resumable";
     auto handshake = http::request({
         .method = HttpMethod::Post,
-        .url = std::string(endpoint),
+        .url = endpoint,
         .headers = std::move(handshake_headers),
         .parameters = {},
         .body = {},
@@ -163,7 +167,7 @@ YoutubeResult<std::string> YoutubeMusicClient::upload_playlist_thumbnail(const s
     upload_headers["X-Goog-Upload-Offset"] = "0";
     auto uploaded = http::request({
         .method = HttpMethod::Post,
-        .url = std::string(endpoint),
+        .url = endpoint,
         .headers = std::move(upload_headers),
         .parameters = {{"upload_id", upload_id->second}, {"upload_protocol", "resumable"}},
         .body = std::move(bytes),

@@ -6,7 +6,7 @@
 #include "../database/settings.hpp"
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
-#include "../webview/login.hpp"
+#include "login.hpp"
 #include "../youtube/client.hpp"
 #include "../youtube/playlists.hpp"
 
@@ -107,7 +107,6 @@ void MusiqApp::build_navigation(Container& content) {
     navigation.configure_all_styles([](Style& style) { style.padding({16.0f}); });
 
     m_back = &navigation.add<MusiqIconButtonWidget>("icons/chevron-left.svg", 36.0f);
-    m_back->set_tooltip("Back");
     m_back->set_enabled(false);
     m_back->on_click([this] {
         if (m_history.back()) {
@@ -116,7 +115,6 @@ void MusiqApp::build_navigation(Container& content) {
     });
 
     m_forward = &navigation.add<MusiqIconButtonWidget>("icons/chevron-right.svg", 36.0f);
-    m_forward->set_tooltip("Forward");
     m_forward->set_enabled(false);
     m_forward->on_click([this] {
         if (m_history.forward()) {
@@ -242,7 +240,7 @@ void MusiqApp::show_page() {
 
 void MusiqApp::prune_pages() {
     while (m_page_order.size() > MAX_PAGES) {
-        const PageRoute oldest = std::move(m_page_order.front());
+        const NavigationRoute oldest = std::move(m_page_order.front());
         m_page_order.erase(m_page_order.begin());
         if (oldest.page == "search") {
             m_pages->remove(*m_searches.at(oldest.query));
@@ -287,10 +285,10 @@ void MusiqApp::update_catalog() {
         m_home->show(m_catalog.home_state());
     }
 
-    if (!changed.search.empty()) {
-        const auto view = m_searches.find(changed.search);
+    for (const auto& query : changed.searches) {
+        const auto view = m_searches.find(query);
         if (view != m_searches.end()) {
-            view->second->show(m_catalog.search_state(changed.search));
+            view->second->show(m_catalog.search_state(query));
             update_tracks(*view->second);
         }
     }
@@ -495,8 +493,8 @@ void MusiqApp::initialize() {
         const auto saved = json::parse(token, nullptr, false);
         if (m_session.restore(saved)) {
             update_profile();
-            m_session.refresh([this](SessionAction action, TaskOutcome<YoutubeResult<void>> outcome) {
-                finish_session(action, std::move(outcome));
+            m_session.refresh([this](SessionAction action, YoutubeResult<void> result) {
+                session_changed(action, std::move(result));
             });
             load_avatar();
             LOG_INFO("[login] restored cached session");

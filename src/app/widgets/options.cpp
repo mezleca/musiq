@@ -83,7 +83,6 @@ void OptionsWidget::apply_theme_defaults(const Theme& theme) {
         style.cursor(ImGuiMouseCursor_Hand);
     });
 
-    apply_selection();
     style(StyleType::HOVER).background_color(theme.controls.hover_color);
     style(StyleType::ACTIVE).background_color(theme.controls.active_color);
 

@@ -32,7 +32,6 @@ if(NOT WIN32)
 endif()
 
 target_compile_definitions(tests PRIVATE
-    MUSIQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
     MUSIQ_INSTALLED_RESOURCE_ROOT="${MUSIQ_INSTALLED_RESOURCE_ROOT}"
 )
 
@@ -51,4 +50,9 @@ endif()
 catch_discover_tests(tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:tests>"
     DISCOVERY_MODE PRE_TEST
+)
+
+add_test(
+    NAME youtube_endpoint_tests
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/python/server.py" "$<TARGET_FILE:tests>"
 )

@@ -109,7 +109,7 @@ void CatalogResultsWidget::show(const CatalogPageState& state) {
     rebuild(m_shelf_count);
     m_shelf_count = m_page ? m_page->shelves.size() : 0;
 
-    if (state.loading && !m_page) {
+    if (state.loading() && !m_page) {
         if (m_rows->find("loading") == nullptr) {
             auto& tracks = m_rows->add<TrackList>("loading");
             tracks.set_size({grow(), fit()});
@@ -127,7 +127,7 @@ void CatalogResultsWidget::show(const CatalogPageState& state) {
 
     if (!state.error.empty()) {
         status = state.error;
-    } else if (state.loading) {
+    } else if (state.loading()) {
         if (state.page) status = "Loading...";
     } else if (!state.page && state.query.empty()) {
         status = "Type a query and press Enter.";

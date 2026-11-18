@@ -34,8 +34,7 @@ cpr::Response http::request(const HttpRequest& request) {
         }});
     }
 
-    if (!request.body.empty() || request.method == HttpMethod::Post || request.method == HttpMethod::Put ||
-        request.method == HttpMethod::Patch) {
+    if (!request.body.empty() || request.method == HttpMethod::Post) {
         session.SetBody(cpr::Body{request.body});
     }
 
@@ -46,18 +45,6 @@ cpr::Response http::request(const HttpRequest& request) {
             break;
         case HttpMethod::Post:
             response = session.Post();
-            break;
-        case HttpMethod::Put:
-            response = session.Put();
-            break;
-        case HttpMethod::Patch:
-            response = session.Patch();
-            break;
-        case HttpMethod::Delete:
-            response = session.Delete();
-            break;
-        case HttpMethod::Head:
-            response = session.Head();
             break;
         default:
             throw std::invalid_argument("unsupported HTTP method");

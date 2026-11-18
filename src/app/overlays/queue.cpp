@@ -23,7 +23,6 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
     title.set_size({grow(), fit()});
 
     auto& close = heading.add<MusiqIconButtonWidget>("icons/close.svg");
-    close.set_tooltip("Close queue");
     close.on_click([this] { set_visible(false); });
 
     m_status = &panel.add<MusiqText>("");
@@ -40,7 +39,6 @@ QueueOverlay::QueueOverlay(PlaybackController& playback, ThumbnailCache& thumbna
         card.on_click([this, id = entry.id] { m_playback.queue().select(id); });
 
         auto& remove = card.add<MusiqIconButtonWidget>("icons/close.svg");
-        remove.set_tooltip("Remove from queue");
         remove.on_event(EventType::Click, [this, id = entry.id](UiEvent& event) {
             m_playback.remove(id);
             event.stop_propagation();
@@ -95,15 +93,4 @@ void QueueOverlay::refresh(bool entries_changed) {
     m_status->set_text(std::move(status));
 
     m_more->set_enabled(current && !m_playback.loading());
-}
-
-void QueueOverlay::event(UiEvent& event) {
-    const bool escape = event.type == EventType::Cancel || (event.type == EventType::KeyDown && event.key == ImGuiKey_Escape);
-    const bool outside = event.type == EventType::PointerDown && event.button == PointerButton::Left &&
-                         !content().layout().visual_rect().contains(event.position);
-    if (escape || outside) {
-        set_visible(false);
-        event.block_native_input();
-        event.stop_propagation();
-    }
 }

@@ -10,7 +10,7 @@
 #include <utility>
 
 // webview pulls in x11 macros that conflict with arbor enum names
-#include "webview.hpp"
+#include "../webview/webview.hpp"
 
 class BrowserGraphicsScope final {
 public:

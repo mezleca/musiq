@@ -72,14 +72,18 @@ const MusicThumbnail* utils::media::select_thumbnail(std::span<const MusicThumbn
     return selected;
 }
 
-std::string utils::media::fetch_thumbnail(const std::string& url) {
+std::string utils::media::fetch_thumbnail(const std::string& url, std::stop_token stop) {
     HttpRequest request;
     request.url = url;
     request.timeout = std::chrono::seconds(10);
     request.connect_timeout = std::chrono::seconds(5);
     request.follow_redirects = true;
+    request.stop = stop;
 
     auto response = http::request(request);
+    if (stop.stop_requested()) {
+        return {};
+    }
     if (!http::successful(response)) {
         LOG_ERROR(
             "[artwork] thumbnail download failed (status={}, transport={}): {}", response.status_code,

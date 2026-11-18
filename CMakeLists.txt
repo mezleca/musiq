@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(musiq VERSION 0.6.0 LANGUAGES C CXX)
+project(musiq VERSION 0.6.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,6 +53,7 @@ if(MUSIQ_BUILD_TESTS)
     list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
     include(Catch)
     include(CTest)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
     add_subdirectory(tests)
 endif()
 

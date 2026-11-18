@@ -12,8 +12,9 @@ namespace ui {
 }
 
 struct ThumbnailRequest {
-    std::string bytes;
+    std::unique_ptr<ui::Texture> texture;
     bool complete = false;
+    TaskScope scope;
 };
 
 class ThumbnailCache {

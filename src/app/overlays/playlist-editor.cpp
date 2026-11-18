@@ -23,7 +23,6 @@ public:
         set_size({px(160), px(160)});
         set_fit(ImageFit::Cover);
         set_input_mode(InputMode::Target);
-        set_tooltip("Choose cover");
     }
 
     std::function<void()> on_pick;
@@ -101,20 +100,7 @@ PlaylistEditorOverlay::PlaylistEditorOverlay(Save save) : ModalOverlay("playlist
 void PlaylistEditorOverlay::show_create() {
     m_mode = PlaylistEditorMode::Save;
     m_id.clear();
-    m_privacy = MusicPlaylistPrivacy::Private;
-    m_privacy_value = std::string(playlist_privacy_value(m_privacy));
-    m_cover_path.clear();
-    m_cover->set_texture(TextureHandle{});
-    m_title->set_value({});
-    m_description->set_value({});
-    m_visibility->select_value(m_privacy_value);
-
-    set_busy(false);
-    m_status->set_text({});
-    m_status->set_visible(false);
-
-    set_visible(true);
-    m_title->focus();
+    show_form({}, {}, MusicPlaylistPrivacy::Private);
 }
 
 void PlaylistEditorOverlay::show_edit(const MusicPlaylist& playlist) {
@@ -123,13 +109,17 @@ void PlaylistEditorOverlay::show_edit(const MusicPlaylist& playlist) {
     m_original_title = playlist.title;
     m_original_description = playlist.description;
     m_original_privacy = playlist.privacy;
-    m_privacy = playlist.privacy;
+    show_form(playlist.title, playlist.description, playlist.privacy);
+}
+
+void PlaylistEditorOverlay::show_form(const std::string& title, const std::string& description, MusicPlaylistPrivacy privacy) {
+    m_privacy = privacy;
     m_privacy_value = std::string(playlist_privacy_value(m_privacy));
     m_cover_path.clear();
     m_cover->set_texture(TextureHandle{});
 
-    m_title->set_value(playlist.title);
-    m_description->set_value(playlist.description);
+    m_title->set_value(title);
+    m_description->set_value(description);
     m_visibility->select_value(m_privacy_value);
 
     set_busy(false);
@@ -232,17 +222,7 @@ void PlaylistEditorOverlay::refresh_save_button() {
 }
 
 void PlaylistEditorOverlay::event(UiEvent& event) {
-    if (m_busy) {
+    if (!m_busy) {
         ModalOverlay::event(event);
-        return;
-    }
-
-    const bool escape = event.type == EventType::Cancel || (event.type == EventType::KeyDown && event.key == ImGuiKey_Escape);
-    const bool outside = event.type == EventType::PointerDown && event.button == PointerButton::Left &&
-                         !content().layout().visual_rect().contains(event.position);
-    if (escape || outside) {
-        set_visible(false);
-        event.block_native_input();
-        event.stop_propagation();
     }
 }

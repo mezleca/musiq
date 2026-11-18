@@ -9,8 +9,6 @@
 
 using namespace utils::media;
 
-PlaylistBrowser::PlaylistBrowser() = default;
-
 static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& session, const MusicItem& item) {
     const YoutubeMusicClient client(session);
 
@@ -41,101 +39,83 @@ static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& ses
 }
 
 bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& item, bool reload) {
-    if (m_loaded && !reload) return false;
+    if (m_state != PlaylistState::Idle && !reload) return false;
 
-    m_loaded = true;
     m_playlist = {};
-    m_appending = false;
     m_error.clear();
     m_session = session;
-    m_loading = true;
-    m_changed = false;
-    const auto generation = ++m_generation;
-    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_state = PlaylistState::Loading;
+    m_change = PlaylistChange::None;
+    m_scope.clear();
+
     m_tasks.enqueue(
-        [session = m_session, item] { return read_playlist(session, item); },
-        [this, generation, lifetime](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
-            if (lifetime.expired()) {
-                return;
-            }
-            accept_task(generation, std::move(outcome));
-        }
+        m_scope, [session = m_session, item] { return read_playlist(session, item); },
+        [this](auto result) { accept(youtube_result(std::move(result))); }
     );
+
     return true;
 }
 
 void PlaylistBrowser::invalidate() {
-    m_loaded = false;
-    ++m_generation;
-    m_loading = false;
-    m_changed = false;
+    m_scope.clear();
+    m_state = PlaylistState::Idle;
+    m_change = PlaylistChange::None;
 }
 
-void PlaylistBrowser::load_more() {
-    m_appending = true;
+bool PlaylistBrowser::load_more() {
+    if (m_state != PlaylistState::Ready || !m_playlist.continuation) return false;
+
+    m_state = PlaylistState::Appending;
     m_error.clear();
-    m_loading = true;
-    m_changed = false;
-    const auto generation = ++m_generation;
-    const std::weak_ptr<int> lifetime = m_lifetime;
+    m_change = PlaylistChange::None;
+    m_scope.clear();
+
     m_tasks.enqueue(
+        m_scope,
         [session = m_session, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
             const YoutubeMusicClient client(session);
             auto page = YoutubeMusicPlaylists(client).more(continuation);
             if (!page) {
                 return std::unexpected(std::move(page.error()));
             }
+
             MusicPlaylist result;
             result.tracks = std::move(page->tracks);
             result.continuation = std::move(page->continuation);
             return result;
         },
-        [this, generation, lifetime](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
-            if (lifetime.expired()) {
-                return;
-            }
-            accept_task(generation, std::move(outcome));
-        }
+        [this](auto result) { accept(youtube_result(std::move(result))); }
     );
+
+    return true;
 }
 
-bool PlaylistBrowser::poll() {
-    return std::exchange(m_changed, false);
+PlaylistChange PlaylistBrowser::poll() {
+    return std::exchange(m_change, PlaylistChange::None);
 }
 
-void PlaylistBrowser::accept_task(std::uint64_t generation, TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
-    if (generation != m_generation) {
-        return;
-    }
-
-    m_loading = false;
-    m_changed = true;
-    if (!outcome) {
-        m_error = "Playlist request failed.";
-        LOG_ERROR("[playlist] page failed: {}", m_error);
-        return;
-    }
-
-    auto result = std::move(*outcome);
+void PlaylistBrowser::accept(YoutubeResult<MusicPlaylist> result) {
     if (!result) {
+        m_change = PlaylistChange::Failed;
+        m_state = PlaylistState::Failed;
         m_error = result.error().message;
         LOG_ERROR("[playlist] page failed: {}", m_error);
         return;
     }
 
-    accept_page(std::move(*result));
-}
-
-void PlaylistBrowser::accept_page(MusicPlaylist page) {
+    auto page = std::move(*result);
     std::erase_if(page.tracks, [](const MusicItem& track) { return !is_playable(track); });
-    if (!m_appending) {
+
+    if (m_state == PlaylistState::Loading) {
+        m_change = PlaylistChange::Loaded;
         m_playlist = std::move(page);
-        return;
+    } else {
+        m_change = PlaylistChange::Appended;
+        for (auto& track : page.tracks) {
+            m_playlist.tracks.push_back(std::move(track));
+        }
+        m_playlist.continuation = std::move(page.continuation);
     }
 
-    for (auto& track : page.tracks) {
-        m_playlist.tracks.push_back(std::move(track));
-    }
-
-    m_playlist.continuation = std::move(page.continuation);
+    m_state = PlaylistState::Ready;
 }

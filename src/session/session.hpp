@@ -4,7 +4,6 @@
 #include "../youtube/session.hpp"
 
 #include <functional>
-#include <cstdint>
 #include <string>
 
 enum class SessionAction {
@@ -13,11 +12,18 @@ enum class SessionAction {
     Channels
 };
 
+enum class SessionState {
+    SignedOut,
+    Authenticating,
+    Refreshing,
+    LoadingChannels,
+    SelectingChannel,
+    Ready
+};
+
 class MusiqSession {
 public:
-    using Completion = std::function<void(SessionAction, TaskOutcome<YoutubeResult<void>>)>;
-
-    void run(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> operation, Completion completion);
+    using Completion = std::function<void(SessionAction, YoutubeResult<void>)>;
 
     const YoutubeMusicSession& youtube() const {
         return m_youtube;
@@ -29,19 +35,16 @@ public:
     void load_channels(Completion completion);
     void logout();
 
-    bool running() const {
-        return m_running;
-    }
-
-    SessionAction action() const {
-        return m_action;
+    bool running() const;
+    SessionState state() const {
+        return m_state;
     }
 
 private:
+    void run(SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> operation, Completion completion);
+
     YoutubeMusicSession m_youtube;
     TaskQueue& m_tasks = TaskQueue::instance();
-    std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
-    SessionAction m_action = SessionAction::SignIn;
-    std::uint64_t m_generation = 0;
-    bool m_running = false;
+    TaskScope m_scope;
+    SessionState m_state = SessionState::SignedOut;
 };

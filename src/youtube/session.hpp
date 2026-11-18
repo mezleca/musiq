@@ -1,6 +1,7 @@
 #pragma once
 
 #include "schema/account.hpp"
+#include "config.hpp"
 #include "error.hpp"
 
 #include <cpr/cprtypes.h>
@@ -21,9 +22,9 @@ public:
 
     bool restore(const json& data);
     json snapshot() const;
-    YoutubeResult<void> authenticate(std::string cookies, std::string_view identity = {});
-    YoutubeResult<void> select_identity(std::string_view identity);
-    YoutubeResult<void> load_identities();
+    YoutubeResult<void> authenticate(std::string cookies, std::string_view identity = {}, YoutubeMusicConfig config = {});
+    YoutubeResult<void> select_identity(std::string_view identity, YoutubeMusicConfig config = {});
+    YoutubeResult<void> load_identities(YoutubeMusicConfig config = {});
 
     std::optional<cpr::Header> authentication_headers() const;
 

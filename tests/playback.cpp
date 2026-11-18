@@ -14,6 +14,7 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
         REQUIRE_FALSE(queue.take_repeat());
         REQUIRE(queue.loop() == LoopMode::None);
     }
+
     SECTION("track repeat survives repeated ends and manual navigation") {
         queue.set_loop(LoopMode::Track);
         REQUIRE(queue.take_repeat());
@@ -23,6 +24,7 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
         queue.set_loop(LoopMode::None);
         REQUIRE_FALSE(queue.take_repeat());
     }
+
     SECTION("playlist repeat wraps to the first entry") {
         const auto first = queue.current()->id;
         queue.set_loop(LoopMode::Playlist);
@@ -32,6 +34,7 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
         REQUIRE(queue.advance());
         REQUIRE(queue.current()->id == first);
     }
+
     SECTION("one-entry playlists repeat even when shuffle is enabled") {
         queue.replace({song});
         queue.set_loop(LoopMode::Playlist);
@@ -40,11 +43,13 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
         REQUIRE(queue.advance());
         REQUIRE(queue.position() == 0);
     }
+
     SECTION("replacing the queue preserves continuous repeat") {
         queue.set_loop(LoopMode::Track);
         queue.replace({song});
         REQUIRE(queue.loop() == LoopMode::Track);
     }
+
     SECTION("selecting a track preserves a previously chosen once mode") {
         queue.set_loop(LoopMode::Once);
         queue.replace({song});
@@ -52,6 +57,7 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
         REQUIRE(queue.take_repeat());
         REQUIRE(queue.loop() == LoopMode::None);
     }
+
     SECTION("manual navigation preserves once until it is consumed") {
         queue.set_loop(LoopMode::Once);
         queue.advance();

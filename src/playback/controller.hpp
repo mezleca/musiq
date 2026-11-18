@@ -23,7 +23,6 @@ struct PlaybackPage {
 class PlaybackController {
 public:
     explicit PlaybackController(MpvPlayer& player);
-    ~PlaybackController();
 
     PlaybackController(const PlaybackController&) = delete;
     PlaybackController& operator=(const PlaybackController&) = delete;
@@ -67,8 +66,8 @@ private:
     void update_player();
     void switch_track(const QueueEntry* track);
     void resolve_current();
-    void finish_page(std::uint64_t generation, TaskOutcome<YoutubeResult<PlaybackPage>> outcome);
-    void finish_stream(std::uint64_t generation, TaskOutcome<YoutubeResult<AudioSource>> outcome);
+    void append_page(YoutubeResult<PlaybackPage> page);
+    void load_stream(YoutubeResult<AudioSource> source);
     void update_media_session();
 
     MpvPlayer& m_player;
@@ -77,15 +76,13 @@ private:
     std::shared_ptr<YoutubeMediaStream> m_media_stream;
     PlaybackQueue m_queue;
     TaskQueue& m_tasks = TaskQueue::instance();
-    std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
+    TaskScope m_page_tasks;
+    TaskScope m_stream_tasks;
     std::optional<MusicContinuation> m_continuation;
     std::string m_error;
     bool m_changed = false;
-    std::uint64_t m_page_generation = 0;
-    std::uint64_t m_stream_generation = 0;
     bool m_page_loading = false;
     bool m_resolving = false;
-    std::stop_source m_resolve_stop;
     std::uint64_t m_track_id = 0;
     std::string m_audio_error;
     bool m_at_end = false;

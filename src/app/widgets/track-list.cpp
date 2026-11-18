@@ -13,8 +13,9 @@ TrackList::TrackList(std::string id) : VirtualLayout(std::move(id), 64.0f) {
     set_type_name("TrackList");
 }
 
-MediaCardWidget& TrackList::add_track(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails, bool loading) {
-    auto& card = add<MediaCardWidget>(item, thumbnails, loading);
+MediaCardWidget&
+TrackList::add_track(std::uint64_t key, const MusicItem& item, ThumbnailCache& thumbnails, bool loading, std::size_t number) {
+    auto& card = add<MediaCardWidget>(item, thumbnails, loading, number);
     card.set_id(std::to_string(key));
     card.set_selected(!m_current.empty() && m_current == item.endpoint.video_id);
     m_rows.emplace(key, TrackRow{item.endpoint.video_id, &card, m_update});

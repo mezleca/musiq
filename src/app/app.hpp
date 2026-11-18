@@ -2,8 +2,8 @@
 
 #include "../youtube/session.hpp"
 #include "../youtube/catalog-browser.hpp"
-#include "page-history.hpp"
-#include "musiq-session.hpp"
+#include "../utils/navigation-history.hpp"
+#include "../session/session.hpp"
 #include "resources/thumbnails.hpp"
 #include "overlays/channel-picker.hpp"
 #include "overlays/playlist-editor.hpp"
@@ -50,7 +50,7 @@ private:
     void load_avatar();
     void cancel_channel_selection();
     void update_session();
-    void finish_session(SessionAction action, TaskOutcome<YoutubeResult<void>> outcome);
+    void session_changed(SessionAction action, YoutubeResult<void> result);
     void update_profile();
     void refresh_profile();
 
@@ -81,14 +81,14 @@ private:
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
     PlaylistEditorOverlay* m_playlist_editor = nullptr;
-    PageHistory m_history;
+    NavigationHistory m_history;
     TaskQueue& m_tasks = TaskQueue::instance();
     CatalogBrowser m_catalog;
     CatalogResultsWidget* m_home = nullptr;
     std::unordered_map<std::string, CatalogResultsWidget*> m_searches;
     std::unordered_map<std::string, PlaylistOverlay*> m_playlists;
     std::unordered_map<std::string, MusicItem> m_playlist_items;
-    std::vector<PageRoute> m_page_order;
+    std::vector<NavigationRoute> m_page_order;
     ui::Container* m_pages = nullptr;
     ui::Container* m_current_page = nullptr;
     MusiqButtonWidget* m_back = nullptr;

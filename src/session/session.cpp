@@ -1,10 +1,17 @@
-#include "musiq-session.hpp"
+#include "session.hpp"
 #include "../database/cache.hpp"
 
 #include <utility>
 
 bool MusiqSession::restore(const json& data) {
-    return m_youtube.restore(data);
+    const bool restored = m_youtube.restore(data);
+    m_state = restored ? SessionState::Ready : SessionState::SignedOut;
+    return restored;
+}
+
+bool MusiqSession::running() const {
+    return m_state == SessionState::Authenticating || m_state == SessionState::Refreshing ||
+           m_state == SessionState::LoadingChannels;
 }
 
 void MusiqSession::authenticate(std::string token, std::string identity, Completion completion) {
@@ -30,8 +37,8 @@ void MusiqSession::load_channels(Completion completion) {
 }
 
 void MusiqSession::logout() {
-    ++m_generation;
-    m_running = false;
+    m_scope.clear();
+    m_state = SessionState::SignedOut;
     m_youtube = YoutubeMusicSession{};
     MusiqCache::instance().erase_prefix("auth.");
 }
@@ -39,11 +46,22 @@ void MusiqSession::logout() {
 void MusiqSession::run(
     SessionAction action, std::function<YoutubeResult<void>(YoutubeMusicSession&)> operation, Completion completion
 ) {
-    const auto generation = ++m_generation;
-    const std::weak_ptr<int> lifetime = m_lifetime;
-    m_action = action;
-    m_running = true;
+    m_scope.clear();
+
+    switch (action) {
+        case SessionAction::SignIn:
+            m_state = SessionState::Authenticating;
+            break;
+        case SessionAction::Refresh:
+            m_state = SessionState::Refreshing;
+            break;
+        case SessionAction::Channels:
+            m_state = SessionState::LoadingChannels;
+            break;
+    }
+
     m_tasks.enqueue(
+        m_scope,
         [session = m_youtube, operation = std::move(operation)]() mutable -> YoutubeResult<YoutubeMusicSession> {
             auto result = operation(session);
             if (!result) {
@@ -51,28 +69,21 @@ void MusiqSession::run(
             }
             return session;
         },
-        [this, action, generation, lifetime,
-         completion = std::move(completion)](TaskOutcome<YoutubeResult<YoutubeMusicSession>> outcome) mutable {
-            if (lifetime.expired() || generation != m_generation) {
-                return;
-            }
-            m_running = false;
-            if (!outcome) {
-                completion(action, std::unexpected(outcome.error()));
-                return;
+        [this, action, completion = std::move(completion)](auto outcome) {
+            auto session = youtube_result(std::move(outcome));
+            if (session) {
+                m_youtube = std::move(*session);
+                if (m_youtube.user()) {
+                    MusiqCache::instance().set("auth.session", m_youtube.snapshot().dump());
+                }
             }
 
-            auto session = std::move(*outcome);
-            if (!session) {
-                completion(action, YoutubeResult<void>(std::unexpected(std::move(session.error()))));
-                return;
-            }
-
-            m_youtube = std::move(*session);
-            if (m_youtube.user()) {
-                MusiqCache::instance().set("auth.session", m_youtube.snapshot().dump());
-            }
-            completion(action, YoutubeResult<void>{});
+            m_state = m_youtube.user()              ? SessionState::Ready
+                      : m_youtube.has_credentials() ? SessionState::SelectingChannel
+                                                    : SessionState::SignedOut;
+            completion(
+                action, session ? YoutubeResult<void>{} : YoutubeResult<void>(std::unexpected(std::move(session.error())))
+            );
         }
     );
 }

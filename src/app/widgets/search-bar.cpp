@@ -117,7 +117,6 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
 
     auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("icons/close.svg");
     clear.set_id("clear-search");
-    clear.set_tooltip("Clear search");
     clear.on_click([this] {
         replace_query({});
         m_input->focus();

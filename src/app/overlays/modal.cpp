@@ -15,6 +15,17 @@ ModalOverlay::ModalOverlay(std::string id) : LayerContainer(std::move(id)) {
     m_content->set_spacing(12.0f);
 }
 
+void ModalOverlay::event(UiEvent& event) {
+    const bool escape = event.type == EventType::Cancel || (event.type == EventType::KeyDown && event.key == ImGuiKey_Escape);
+    const bool outside = event.type == EventType::PointerDown && event.button == PointerButton::Left &&
+                         !content().layout().visual_rect().contains(event.position);
+    if (escape || outside) {
+        set_visible(false);
+        event.block_native_input();
+        event.stop_propagation();
+    }
+}
+
 void ModalOverlay::apply_theme_defaults(const Theme& theme) {
     LayerContainer::apply_theme_defaults(theme);
 
