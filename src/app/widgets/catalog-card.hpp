@@ -1,6 +1,7 @@
 #pragma once
 
 #include "button.hpp"
+#include "context-menu.hpp"
 #include <cstddef>
 
 struct MusicItem;
@@ -15,12 +16,15 @@ protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 
 private:
+    const bool m_numbered;
     bool m_selected = false;
 };
 
 class PlaylistCardWidget final : public MusiqButtonWidget {
 public:
-    PlaylistCardWidget(const MusicItem& item, ThumbnailCache& thumbnails, bool loading = false);
+    explicit PlaylistCardWidget(
+        const MusicItem& item, ThumbnailCache& thumbnails, OpenMenu menu = {}, std::function<void()> play = {}
+    );
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;

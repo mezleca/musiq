@@ -1,3 +1,4 @@
+#include "../src/utils/navigation-history.hpp"
 #include "../src/utils/task-queue.hpp"
 #include "../src/utils/thread-pool.hpp"
 
@@ -6,6 +7,28 @@
 #include <chrono>
 #include <stdexcept>
 #include <thread>
+
+TEST_CASE("discarding a playlist route removes it from back and forward history", "[navigation]") {
+    NavigationHistory history;
+    const NavigationRoute playlist{"playlist", "VLdeleted"};
+    const NavigationRoute search{"search", "query"};
+    history.visit(playlist);
+    history.visit(search);
+    history.visit(playlist);
+    history.visit({"settings", {}});
+    REQUIRE(history.back());
+
+    history.discard(history.current());
+
+    CHECK(history.current() == search);
+    REQUIRE(history.back());
+    CHECK(history.current().page == "home");
+    REQUIRE(history.forward());
+    CHECK(history.current() == search);
+    REQUIRE(history.forward());
+    CHECK(history.current().page == "settings");
+    CHECK_FALSE(history.can_forward());
+}
 
 TEST_CASE("thread pool drains work and preserves task errors", "[thread-pool]") {
     std::vector<std::future<int>> pending;

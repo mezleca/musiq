@@ -4,6 +4,12 @@
 #include "continuation.hpp"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
+
+std::string playlist_browse_id(std::string_view playlist_id);
+// the returned view borrows the input storage
+std::string_view playlist_write_id(std::string_view playlist_id);
 
 enum class MusicPlaylistPrivacy : uint8_t {
     Private,
@@ -54,6 +60,7 @@ struct MusicPlaylistUpdateRequest {
     std::optional<MusicPlaylistPrivacy> privacy;
     std::optional<std::filesystem::path> thumbnail_path;
     std::optional<std::string> thumbnail_blob_id;
+    bool remove_thumbnail = false;
 };
 
 struct MusicPlaylistCreated {
@@ -76,6 +83,10 @@ struct MusicPlaylistPage {
     std::optional<MusicContinuation> continuation;
 };
 
+struct MusicPlaylistRecommendations {
+    std::vector<MusicItem> tracks;
+};
+
 // ref: https://ytmusicapi.readthedocs.io/en/stable/reference/playlists.html#ytmusicapi.YTMusic.get_playlist
 struct MusicPlaylist {
     std::string id;
@@ -92,6 +103,7 @@ struct MusicPlaylist {
     std::vector<MusicThumbnail> thumbnails;
     std::vector<MusicItem> tracks;
     std::optional<MusicContinuation> continuation;
+    std::optional<MusicContinuation> recommendations_continuation;
 };
 
 void to_json(json& data, const MusicPlaylistRequest& value);
@@ -100,6 +112,7 @@ void to_json(json& data, const MusicPlaylistAddRequest& value);
 void to_json(json& data, const MusicPlaylistRemoveRequest& value);
 void to_json(json& data, const MusicPlaylistUpdateRequest& value);
 void from_json(const json& data, MusicPlaylistPage& value);
+void from_json(const json& data, MusicPlaylistRecommendations& value);
 void from_json(const json& data, MusicPlaylist& value);
 void from_json(const json& data, MusicPlaylistCreated& value);
 void from_json(const json& data, MusicPlaylistEditResult& value);

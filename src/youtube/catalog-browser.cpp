@@ -36,6 +36,7 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
 
 void CatalogBrowser::refresh_library() {
     m_library_tasks.clear();
+    m_pending_library.clear();
     m_library_ids.clear();
     m_library_tokens.clear();
 
@@ -49,25 +50,23 @@ void CatalogBrowser::refresh_library() {
 }
 
 void CatalogBrowser::load_library_page(std::optional<MusicContinuation> continuation) {
-    const bool first = !continuation;
-
-    // fetch one page per task so the sidebar can show it before the next request finishes
     m_tasks.enqueue(
         m_library_tasks,
         [session = m_session, continuation = std::move(continuation)] {
             const YoutubeMusicClient client(session);
             return continuation ? YoutubeMusicCatalog(client).more(*continuation) : YoutubeMusicPlaylists(client).library();
         },
-        [this, first](auto result) { accept_library(first, youtube_result(std::move(result))); }
+        [this](auto result) { accept_library(youtube_result(std::move(result))); }
     );
 }
 
 void CatalogBrowser::remove_playlist(std::string_view browse_id) {
-    const auto playlist_id = browse_id.starts_with("VL") ? browse_id.substr(2) : browse_id;
-    std::erase_if(m_library, [playlist_id](const MusicItem& item) {
-        const std::string_view id = item.endpoint.browse_id;
-        return id == playlist_id || (id.starts_with("VL") && id.substr(2) == playlist_id);
-    });
+    const auto id = playlist_browse_id(browse_id);
+    const auto matches = [&id](const MusicItem& item) { return item.endpoint.browse_id == id; };
+    std::erase_if(m_library, matches);
+    std::erase_if(m_pending_library, matches);
+    m_library_ids.insert(id);
+    m_changes.library = true;
 }
 
 const CatalogPageState& CatalogBrowser::search_state(const std::string& query) const {
@@ -142,16 +141,11 @@ void CatalogBrowser::prune_searches() {
     }
 }
 
-void CatalogBrowser::accept_library(bool first, YoutubeResult<MusicPage> result) {
-    m_changes.library = true;
+void CatalogBrowser::accept_library(YoutubeResult<MusicPage> result) {
     if (!result) {
+        m_pending_library.clear();
         LOG_WARN("[catalog] library playlists failed: {}", result.error().message);
         return;
-    }
-
-    // keep the previous list until the first replacement page arrives
-    if (first) {
-        m_library.clear();
     }
 
     auto continuation = std::move(result->continuation);
@@ -159,7 +153,7 @@ void CatalogBrowser::accept_library(bool first, YoutubeResult<MusicPage> result)
         for (auto& item : shelf.items) {
             const auto& id = item.endpoint.browse_id;
             if (id.starts_with("VL") && m_library_ids.insert(id).second) {
-                m_library.push_back(std::move(item));
+                m_pending_library.push_back(std::move(item));
             }
         }
         if (!continuation && shelf.continuation) {
@@ -168,12 +162,16 @@ void CatalogBrowser::accept_library(bool first, YoutubeResult<MusicPage> result)
     }
 
     if (continuation) {
-        if (!m_library_tokens.insert(continuation->token).second) {
-            LOG_WARN("[catalog] repeated library continuation");
+        if (m_library_tokens.insert(continuation->token).second) {
+            load_library_page(std::move(continuation));
             return;
         }
-        load_library_page(std::move(continuation));
+        LOG_WARN("[catalog] repeated library continuation");
     }
+
+    // publishing partial pages would temporarily remove unchanged sidebar entries
+    m_library = std::move(m_pending_library);
+    m_changes.library = true;
 }
 
 void CatalogBrowser::accept_page(std::string query, bool append, YoutubeResult<MusicPage> result) {

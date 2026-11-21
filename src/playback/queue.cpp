@@ -15,6 +15,8 @@ void PlaybackQueue::changed() {
 }
 
 void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source) {
+    if (matches(tracks, source)) return;
+
     m_source = std::move(source);
 
     m_entries.clear();
@@ -41,12 +43,41 @@ void PlaybackQueue::play_next(MusicItem track) {
     changed();
 }
 
+void PlaybackQueue::extend(std::vector<MusicItem> tracks) {
+    if (tracks.empty()) {
+        return;
+    }
+
+    m_entries.reserve(m_entries.size() + tracks.size());
+    for (auto& track : tracks) {
+        m_entries.push_back({m_next_id++, std::move(track)});
+    }
+
+    changed();
+}
+
 const QueueEntry* PlaybackQueue::current() const {
     return m_entries.empty() ? nullptr : &m_entries[m_position];
 }
 
 std::size_t PlaybackQueue::remaining() const {
     return m_entries.empty() ? 0 : m_entries.size() - m_position - 1;
+}
+
+bool PlaybackQueue::matches(const std::vector<MusicItem>& tracks, std::string_view source) const {
+    return !source.empty() && m_source == source &&
+           std::ranges::equal(m_entries, tracks, [](const QueueEntry& entry, const MusicItem& track) {
+               return entry.media.endpoint.video_id == track.endpoint.video_id &&
+                      entry.media.playlist_set_video_id == track.playlist_set_video_id;
+           });
+}
+
+bool PlaybackQueue::matches_prefix(const std::vector<MusicItem>& tracks, std::string_view source) const {
+    return !source.empty() && m_source == source && tracks.size() <= m_entries.size() &&
+           std::equal(tracks.begin(), tracks.end(), m_entries.begin(), [](const MusicItem& track, const QueueEntry& entry) {
+               return track.endpoint.video_id == entry.media.endpoint.video_id &&
+                      track.playlist_set_video_id == entry.media.playlist_set_video_id;
+           });
 }
 
 void PlaybackQueue::select(std::uint64_t id) {

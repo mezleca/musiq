@@ -36,7 +36,7 @@ target_compile_definitions(tests PRIVATE
 )
 
 if(MSVC)
-    target_compile_options(tests PRIVATE /utf-8 /Zc:preprocessor)
+    target_compile_options(tests PRIVATE /utf-8 $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
     target_compile_definitions(tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
@@ -55,4 +55,9 @@ catch_discover_tests(tests
 add_test(
     NAME youtube_endpoint_tests
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/python/server.py" "$<TARGET_FILE:tests>"
+)
+
+add_test(
+    NAME playlist_recommendations_endpoint_tests
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/python/playlist-recommendations.py" "$<TARGET_FILE:tests>"
 )

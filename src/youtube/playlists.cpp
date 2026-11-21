@@ -33,14 +33,31 @@ YoutubeResult<MusicPlaylist> YoutubeMusicPlaylists::get(std::string_view playlis
     const auto resolved = m_client.request_options(options);
     auto result = youtube_parse<MusicPlaylist>(m_client.post("browse", MusicPlaylistRequest{std::string(playlist_id)}, resolved));
     if (result) {
-        if (result->id.empty()) result->id = playlist_id.starts_with("VL") ? playlist_id.substr(2) : playlist_id;
+        if (result->id.empty()) result->id = playlist_write_id(playlist_id);
         if (result->continuation) result->continuation->set_scope(MusicRoute::Playlist, resolved, m_client.identity());
+        if (result->recommendations_continuation) {
+            result->recommendations_continuation->set_scope(MusicRoute::Playlist, resolved, m_client.identity());
+        }
         LOG_INFO("[playlist] loaded {} (tracks={})", result->id, result->tracks.size());
-    } else {
-        LOG_ERROR("[playlist] load failed: {} (status={})", result.error().message, result.error().status);
     }
 
     return result;
+}
+
+YoutubeResult<MusicPlaylistRecommendations>
+YoutubeMusicPlaylists::recommendations(std::string_view playlist_id, const MusicContinuation& continuation) const {
+    if (playlist_id.empty() || continuation.route != MusicRoute::Playlist) {
+        return youtube_error(YoutubeErrorKind::Api, "playlist recommendations require a playlist continuation");
+    }
+    if (!continuation.owned_by(m_client.identity())) {
+        return youtube_error(YoutubeErrorKind::Authentication, "continuation belongs to another channel");
+    }
+
+    // playlist suggestions follow the section-list token with the original browse body
+    return youtube_parse<MusicPlaylistRecommendations>(m_client.post(
+        "browse", MusicPlaylistRequest{std::string(playlist_id)}, continuation.request_options(), {},
+        {{"ctoken", continuation.token}, {"continuation", continuation.token}, {"type", "next"}}
+    ));
 }
 
 YoutubeResult<MusicPlaylistPage> YoutubeMusicPlaylists::more(const MusicContinuation& continuation) const {
@@ -80,6 +97,55 @@ YoutubeMusicPlaylists::create(const MusicPlaylistCreateRequest& request, const M
     return result;
 }
 
+YoutubeResult<void> YoutubeMusicPlaylists::erase(std::string_view playlist_id, const MusicRequestOptions& options) const {
+    playlist_id = playlist_write_id(playlist_id);
+    if (playlist_id.empty()) {
+        return youtube_error(YoutubeErrorKind::Api, "playlist id required");
+    }
+
+    auto result = m_client.post("playlist/delete", {{"playlistId", playlist_id}}, write_options(options));
+    if (!result) {
+        return std::unexpected(std::move(result.error()));
+    }
+
+    const auto& data = result->data;
+    if (!data.is_object()) {
+        return youtube_error(YoutubeErrorKind::Parse, "invalid playlist deletion response", result->status);
+    }
+    if (const auto status = data.find("status"); status != data.end() && *status != "STATUS_SUCCEEDED") {
+        return youtube_error(YoutubeErrorKind::Api, "playlist deletion failed", result->status);
+    }
+
+    LOG_INFO("[playlist] deleted {}", playlist_id);
+    return {};
+}
+
+YoutubeResult<void> YoutubeMusicPlaylists::unsave(std::string_view playlist_id, const MusicRequestOptions& options) const {
+    playlist_id = playlist_write_id(playlist_id);
+    if (playlist_id.empty()) return youtube_error(YoutubeErrorKind::Api, "playlist id required");
+
+    auto result = m_client.post("like/removelike", {{"target", {{"playlistId", playlist_id}}}}, write_options(options));
+    if (!result) return std::unexpected(std::move(result.error()));
+    const auto& data = result->data;
+    if (!data.is_object()) {
+        return youtube_error(YoutubeErrorKind::Parse, "invalid playlist library response", result->status);
+    }
+    const auto actions = data.find("actions");
+    if (actions != data.end() && actions->is_array()) {
+        for (const auto& action : *actions) {
+            if (action.contains("showEngagementPanelEndpoint")) {
+                return youtube_error(
+                    YoutubeErrorKind::Api, "playlist library removal requires account interaction", result->status
+                );
+            }
+        }
+    }
+    if (const auto status = data.find("status"); status != data.end() && *status != "STATUS_SUCCEEDED") {
+        return youtube_error(YoutubeErrorKind::Api, "playlist library removal failed", result->status);
+    }
+    return {};
+}
+
 YoutubeResult<MusicPlaylistEditResult>
 YoutubeMusicPlaylists::add(const MusicPlaylistAddRequest& request, const MusicRequestOptions& options) const {
     if (request.playlist_id.empty()) return youtube_error(YoutubeErrorKind::Api, "playlist id required");
@@ -113,7 +179,11 @@ YoutubeMusicPlaylists::remove(const MusicPlaylistRemoveRequest& request, const M
 YoutubeResult<MusicPlaylistEditResult>
 YoutubeMusicPlaylists::update(const MusicPlaylistUpdateRequest& request, const MusicRequestOptions& options) const {
     if (request.playlist_id.empty()) return youtube_error(YoutubeErrorKind::Api, "playlist id required");
-    if (!request.title && !request.description && !request.privacy && !request.thumbnail_path && !request.thumbnail_blob_id) {
+    const bool sets_thumbnail = request.thumbnail_path || request.thumbnail_blob_id;
+    if (request.remove_thumbnail && sets_thumbnail) {
+        return youtube_error(YoutubeErrorKind::Api, "cannot set and remove the playlist cover together");
+    }
+    if (!request.title && !request.description && !request.privacy && !sets_thumbnail && !request.remove_thumbnail) {
         return youtube_error(YoutubeErrorKind::Api, "no playlist changes");
     }
     if (request.title && request.title->empty()) return youtube_error(YoutubeErrorKind::Api, "playlist title required");

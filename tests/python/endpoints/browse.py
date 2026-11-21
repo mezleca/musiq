@@ -1,5 +1,4 @@
 import json
-from urllib.parse import parse_qs, urlsplit
 
 from .common import Endpoint, authenticated, FIXTURES
 
@@ -15,22 +14,30 @@ class BrowseEndpoint(Endpoint):
         if browse_id == "FEmusic_liked_playlists" and not authenticated(handler):
             return False
         if browse_id is not None:
-            return browse_id in {"FEmusic_home", "FEmusic_liked_playlists", "VLPLlocal-created"}
+            return browse_id in {"FEmusic_home", "FEmusic_liked_playlists", "VLPLlocal-created", "VLPLlocal-pending"}
         token = query.get("continuation", request.get("continuation", [""]))
         if isinstance(token, list):
             token = token[0] if token else ""
         return token in {"browse-token", "playlist-token"} and query.get("type") == ["next"]
 
-    def handle(self, handler, url, raw):
-        query = parse_qs(urlsplit(url).query)
-        request = json.loads(raw or b"{}")
-        if not self.validate(handler, request, query, raw):
-            handler.send_error(400)
-            return
-        token = query.get("continuation", [""])[0]
-        fixture = "playlist-continuation.json" if token == "playlist-token" else (
-            "playlist.json" if request.get("browseId") == "VLPLlocal-created" else self.fixture
-        )
-        handler.respond(200, (FIXTURES / fixture).read_bytes(), {"Content-Type": "application/json"})
+    def response_body(self, handler, request, query):
+        browse_id = request.get("browseId")
+        if browse_id == "VLPLlocal-pending":
+            attempt = getattr(handler.server, "playlist_browse_attempts", 0) + 1
+            handler.server.playlist_browse_attempts = attempt
+
+            # the first read is empty and subsequent reads expose which attempt was published
+            if attempt == 1:
+                return b'{"responseContext": {}}'
+            response = json.loads((FIXTURES / "playlist.json").read_bytes())
+            title = response["header"]["musicResponsiveHeaderRenderer"]["title"]
+            title["runs"][0]["text"] = f"Playlist attempt {attempt}"
+            return json.dumps(response).encode()
+
+        if query.get("continuation") == ["playlist-token"]:
+            return (FIXTURES / "playlist-continuation.json").read_bytes()
+        if browse_id == "VLPLlocal-created":
+            return (FIXTURES / "playlist.json").read_bytes()
+        return super().response_body(handler, request, query)
 
 ENDPOINTS = (BrowseEndpoint("POST", "/youtubei/v1/browse", "browse.json"),)

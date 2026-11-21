@@ -1,14 +1,17 @@
 #include "../src/youtube/catalog.hpp"
 #include "../src/youtube/client.hpp"
+#include "../src/youtube/playlist-browser.hpp"
 #include "../src/youtube/playlists.hpp"
 #include "../src/youtube/queue.hpp"
 #include "../src/youtube/schema/player.hpp"
 #include "../src/youtube/session.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <thread>
 
 static YoutubeMusicConfig test_config() {
     const char* api_url = std::getenv("MUSIQ_TEST_API_URL");
@@ -93,6 +96,29 @@ TEST_CASE("authenticated playlist read and continuation flow", "[youtube][endpoi
     REQUIRE(more_tracks);
 }
 
+TEST_CASE("new playlist browse falls back after three attempts when the cover is unavailable", "[youtube][endpoint]") {
+    using namespace std::chrono_literals;
+    const auto config = test_config();
+    const auto session = authenticated_session(config);
+    PlaylistBrowser browser(config);
+    MusicItem item;
+    item.endpoint.browse_id = "VLPLlocal-pending";
+    REQUIRE(browser.load(session, item, PlaylistLoad::NewlyCreatedWithCover));
+    CHECK(browser.newly_created());
+
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while (browser.loading() && std::chrono::steady_clock::now() < deadline) {
+        TaskQueue::instance().drain();
+        browser.poll(item);
+        std::this_thread::sleep_for(1ms);
+    }
+
+    CHECK_FALSE(browser.loading());
+    CHECK_FALSE(browser.newly_created());
+    CHECK(browser.error().empty());
+    CHECK(browser.playlist().title == "Playlist attempt 3");
+}
+
 TEST_CASE("authenticated playlist write flow", "[youtube][endpoint]") {
     const auto config = test_config();
     const auto session = authenticated_session(config);
@@ -124,4 +150,15 @@ TEST_CASE("authenticated playlist write flow", "[youtube][endpoint]") {
         {.playlist_id = "PLlocal-created", .entries = {{.video_id = "video-id", .set_video_id = "set-video-id"}}}
     );
     REQUIRE(removed);
+}
+
+TEST_CASE("custom playlist cover can be removed without changing metadata", "[youtube][endpoint]") {
+    const auto config = test_config();
+    const auto session = authenticated_session(config);
+    const YoutubeMusicClient client(session, config);
+    const YoutubeMusicPlaylists playlists(client);
+
+    const auto removed = playlists.update({.playlist_id = "VLPLlocal-created", .remove_thumbnail = true});
+    REQUIRE(removed);
+    CHECK(removed->status == "STATUS_SUCCEEDED");
 }

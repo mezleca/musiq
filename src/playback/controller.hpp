@@ -20,6 +20,12 @@ struct PlaybackPage {
     std::optional<MusicContinuation> continuation;
 };
 
+enum class PlaylistQueueState {
+    Idle,
+    LoadingInitialPage,
+    LoadingRemainingPages
+};
+
 class PlaybackController {
 public:
     explicit PlaybackController(MpvPlayer& player);
@@ -31,6 +37,8 @@ public:
 
     void set_session(const YoutubeMusicSession& session);
     void play(MusicItem item);
+    void play_playlist(MusicItem item, std::size_t start = 0);
+    void play_playlist(PlaybackPage page, std::size_t start, std::string source, bool load_remaining);
     void play(PlaybackPage page, std::size_t start = 0, std::string source = {});
     void load_more();
     void remove(std::uint64_t id);
@@ -53,6 +61,10 @@ public:
     }
 
     bool loading() const {
+        return m_page_loading && m_playlist_queue_state != PlaylistQueueState::LoadingRemainingPages;
+    }
+
+    bool page_loading() const {
         return m_page_loading;
     }
 
@@ -80,6 +92,7 @@ private:
     TaskScope m_stream_tasks;
     std::optional<MusicContinuation> m_continuation;
     std::string m_error;
+    PlaylistQueueState m_playlist_queue_state = PlaylistQueueState::Idle;
     bool m_changed = false;
     bool m_page_loading = false;
     bool m_resolving = false;

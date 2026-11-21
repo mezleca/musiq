@@ -14,9 +14,17 @@ protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
 };
 
+class MusiqDangerButtonWidget final : public MusiqButtonWidget {
+public:
+    using MusiqButtonWidget::MusiqButtonWidget;
+
+protected:
+    void apply_theme_defaults(const ui::Theme& theme) override;
+};
+
 class MusiqIconButtonWidget : public MusiqButtonWidget {
 public:
-    explicit MusiqIconButtonWidget(std::string icon_path, float size = 32.0f);
+    explicit MusiqIconButtonWidget(std::string icon_path, float size = 32.0f, float icon_size = 24.0f);
 
     void set_icon(std::string path);
     void set_selected(bool value);

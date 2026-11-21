@@ -25,10 +25,13 @@
 #include <arbor/surface.hpp>
 #include <functional>
 #include <filesystem>
+#include <memory>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+struct PlaylistAddState;
 
 class MusiqApp {
 public:
@@ -55,23 +58,26 @@ private:
     void refresh_profile();
 
     void navigate(std::string_view page);
-    void show_page();
+    void show_page(PlaylistLoad playlist_load = PlaylistLoad::Normal);
     void prune_pages();
     void submit_search(std::string query);
-    void refresh_page();
 
     void update_catalog();
     CatalogActions catalog_actions();
+    MediaMenu media_menu_handler();
+    ui::ContextMenuItems media_menu(const MusicItem& item, MediaMenuContext context);
     void update_playback();
     void update_tracks(ui::Node& root);
-    void open_playlist(MusicItem item);
+    void open_playlist(MusicItem item, PlaylistLoad load = PlaylistLoad::Normal);
     void save_playlist(PlaylistDraft draft);
-    void
-    create_playlist(std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path);
-    void edit_playlist(
-        std::string id, std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path
-    );
-    void upload_playlist_cover(std::string id, std::filesystem::path cover_path);
+    void create_playlist(PlaylistDraft&& draft);
+    void edit_playlist(PlaylistDraft&& draft);
+    void confirm_playlist_deletion(std::string id);
+    void delete_playlist(std::string id);
+    void unsave_playlist(std::string id);
+    void add_playlist_track(std::string playlist_id, std::string video_id, std::shared_ptr<PlaylistAddState> state);
+    void remove_playlist_track(std::string playlist_id, MusicPlaylistRemoveRequest::Entry entry);
+    void refresh_playlist(const std::string& playlist_id);
     void update_shortcuts();
 
     MusiqSession m_session;
@@ -81,6 +87,8 @@ private:
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
     PlaylistEditorOverlay* m_playlist_editor = nullptr;
+    std::unordered_map<std::string, std::weak_ptr<PlaylistAddState>> m_playlist_additions;
+    ui::ContextMenuWidget* m_context_menu = nullptr;
     NavigationHistory m_history;
     TaskQueue& m_tasks = TaskQueue::instance();
     CatalogBrowser m_catalog;

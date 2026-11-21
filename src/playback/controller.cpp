@@ -4,6 +4,7 @@
 #include "../youtube/client.hpp"
 #include "../youtube/queue.hpp"
 #include "../youtube/playlists.hpp"
+#include "../youtube/playlist-browser.hpp"
 #include "../youtube/catalog.hpp"
 #include "../utils/log.hpp"
 #include "../utils/media.hpp"
@@ -99,6 +100,7 @@ void PlaybackController::reset_source() {
     m_page_loading = false;
     m_continuation.reset();
     m_error.clear();
+    m_playlist_queue_state = PlaylistQueueState::Idle;
     m_changed = true;
 }
 
@@ -137,20 +139,85 @@ void PlaybackController::radio(std::string video_id) {
 }
 
 void PlaybackController::play(MusicItem item) {
+    const auto* current = m_queue.current();
+    if (current && !item.endpoint.video_id.empty() && current->media.endpoint.video_id == item.endpoint.video_id) return;
+
     reset_source();
     m_queue.replace({item});
 
     radio(item.endpoint.video_id);
 }
 
+void PlaybackController::play_playlist(MusicItem item, std::size_t start) {
+    m_page_tasks.clear();
+    m_error.clear();
+    m_page_loading = true;
+    m_playlist_queue_state = PlaylistQueueState::LoadingInitialPage;
+    m_changed = true;
+
+    const auto source = item.endpoint.browse_id;
+    const bool load_remaining = !is_album(item.endpoint);
+    m_tasks.enqueue(
+        m_page_tasks,
+        [session = m_session, item = std::move(item)] {
+            const YoutubeMusicClient client(session);
+            return read_playlist(client, item);
+        },
+        [this, source, start, load_remaining](auto outcome) {
+            auto playlist = youtube_result(std::move(outcome));
+
+            m_page_loading = false;
+            m_changed = true;
+            if (!playlist) {
+                m_playlist_queue_state = PlaylistQueueState::Idle;
+                m_error = playlist.error().message;
+                LOG_ERROR("[player] playlist load failed: {}", m_error);
+                return;
+            }
+
+            std::erase_if(playlist->tracks, [](const MusicItem& track) { return !is_playable(track); });
+            if (playlist->tracks.empty()) {
+                m_playlist_queue_state = PlaylistQueueState::Idle;
+                m_error = "No playable tracks in this playlist.";
+                return;
+            }
+
+            play_playlist(
+                PlaybackPage{std::move(playlist->tracks), std::move(playlist->continuation)}, start, source, load_remaining
+            );
+        }
+    );
+}
+
+void PlaybackController::play_playlist(PlaybackPage page, std::size_t start, std::string source, bool load_remaining) {
+    if (m_queue.matches_prefix(page.tracks, source)) {
+        return;
+    }
+
+    reset_source();
+    m_continuation = std::move(page.continuation);
+    m_queue.replace(std::move(page.tracks), start, std::move(source));
+
+    if (load_remaining && m_continuation) {
+        m_playlist_queue_state = PlaylistQueueState::LoadingRemainingPages;
+        load_more();
+    }
+}
+
 void PlaybackController::play(PlaybackPage page, std::size_t start, std::string source) {
+    if (m_queue.matches(page.tracks, source)) {
+        return;
+    }
+
     reset_source();
     m_continuation = std::move(page.continuation);
     m_queue.replace(std::move(page.tracks), start, std::move(source));
 }
 
 void PlaybackController::load_more() {
-    if (loading() || !m_queue.current()) return;
+    if (loading() || !m_queue.current()) {
+        return;
+    }
 
     m_error.clear();
     if (!m_continuation) {
@@ -173,17 +240,24 @@ void PlaybackController::append_page(YoutubeResult<PlaybackPage> page) {
     m_changed = true;
 
     if (!page) {
+        m_playlist_queue_state = PlaylistQueueState::Idle;
         m_error = page.error().message;
         LOG_ERROR("[queue] load failed: {} (status={})", m_error, page.error().status);
         return;
     }
 
-    // recommendations extend the queue without changing the album or playlist that started it
-    for (auto& track : page->tracks) {
-        if (is_playable(track)) m_queue.append(std::move(track), true);
-    }
+    std::erase_if(page->tracks, [](const MusicItem& track) { return !is_playable(track); });
+    m_queue.extend(std::move(page->tracks));
     m_continuation = std::move(page->continuation);
     LOG_INFO("[queue] loaded page (entries={})", m_queue.entries().size());
+
+    if (m_playlist_queue_state == PlaylistQueueState::LoadingRemainingPages) {
+        if (m_continuation) {
+            load_more();
+        } else {
+            m_playlist_queue_state = PlaylistQueueState::Idle;
+        }
+    }
 }
 
 bool PlaybackController::update() {

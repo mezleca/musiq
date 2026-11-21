@@ -1,11 +1,20 @@
 #include "playlist.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <stdexcept>
 #include <utility>
 
+std::string playlist_browse_id(std::string_view playlist_id) {
+    return playlist_id.starts_with("VL") ? std::string(playlist_id) : "VL" + std::string(playlist_id);
+}
+
+std::string_view playlist_write_id(std::string_view playlist_id) {
+    return playlist_id.starts_with("VL") ? playlist_id.substr(2) : playlist_id;
+}
+
 void to_json(json& data, const MusicPlaylistRequest& value) {
-    data = {{"browseId", value.playlist_id.starts_with("VL") ? value.playlist_id : "VL" + value.playlist_id}};
+    data = {{"browseId", playlist_browse_id(value.playlist_id)}};
 }
 
 std::string_view playlist_privacy_value(MusicPlaylistPrivacy privacy) {
@@ -28,11 +37,6 @@ std::optional<MusicPlaylistPrivacy> playlist_privacy_from(std::string_view value
     return std::nullopt;
 }
 
-// write routes expect the playlist id without the VL prefix used by browse
-static std::string write_playlist_id(const std::string& playlist_id) {
-    return playlist_id.starts_with("VL") ? playlist_id.substr(2) : playlist_id;
-}
-
 void to_json(json& data, const MusicPlaylistCreateRequest& value) {
     data = {{"title", value.title}, {"privacyStatus", std::string(playlist_privacy_value(value.privacy))}};
     if (!value.description.empty()) data["description"] = value.description;
@@ -40,7 +44,7 @@ void to_json(json& data, const MusicPlaylistCreateRequest& value) {
 }
 
 void to_json(json& data, const MusicPlaylistAddRequest& value) {
-    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    data = {{"playlistId", playlist_write_id(value.playlist_id)}, {"actions", json::array()}};
     for (const auto& video_id : value.video_ids) {
         json action{{"action", "ACTION_ADD_VIDEO"}, {"addedVideoId", video_id}};
         // skip the server's duplicate rejection when duplicates were explicitly allowed
@@ -50,7 +54,7 @@ void to_json(json& data, const MusicPlaylistAddRequest& value) {
 }
 
 void to_json(json& data, const MusicPlaylistRemoveRequest& value) {
-    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    data = {{"playlistId", playlist_write_id(value.playlist_id)}, {"actions", json::array()}};
     for (const auto& entry : value.entries) {
         data["actions"].push_back(
             {{"action", "ACTION_REMOVE_VIDEO"}, {"setVideoId", entry.set_video_id}, {"removedVideoId", entry.video_id}}
@@ -59,7 +63,7 @@ void to_json(json& data, const MusicPlaylistRemoveRequest& value) {
 }
 
 void to_json(json& data, const MusicPlaylistUpdateRequest& value) {
-    data = {{"playlistId", write_playlist_id(value.playlist_id)}, {"actions", json::array()}};
+    data = {{"playlistId", playlist_write_id(value.playlist_id)}, {"actions", json::array()}};
     if (value.title) {
         data["actions"].push_back({{"action", "ACTION_SET_PLAYLIST_NAME"}, {"playlistName", *value.title}});
     }
@@ -71,13 +75,17 @@ void to_json(json& data, const MusicPlaylistUpdateRequest& value) {
             {{"action", "ACTION_SET_PLAYLIST_PRIVACY"}, {"playlistPrivacy", std::string(playlist_privacy_value(*value.privacy))}}
         );
     }
-    if (value.thumbnail_blob_id) {
+    if (value.thumbnail_blob_id || value.remove_thumbnail) {
+        const json image_key{{"type", "PLAYLIST_IMAGE_TYPE_CUSTOM_THUMBNAIL"}, {"name", "studio_square_thumbnail"}};
+        if (value.remove_thumbnail) {
+            data["actions"].push_back({{"action", "ACTION_REMOVE_CUSTOM_THUMBNAIL"}, {"deletedCustomThumbnail", image_key}});
+            return;
+        }
+
         data["actions"].push_back(
             {{"action", "ACTION_SET_CUSTOM_THUMBNAIL"},
-             {"playlistId", write_playlist_id(value.playlist_id)},
-             {"addedCustomThumbnail",
-              {{"imageKey", {{"type", "PLAYLIST_IMAGE_TYPE_CUSTOM_THUMBNAIL"}, {"name", "studio_square_thumbnail"}}},
-               {"playlistScottyEncryptedBlobId", *value.thumbnail_blob_id}}}}
+             {"playlistId", playlist_write_id(value.playlist_id)},
+             {"addedCustomThumbnail", {{"imageKey", image_key}, {"playlistScottyEncryptedBlobId", *value.thumbnail_blob_id}}}}
         );
     }
 }
@@ -189,6 +197,22 @@ void from_json(const json& data, MusicPlaylistPage& value) {
     value = playlist_tracks(playlist_shelf(data));
 }
 
+void from_json(const json& data, MusicPlaylistRecommendations& value) {
+    const auto& sections = data.at("continuationContents").at("sectionListContinuation").at("contents");
+    MusicPlaylistRecommendations recommendations;
+    for (const auto& section : sections) {
+        const auto shelf = section.find("musicShelfRenderer");
+        if (shelf == section.end()) continue;
+
+        recommendations.tracks = playlist_tracks(*shelf).tracks;
+        // suggestion rows can carry placeholder occurrence ids, but are not playlist entries
+        for (auto& track : recommendations.tracks)
+            track.playlist_set_video_id.clear();
+        break;
+    }
+    value = std::move(recommendations);
+}
+
 static const json* playlist_header(const json& data, MusicPlaylist& playlist) {
     static const auto paths = {
         json::json_pointer("/header"),
@@ -287,6 +311,11 @@ static void playlist_author(const json& header, MusicPlaylist& playlist) {
 
 void from_json(const json& data, MusicPlaylist& value) {
     MusicPlaylist playlist;
+    const json::json_pointer sections("/contents/twoColumnBrowseResultsRenderer/secondaryContents/sectionListRenderer");
+    if (data.contains(sections)) {
+        playlist.recommendations_continuation = music_continuation(data.at(sections));
+    }
+
     const auto* shelf = find_playlist_shelf(data);
     const auto* header = playlist_header(data, playlist);
     if (!shelf && !header) throw std::invalid_argument("missing playlist tracks and header");
@@ -337,6 +366,10 @@ void from_json(const json& data, MusicPlaylist& value) {
         playlist.thumbnails = first.thumbnails;
         if (!first.subtitle.empty()) playlist.author = first.subtitle.front();
         if (!playlist.continuation) playlist.track_count = static_cast<std::int64_t>(playlist.tracks.size());
+    }
+
+    if (!playlist.thumbnails.empty() && playlist.thumbnails.front().url.contains("/pl_c/")) {
+        playlist.thumbnails = {*std::ranges::max_element(playlist.thumbnails, {}, &MusicThumbnail::width)};
     }
 
     value = std::move(playlist);

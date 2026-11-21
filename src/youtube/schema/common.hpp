@@ -38,6 +38,7 @@ struct MusicItem {
     std::string playlist_set_video_id;
     MusicTextRun album;
     bool available = true;
+    bool playlist_owned = false;
 };
 
 inline bool is_playable(const MusicItem& item) {

@@ -50,22 +50,19 @@ int main(int, char**) {
     SDL_GL_MakeCurrent(window, context);
     SDL_GL_SetSwapInterval(1);
 
+    int status = 0;
+
     try {
         MusiqApp app(window, context);
         app.initialize();
     } catch (const std::exception& error) {
+        status = 1;
         LOG_ERROR("failed to initialize: {}", error.what());
-        SDL_GL_DestroyContext(context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
     }
-
-    LOG_INFO("[app] stopped");
 
     SDL_GL_DestroyContext(context);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
-    return 0;
+    return status;
 }

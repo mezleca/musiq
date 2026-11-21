@@ -4,16 +4,18 @@
 #include "../widgets/text.hpp"
 #include "../../youtube/schema/common.hpp"
 
+#include <unordered_map>
+#include <vector>
 #include <utility>
 
 using namespace ui;
 
 SideBarOverlay::SideBarOverlay(
     ThumbnailCache& thumbnails, std::function<void(std::string_view)> navigate, std::function<void(MusicItem)> open_playlist,
-    std::function<void()> create_playlist
+    std::function<void()> create_playlist, MediaMenu menu
 )
     : ResizableContainer("sidebar"), m_thumbnails(thumbnails), m_navigate(std::move(navigate)),
-      m_open_playlist(std::move(open_playlist)), m_create_playlist(std::move(create_playlist)) {
+      m_open_playlist(std::move(open_playlist)), m_create_playlist(std::move(create_playlist)), m_menu(std::move(menu)) {
     set_type_name("SideBarOverlay");
     set_resize(ResizeAxes::X);
     set_size({px(280), grow()});
@@ -45,6 +47,8 @@ SideBarOverlay::SideBarOverlay(
     m_playlists->set_size({grow(), grow()});
     m_playlists->set_scrollable(true);
     m_playlists->set_spacing(4.0f);
+    // hide the bar while keeping wheel scrolling
+    m_playlists->configure_all_styles([](Style& style) { style.scrollbar_size(0.0f); });
 }
 
 void SideBarOverlay::apply_theme_defaults(const Theme& theme) {
@@ -100,16 +104,67 @@ void SideBarOverlay::select(std::string_view id) {
 }
 
 void SideBarOverlay::set_playlists(const std::vector<MusicItem>& playlists) {
-    if (m_selected_option && m_playlists->contains(m_selected_option)) {
-        m_selected_option = nullptr;
+    std::unordered_map<std::string_view, OptionsWidget*> remaining;
+    std::vector<OptionsWidget*> ordered;
+
+    remaining.reserve(m_playlists->children().size());
+    for (const auto& node : m_playlists->children()) {
+        if (!node->removal_pending()) {
+            remaining.emplace(node->id(), static_cast<OptionsWidget*>(node.get()));
+        }
     }
 
-    m_playlists->clear();
+    ordered.reserve(playlists.size());
     for (const auto& item : playlists) {
+        const auto existing = remaining.find(item.endpoint.browse_id);
+        if (existing != remaining.end()) {
+            existing->second->set_playlist(item);
+            ordered.push_back(existing->second);
+            remaining.erase(existing);
+            continue;
+        }
+
         auto& option = m_playlists->add<OptionsWidget>(item, m_thumbnails);
-        option.on_event(EventType::Click, [this, item](UiEvent&) {
-            if (m_open_playlist) m_open_playlist(item);
+        auto* playlist_option = &option;
+
+        ordered.push_back(&option);
+        option.on_event(EventType::Click, [this, playlist_option](UiEvent&) {
+            if (m_open_playlist) {
+                m_open_playlist(playlist_option->playlist());
+            }
         });
+
+        if (m_menu) {
+            attach_context_menu(
+                option,
+                [this, playlist_option](ImVec2 position) {
+                    return m_menu(
+                        playlist_option->playlist(), {.playlist_id = {}, .queue_entry_id = 0, .library_entry = true}, position
+                    );
+                },
+                &option, Anchor::CenterRight
+            );
+        }
+    }
+
+    for (const auto& [id, option] : remaining) {
+        if (m_selected_option == option) {
+            m_selected_option = nullptr;
+        }
+
+        m_playlists->remove(*option);
+    }
+
+    // keep existing nodes attached unless the server changed their relative order
+    auto expected = ordered.begin();
+    for (const auto& node : m_playlists->children()) {
+        if (node->removal_pending()) continue;
+        if (expected == ordered.end() || node.get() != *expected) break;
+        ++expected;
+    }
+
+    for (; expected != ordered.end(); ++expected) {
+        m_playlists->add(m_playlists->detach(**expected));
     }
 
     select(m_selected_id);

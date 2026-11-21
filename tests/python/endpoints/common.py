@@ -17,13 +17,19 @@ class Endpoint:
     def handle(self, handler, url: str, raw: bytes) -> None:
         parsed = urlsplit(url)
         request = json.loads(raw or b"{}")
-        if not self.validate(handler, request, parse_qs(parsed.query), raw):
+        query = parse_qs(parsed.query)
+        if not self.validate(handler, request, query, raw):
             handler.send_error(400)
             return
-        if self.fixture is None:
+
+        body = self.response_body(handler, request, query)
+        if body is None:
             handler.respond(200)
-            return
-        handler.respond(200, (FIXTURES / self.fixture).read_bytes(), {"Content-Type": "application/json"})
+        else:
+            handler.respond(200, body, {"Content-Type": "application/json"})
+
+    def response_body(self, handler, request, query) -> bytes | None:
+        return (FIXTURES / self.fixture).read_bytes() if self.fixture is not None else None
 
     def validate(self, handler, request: dict, query: dict[str, list[str]], raw: bytes) -> bool:
         if self.path.startswith("/youtubei/v1/"):

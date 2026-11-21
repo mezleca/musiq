@@ -2,6 +2,27 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+TEST_CASE("playing an unchanged playlist preserves its selected occurrence without notification", "[playback]") {
+    const MusicItem a{.endpoint = {.video_id = "A"}, .playlist_set_video_id = "first"};
+    const MusicItem b{.endpoint = {.video_id = "B"}, .playlist_set_video_id = "second"};
+    PlaybackQueue queue;
+    queue.replace({a, b}, 1, "playlist");
+    const auto current = queue.current()->id;
+    int changes = 0;
+    queue.on_change([&changes] { ++changes; });
+    queue.select(current);
+    CHECK(changes == 0);
+    queue.replace({a, b}, 0, "playlist");
+    CHECK(queue.current()->id == current);
+    CHECK(queue.position() == 1);
+    CHECK(changes == 0);
+
+    queue.replace({b, a}, 0, "playlist");
+    CHECK(changes == 1);
+    CHECK(queue.current()->media.endpoint.video_id == "B");
+    CHECK(queue.current()->id != current);
+}
+
 TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]") {
     const MusicItem song{.endpoint = {.video_id = "video"}};
     PlaybackQueue queue;
@@ -115,6 +136,25 @@ TEST_CASE("queue source survives navigation and pagination until the list is edi
     REQUIRE(queue.source().empty());
 }
 
+TEST_CASE("a continuation page notifies the queue once", "[playback]") {
+    const MusicItem song{.endpoint = {.video_id = "video"}};
+    PlaybackQueue queue;
+    queue.replace({song}, 0, "playlist");
+    const auto current = queue.current()->id;
+    int changes = 0;
+    queue.on_change([&changes] { ++changes; });
+
+    queue.extend({song, song});
+    REQUIRE(changes == 1);
+    REQUIRE(queue.entries().size() == 3);
+    CHECK(queue.current()->id == current);
+    CHECK(queue.source() == "playlist");
+    CHECK(queue.entries()[1].id != queue.entries()[2].id);
+
+    queue.extend({});
+    CHECK(changes == 1);
+}
+
 TEST_CASE("removing the queue tail selects its predecessor until the queue is empty", "[playback]") {
     const MusicItem song{.endpoint = {.video_id = "video"}};
     PlaybackQueue queue;
@@ -129,4 +169,47 @@ TEST_CASE("removing the queue tail selects its predecessor until the queue is em
     queue.remove(first);
     REQUIRE(queue.current() == nullptr);
     REQUIRE(queue.position() == 0);
+}
+
+TEST_CASE("playlist reuse rejects a removed unselected occurrence", "[playback]") {
+    const MusicItem a{.endpoint = {.video_id = "A"}};
+    const MusicItem b{.endpoint = {.video_id = "B"}};
+    const MusicItem c{.endpoint = {.video_id = "C"}};
+    PlaybackQueue queue;
+    queue.replace({a, b, c}, 0, "playlist");
+    const std::vector<MusicItem> refreshed{a, c};
+
+    REQUIRE_FALSE(queue.matches(refreshed, "playlist"));
+    queue.replace(refreshed, 0, "playlist");
+    REQUIRE(queue.entries().size() == 2);
+    REQUIRE(queue.matches(refreshed, "playlist"));
+    REQUIRE(queue.advance());
+    REQUIRE(queue.current()->media.endpoint.video_id == "C");
+}
+
+TEST_CASE("playlist reuse requires the same ordered occurrences and source", "[playback]") {
+    const MusicItem first{.endpoint = {.video_id = "same"}, .playlist_set_video_id = "first"};
+    const MusicItem second{.endpoint = {.video_id = "same"}, .playlist_set_video_id = "second"};
+    const std::vector<MusicItem> tracks{first, second};
+    PlaybackQueue queue;
+    queue.replace(tracks, 0, "playlist");
+    queue.advance();
+    REQUIRE(queue.matches(tracks, "playlist"));
+    REQUIRE_FALSE(queue.matches(tracks, "other"));
+    REQUIRE_FALSE(queue.matches({second, first}, "playlist"));
+    REQUIRE_FALSE(queue.matches({first, first}, "playlist"));
+    REQUIRE_FALSE(queue.matches({first}, "playlist"));
+    REQUIRE_FALSE(queue.matches({first, second, first}, "playlist"));
+
+    queue.extend({first});
+    REQUIRE(queue.source() == "playlist");
+    REQUIRE_FALSE(queue.matches(tracks, "playlist"));
+    REQUIRE(queue.matches_prefix(tracks, "playlist"));
+    REQUIRE_FALSE(queue.matches_prefix({second, first}, "playlist"));
+    REQUIRE(queue.matches({first, second, first}, "playlist"));
+
+    queue.append(second);
+    REQUIRE_FALSE(queue.matches({first, second, first, second}, "playlist"));
+    queue.replace(tracks);
+    REQUIRE_FALSE(queue.matches(tracks, ""));
 }

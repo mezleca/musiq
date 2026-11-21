@@ -2,6 +2,7 @@
 
 #include "../youtube/schema/common.hpp"
 #include <functional>
+#include <string_view>
 
 struct QueueEntry {
     std::uint64_t id;
@@ -18,9 +19,12 @@ enum class LoopMode {
 class PlaybackQueue {
 public:
     void on_change(std::function<void()> callback);
+    // replaying an unchanged named playlist preserves the selected occurrence
     void replace(std::vector<MusicItem> tracks, std::size_t start = 0, std::string source = {});
     void play_next(MusicItem track);
     void append(MusicItem track, bool preserve_source = false);
+    // continuation pages retain the source associated with the current queue
+    void extend(std::vector<MusicItem> tracks);
     bool remove(std::uint64_t id);
     void select(std::uint64_t id);
     bool advance();
@@ -45,6 +49,9 @@ public:
 
     const QueueEntry* current() const;
     std::size_t remaining() const;
+    // source identity alone does not prove that a refreshed playlist still matches the queue
+    bool matches(const std::vector<MusicItem>& tracks, std::string_view source) const;
+    bool matches_prefix(const std::vector<MusicItem>& tracks, std::string_view source) const;
 
     std::size_t position() const {
         return m_position;

@@ -24,6 +24,12 @@ public:
     }
 
 protected:
+    void input_state_changed() override {
+        TextInputWidget::input_state_changed();
+        const auto& state = input_state();
+        frame().set_interaction_style(state.hovered && !state.focused, state.active, state.focused);
+    }
+
     void apply_theme_defaults(const Theme& theme) override {
         TextInputWidget::apply_theme_defaults(theme);
         configure_all_styles([](Style& style) { style.font_size(16.0f); });
@@ -92,6 +98,10 @@ public:
     }
 
 protected:
+    void mouse_press_event(UiEvent&) override {
+        // keep input focus until the suggestion's release click submits the query
+    }
+
     void apply_theme_defaults(const Theme& theme) override {
         MusiqButtonWidget::apply_theme_defaults(theme);
         configure_all_styles([](Style& style) {
@@ -115,7 +125,7 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
 
     m_input = &add<SearchInputWidget>();
 
-    auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("icons/close.svg");
+    auto& clear = m_input->trailing().add<MusiqIconButtonWidget>("icons/close.svg", 24.0f, 16.0f);
     clear.set_id("clear-search");
     clear.on_click([this] {
         replace_query({});
@@ -130,11 +140,17 @@ SearchBarWidget::SearchBarWidget(std::function<void(std::string)> submit, std::f
     });
 
     m_input->on_submit([this] { confirm_query(); });
+    m_input->on_event(EventType::FocusLost, [this](UiEvent& event) {
+        if (event.target == m_input) hide_suggestions();
+    });
     m_input->on_event(EventType::KeyDown, [this](UiEvent& event) {
+        if (!m_input->input_state().focused) return;
+
         if (event.key == ImGuiKey_UpArrow || event.key == ImGuiKey_DownArrow) {
             move_selection(event.key == ImGuiKey_UpArrow ? -1 : 1);
         } else if (event.key == ImGuiKey_Enter && m_selected >= 0) {
             replace_query(m_choice_buttons[m_selected]->text());
+            confirm_query();
         } else {
             return;
         }
@@ -156,6 +172,7 @@ void SearchBarWidget::hide_suggestions() {
 void SearchBarWidget::set_suggestions(const MusicSuggestions& suggestions) {
     hide_suggestions();
     m_suggestions->clear();
+    if (!visible() || !m_input->input_state().focused || m_input->value().empty()) return;
 
     for (std::size_t index = 0; index < std::min<std::size_t>(suggestions.queries.size(), 6); ++index) {
         const auto& query = suggestions.queries[index].query;
@@ -168,7 +185,7 @@ void SearchBarWidget::set_suggestions(const MusicSuggestions& suggestions) {
         m_choice_buttons.push_back(&button);
     }
 
-    m_suggestions->set_visible(visible() && !m_input->value().empty() && !m_choice_buttons.empty());
+    m_suggestions->set_visible(!m_choice_buttons.empty());
 }
 
 void SearchBarWidget::move_selection(int direction) {

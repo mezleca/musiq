@@ -1,3 +1,19 @@
+# v0.7.0
+- Queue: rework queue creation on playlist (first track should load a bit faster and queue will hold all of the songs instead of limiting itself to 100)
+- QueueModal: updated "load more" button
+- Playlist: allow removing and editing cover from created playlist
+- PlaylistOverlay: added placeholder icon for creation modal's cover
+- PlaylistOverlay: added recommended songs section
+- PlaylistOverlay: copy playlist cover to the edit modal
+- PlaylistOverlay: fixed newly created playlist failing to load properly
+- PlaylistOverlay: fixed stretched playlist cover
+- SearchBox: fixed input losing focus while active
+- SearchBox: only show search suggestions if input is focused
+- SearchOverlay: remove unecessary spacing between tracks
+- SearchOverlay: organize playlists using wrap containers
+- SettingsOverlay: update interface scale on mouse down instead of debounce
+- UI: added menu triggers (context menu) to all available widgets
+
 # v0.6.1
 - Tests: Use a local python http server to test endpoint parsing, etc 
 - Core(ThreadPool): Separate workers by priority

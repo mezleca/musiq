@@ -75,7 +75,7 @@ private:
     void queue_page(std::string query);
     void prune_searches();
     void load_library_page(std::optional<MusicContinuation> continuation = {});
-    void accept_library(bool first, YoutubeResult<MusicPage> result);
+    void accept_library(YoutubeResult<MusicPage> result);
     void accept_page(std::string query, bool append, YoutubeResult<MusicPage> result);
 
     YoutubeMusicSession m_session;
@@ -85,6 +85,7 @@ private:
     std::string m_query;
     MusicSuggestions m_suggestions;
     std::vector<MusicItem> m_library;
+    std::vector<MusicItem> m_pending_library;
     std::unordered_set<std::string> m_library_ids;
     std::unordered_set<std::string> m_library_tokens;
     TaskQueue& m_tasks = TaskQueue::instance();

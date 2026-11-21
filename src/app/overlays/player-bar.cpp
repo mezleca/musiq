@@ -43,7 +43,8 @@ void QueueButtonWidget::apply_theme_defaults(const Theme& theme) {
 }
 
 PlayerBarOverlay::PlayerBarOverlay(
-    ThumbnailCache& thumbnails, MpvPlayer& player, PlaybackController& playback, std::function<void(int)> volume_changed
+    ThumbnailCache& thumbnails, MpvPlayer& player, PlaybackController& playback, std::function<void(int)> volume_changed,
+    MediaMenu menu
 )
     : Container("player-bar", StackDirection::Horizontal), m_player(player), m_playback(playback) {
     set_type_name("PlayerBarOverlay");
@@ -54,20 +55,31 @@ PlayerBarOverlay::PlayerBarOverlay(
     left.set_size({grow(), grow()});
     left.set_content_alignment(Anchor::CenterLeft);
 
-    m_selection = &left.add<Container>("selected-track", StackDirection::Horizontal);
+    m_selection = &left.add<Widget>("selected-track", StackDirection::Horizontal);
     m_selection->set_size({grow(), fit()});
     m_selection->set_content_alignment(Anchor::CenterLeft);
     m_selection->set_spacing(10.0f);
     m_selection->set_visible(false);
-    m_cover = &m_selection->add<MediaCoverWidget>(MusicItem{}, thumbnails, 64.0f);
+
+    if (menu) {
+        attach_context_menu(*m_selection, [this, menu = std::move(menu)](ImVec2 position) {
+            const auto* current = m_playback.queue().current();
+            return current &&
+                   menu(current->media, {.playlist_id = {}, .queue_entry_id = current->id, .library_entry = false}, position);
+        });
+    }
+
+    m_cover = &m_selection->add<MediaCoverWidget>(thumbnails, 64.0f);
 
     auto& details = m_selection->add<Container>("metadata", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
+
     m_title = &details.add<MusiqText>("", FontWeight::Bold);
     m_artist = &details.add<MusiqText>("");
     m_status = &details.add<MusiqText>("");
     m_status->set_visible(false);
+
     for (auto* text : {m_title, m_artist, m_status}) {
         text->set_size({grow(), fit()});
         text->set_overflow(TextOverflow::Ellipsis);
@@ -142,6 +154,7 @@ PlayerBarOverlay::PlayerBarOverlay(
 void PlayerBarOverlay::refresh() {
     const auto& queue = m_playback.queue();
     const auto* current = queue.current();
+
     const auto id = current ? current->id : 0;
     if (m_current_id != id) {
         m_current_id = id;
@@ -149,8 +162,9 @@ void PlayerBarOverlay::refresh() {
         if (current) {
             m_title->set_text(current->media.title);
             m_artist->set_text(media_artist(current->media));
-            m_cover->set_item(current->media);
+            m_cover->set_thumbnails(current->media.thumbnails);
         }
+
         m_duration->set_text(current && !current->media.duration.empty() ? current->media.duration : "0:00");
         m_position_seconds = -1;
         m_duration_seconds = -1;
@@ -177,7 +191,9 @@ void PlayerBarOverlay::refresh() {
     m_play->set_enabled(current && !loading);
     m_seek->set_enabled(state.loaded && state.duration > 0);
 
-    if (!m_seek->dragging()) m_progress = state.duration > 0 ? state.position * 100.0 / state.duration : 0;
+    if (!m_seek->dragging()) {
+        m_progress = state.duration > 0 ? state.position * 100.0 / state.duration : 0;
+    }
 
     // format only when the displayed whole second changes
     const int position_seconds = static_cast<int>(std::max(0.0, state.position));
@@ -185,6 +201,7 @@ void PlayerBarOverlay::refresh() {
         m_position_seconds = position_seconds;
         m_position->set_text(playback_time(state.position));
     }
+
     const int duration_seconds = static_cast<int>(state.duration);
     if (duration_seconds > 0 && duration_seconds != m_duration_seconds) {
         m_duration_seconds = duration_seconds;

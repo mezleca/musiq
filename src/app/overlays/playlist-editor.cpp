@@ -1,13 +1,14 @@
 #include "playlist-editor.hpp"
 #include "../widgets/button.hpp"
+#include "../widgets/media-cover.hpp"
 #include "../widgets/text.hpp"
+#include "../../utils/path.hpp"
 #include "../../utils/text.hpp"
 
 #include <arbor/resources/texture-registry.hpp>
 #include <arbor/runtime.hpp>
 #include <arbor/surface.hpp>
 #include <arbor/widgets/dropdown.hpp>
-#include <arbor/widgets/image.hpp>
 #include <arbor/widgets/text-input.hpp>
 
 #include <algorithm>
@@ -16,31 +17,63 @@
 
 using namespace ui;
 
-class CoverPickerWidget final : public ImageWidget {
+class CoverPickerWidget final : public MediaCoverWidget {
 public:
-    CoverPickerWidget() {
+    explicit CoverPickerWidget(ThumbnailCache& thumbnails) : MediaCoverWidget(thumbnails, 160.0f) {
         set_type_name("CoverPickerWidget");
-        set_size({px(160), px(160)});
-        set_fit(ImageFit::Cover);
         set_input_mode(InputMode::Target);
+        set_content_alignment(Anchor::Center);
+        m_placeholder = &add<ImageWidget>();
+        m_placeholder->set_size({px(40), px(40)});
+    }
+
+    void show_existing(std::span<const MusicThumbnail> thumbnails) {
+        if (!m_show_remote) set_texture(nullptr);
+        m_show_remote = !thumbnails.empty();
+        m_placeholder->set_visible(!m_show_remote);
+        set_thumbnails(thumbnails);
+    }
+
+    void show_preview(TextureHandle texture) {
+        m_show_remote = false;
+        m_placeholder->set_visible(false);
+        set_thumbnails({});
+        set_texture(std::move(texture));
     }
 
     std::function<void()> on_pick;
 
 protected:
     void apply_theme_defaults(const Theme& theme) override {
-        ImageWidget::apply_theme_defaults(theme);
+        MediaCoverWidget::apply_theme_defaults(theme);
+
         configure_all_styles([&theme](Style& style) {
-            style.background_color(theme.background_tertiary_color).border_radius(theme.controls.rounding);
+            style.background_color(theme.background_tertiary_color)
+                .border_radius(theme.controls.rounding)
+                .cursor(ImGuiMouseCursor_Hand);
         });
+
+        style(StyleType::DISABLED).cursor(ImGuiMouseCursor_Arrow);
+
+        auto& textures = surface().runtime().textures();
+        m_placeholder->set_texture(textures.acquire("icons/image-plus.svg", utils::path::from_resources("icons/image-plus.svg")));
     }
 
     void click_event(UiEvent& event) override {
         if (event.button == PointerButton::Left && on_pick) on_pick();
     }
+
+    void draw_before() override {
+        if (m_show_remote) MediaCoverWidget::draw_before();
+    }
+
+private:
+    ImageWidget* m_placeholder;
+    bool m_show_remote = false;
 };
 
-PlaylistEditorOverlay::PlaylistEditorOverlay(Save save) : ModalOverlay("playlist-editor"), m_save(std::move(save)) {
+PlaylistEditorOverlay::PlaylistEditorOverlay(ThumbnailCache& thumbnails, Save save, Delete delete_playlist)
+    : ModalOverlay("playlist-editor"), m_save(std::move(save)), m_delete_playlist(std::move(delete_playlist)) {
     set_type_name("PlaylistEditorOverlay");
 
     auto& panel = content();
@@ -51,7 +84,7 @@ PlaylistEditorOverlay::PlaylistEditorOverlay(Save save) : ModalOverlay("playlist
     fields.set_size({grow(), fit()});
     fields.set_spacing(22.0f);
 
-    auto& cover = fields.add<CoverPickerWidget>();
+    auto& cover = fields.add<CoverPickerWidget>(thumbnails);
     cover.on_pick = [this] { pick_cover(); };
     m_cover = &cover;
 
@@ -83,48 +116,77 @@ PlaylistEditorOverlay::PlaylistEditorOverlay(Save save) : ModalOverlay("playlist
         "Visibility", LabelPlacement::Above, "playlist-visibility"
     );
     m_visibility->set_size({grow(), fit()});
-    m_visibility->on_select([this] {
-        if (const auto parsed = playlist_privacy_from(m_privacy_value)) m_privacy = *parsed;
-        refresh_save_button();
-    });
+    m_visibility->on_select([this] { refresh_save_button(); });
 
     m_status = &panel.add<MusiqText>("");
     m_status->set_visible(false);
 
-    m_save_button = &panel.add<MusiqButtonWidget>("Create");
-    m_save_button->set_size({grow(), px(44)});
+    auto& actions = panel.add<Container>("playlist-actions", StackDirection::Horizontal);
+    actions.set_size({grow(), fit()});
+    actions.set_content_alignment(Anchor::CenterRight);
+    actions.set_spacing(10.0f);
+
+    m_delete_button = &actions.add<MusiqDangerButtonWidget>("Delete playlist", LayoutSize{fit(), px(40)});
+    m_delete_button->set_id("playlist-delete");
+    m_delete_button->on_click([this] {
+        if (m_can_delete && !m_busy && !m_confirming_delete) confirm_delete(true);
+    });
+
+    m_save_button = &actions.add<MusiqButtonWidget>("Create", LayoutSize{fit(), px(40)});
     m_save_button->on_click([this] { submit(); });
-    refresh_save_button();
+
+    m_delete_cancel = &actions.add<MusiqButtonWidget>("Cancel", LayoutSize{fit(), px(40)});
+    m_delete_cancel->set_id("playlist-delete-cancel");
+    m_delete_cancel->on_click([this] {
+        if (!m_busy) confirm_delete(false);
+    });
+    m_delete_confirm = &actions.add<MusiqDangerButtonWidget>("Delete permanently", LayoutSize{fit(), px(40)});
+    m_delete_confirm->set_id("playlist-delete-confirm");
+    m_delete_confirm->on_click([this] {
+        if (m_busy || !m_confirming_delete || !m_can_delete) return;
+
+        set_busy(true);
+        m_status->set_text("Deleting playlist...");
+        m_delete_playlist(m_id);
+    });
+    confirm_delete(false);
 }
 
 void PlaylistEditorOverlay::show_create() {
     m_mode = PlaylistEditorMode::Save;
     m_id.clear();
+    m_can_delete = false;
     show_form({}, {}, MusicPlaylistPrivacy::Private);
+    m_cover->show_existing({});
 }
 
 void PlaylistEditorOverlay::show_edit(const MusicPlaylist& playlist) {
     m_mode = PlaylistEditorMode::Edit;
     m_id = playlist.id;
+    m_can_delete = playlist.owned && !m_id.empty() && static_cast<bool>(m_delete_playlist);
     m_original_title = playlist.title;
     m_original_description = playlist.description;
     m_original_privacy = playlist.privacy;
     show_form(playlist.title, playlist.description, playlist.privacy);
+    m_cover->show_existing(playlist.thumbnails);
+}
+
+void PlaylistEditorOverlay::show_delete(const MusicPlaylist& playlist) {
+    if (m_busy || !playlist.owned || playlist.id.empty()) return;
+    show_edit(playlist);
+    confirm_delete(true);
 }
 
 void PlaylistEditorOverlay::show_form(const std::string& title, const std::string& description, MusicPlaylistPrivacy privacy) {
-    m_privacy = privacy;
-    m_privacy_value = std::string(playlist_privacy_value(m_privacy));
+    m_privacy_value = playlist_privacy_value(privacy);
     m_cover_path.clear();
-    m_cover->set_texture(TextureHandle{});
 
     m_title->set_value(title);
     m_description->set_value(description);
     m_visibility->select_value(m_privacy_value);
+    m_save_button->set_text(m_mode == PlaylistEditorMode::Save ? "Create" : "Update");
 
-    set_busy(false);
-    m_status->set_text({});
-    m_status->set_visible(false);
+    confirm_delete(false);
 
     set_visible(true);
     m_title->focus();
@@ -132,9 +194,14 @@ void PlaylistEditorOverlay::show_form(const std::string& title, const std::strin
 
 void PlaylistEditorOverlay::set_busy(bool busy) {
     m_busy = busy;
-    m_title->set_enabled(!busy);
-    m_description->set_enabled(!busy);
-    m_visibility->set_enabled(!busy);
+    const bool editing = !busy && !m_confirming_delete;
+    m_cover->set_enabled(editing);
+    m_title->set_enabled(editing);
+    m_description->set_enabled(editing);
+    m_visibility->set_enabled(editing);
+    m_delete_button->set_enabled(editing);
+    m_delete_cancel->set_enabled(!busy);
+    m_delete_confirm->set_enabled(!busy);
     refresh_save_button();
 }
 
@@ -150,7 +217,7 @@ void PlaylistEditorOverlay::fail(std::string message) {
 }
 
 void PlaylistEditorOverlay::pick_cover() {
-    if (m_busy) return;
+    if (m_busy || m_confirming_delete) return;
 
     FileDialogOptions options;
     options.filters = {{"Images", "png,jpg,jpeg"}};
@@ -182,14 +249,14 @@ void PlaylistEditorOverlay::pick_cover() {
     auto texture = surface().runtime().textures().acquire(
         "playlist-cover:" + m_cover_path.string(), m_cover_path, TextureRetention::Transient
     );
-    m_cover->set_texture(std::move(texture));
+    m_cover->show_preview(std::move(texture));
     m_status->set_text({});
     m_status->set_visible(false);
     refresh_save_button();
 }
 
 void PlaylistEditorOverlay::submit() {
-    if (m_busy) return;
+    if (m_busy || m_confirming_delete) return;
 
     const auto title = utils::text::trim(m_title->value());
     if (title.empty()) {
@@ -207,17 +274,28 @@ void PlaylistEditorOverlay::submit() {
             .id = m_id,
             .title = std::string(title),
             .description = std::string(utils::text::trim(m_description->value())),
-            .privacy = m_privacy,
+            .privacy = playlist_privacy_from(m_privacy_value).value_or(m_original_privacy),
             .cover_path = m_cover_path,
         }
     );
 }
 
+void PlaylistEditorOverlay::confirm_delete(bool confirm) {
+    m_confirming_delete = confirm;
+    m_save_button->set_visible(!confirm);
+    m_delete_button->set_visible(m_can_delete && !confirm);
+    m_delete_cancel->set_visible(confirm);
+    m_delete_confirm->set_visible(confirm);
+    m_status->set_text(confirm ? "Permanently delete this playlist? This action cannot be undone." : "");
+    m_status->set_visible(confirm);
+    set_busy(false);
+}
+
 void PlaylistEditorOverlay::refresh_save_button() {
     const bool named = !utils::text::trim(m_title->value()).empty();
     const bool changed = m_mode == PlaylistEditorMode::Save || !m_cover_path.empty() || m_title->value() != m_original_title ||
-                         m_description->value() != m_original_description || m_privacy != m_original_privacy;
-    m_save_button->set_text(m_mode == PlaylistEditorMode::Save ? "Create" : "Update");
+                         m_description->value() != m_original_description ||
+                         m_privacy_value != playlist_privacy_value(m_original_privacy);
     m_save_button->set_enabled(named && changed && !m_busy);
 }
 

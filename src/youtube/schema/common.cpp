@@ -117,6 +117,21 @@ void from_json(const json& data, MusicItem& value) {
     if (navigation == data.end()) navigation = data.find("onTap");
     if (navigation != data.end()) item.endpoint = navigation->get<MusicEndpoint>();
 
+    // library cards expose ownership through a matching playlist editor destination
+    const json::json_pointer menu_path("/menu/menuRenderer/items");
+    const json::json_pointer editor_path("/menuNavigationItemRenderer/navigationEndpoint/playlistEditorEndpoint/playlistId");
+    if (item.endpoint.browse_id.starts_with("VL") && data.contains(menu_path)) {
+        const auto id = std::string_view(item.endpoint.browse_id).substr(2);
+        for (const auto& entry : data.at(menu_path)) {
+            if (!entry.contains(editor_path)) continue;
+            const auto* editor_id = entry.at(editor_path).get_ptr<const std::string*>();
+            if (editor_id && *editor_id == id) {
+                item.playlist_owned = true;
+                break;
+            }
+        }
+    }
+
     const auto playlist_item = data.find("playlistItemData");
     if (playlist_item != data.end()) {
         item.endpoint.video_id = playlist_item->value("videoId", item.endpoint.video_id);

@@ -4,6 +4,7 @@
 #include <functional>
 #include <cstdint>
 #include "../widgets/button.hpp"
+#include "../widgets/context-menu.hpp"
 
 class MusiqText;
 class MediaCoverWidget;
@@ -24,7 +25,8 @@ protected:
 class PlayerBarOverlay final : public ui::Container {
 public:
     PlayerBarOverlay(
-        ThumbnailCache& thumbnails, MpvPlayer& player, PlaybackController& playback, std::function<void(int)> volume_changed
+        ThumbnailCache& thumbnails, MpvPlayer& player, PlaybackController& playback, std::function<void(int)> volume_changed,
+        MediaMenu menu = {}
     );
     void refresh();
     void set_volume(int volume) {
@@ -42,7 +44,7 @@ private:
     MusiqText* m_duration;
     MusiqText* m_position;
     MusiqText* m_status;
-    ui::Container* m_selection;
+    ui::Widget* m_selection;
     MediaCoverWidget* m_cover;
     MusiqButtonWidget* m_previous;
     MusiqButtonWidget* m_next;

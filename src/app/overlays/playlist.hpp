@@ -2,6 +2,7 @@
 
 #include <arbor/layout/container.hpp>
 #include "../../youtube/playlist-browser.hpp"
+#include "../widgets/context-menu.hpp"
 #include "../widgets/track-list.hpp"
 
 #include <functional>
@@ -17,14 +18,15 @@ class PlaylistOverlay final : public ui::Container {
 public:
     explicit PlaylistOverlay(
         MusicItem item, ThumbnailCache& thumbnails, PlaybackController& playback,
-        std::function<void(const MusicPlaylist&)> edit_playlist = {}
+        std::function<void(const MusicPlaylist&)> edit_playlist = {}, MediaMenu menu = {}
     );
-    void load(const YoutubeMusicSession& session, bool reload = false);
+    void load(const YoutubeMusicSession& session, PlaylistLoad mode = PlaylistLoad::Normal);
     void invalidate();
     bool poll();
     void update_playback();
-    const std::string& browse_id() const {
-        return m_item.endpoint.browse_id;
+    void show_action_error(std::string message);
+    const MusicPlaylist& playlist() const {
+        return m_browser.playlist();
     }
 
 protected:
@@ -38,6 +40,8 @@ private:
     ThumbnailCache& m_thumbnails;
     PlaybackController& m_playback;
     PlaylistBrowser m_browser;
+    ui::Container* m_header;
+    ui::Container* m_separator;
     MediaCoverWidget* m_cover;
     MusiqText* m_title;
     MusiqText* m_author;
@@ -47,5 +51,9 @@ private:
     MusiqIconButtonWidget* m_play;
     MusiqIconButtonWidget* m_edit;
     TrackList* m_tracks;
+    ui::Container* m_recommended_section;
+    MusiqText* m_recommended_status;
+    TrackList* m_recommended_tracks;
     std::function<void(const MusicPlaylist&)> m_edit_playlist;
+    MediaMenu m_menu;
 };

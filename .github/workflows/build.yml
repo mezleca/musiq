@@ -137,7 +137,11 @@ jobs:
             - name: install packaging and build tools
               shell: pwsh
               run: |
+                  choco upgrade llvm --version=22.1.8 --no-progress -y
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                  "$env:ProgramFiles\LLVM\bin" >> $env:GITHUB_PATH
                   choco install innosetup --no-progress -y
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
                   "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
 
             - name: package installer and zip

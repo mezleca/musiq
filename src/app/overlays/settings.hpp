@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../../utils/debounce.hpp"
 #include "../../playback/queue.hpp"
 
 #include <arbor/layout/container.hpp>
@@ -18,7 +17,6 @@ public:
     void set_authenticated(bool authenticated);
     void set_volume(int volume);
     void refresh_playback();
-    void update(float dt) override;
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -37,7 +35,6 @@ private:
     ui::Container* m_account;
     double m_volume = 80;
     double m_interface_scale = 1.0;
-    Debounce m_scale_debounce{std::chrono::milliseconds(100)};
     std::function<void(int)> m_volume_changed;
     std::function<void()> m_fonts_changed;
     std::string m_main_font;

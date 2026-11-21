@@ -9,9 +9,7 @@
 
 using namespace utils::media;
 
-static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& session, const MusicItem& item) {
-    const YoutubeMusicClient client(session);
-
+YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicClient& client, const MusicItem& item) {
     if (item.endpoint.browse_id.starts_with("VL") || item.endpoint.page_type == "MUSIC_PAGE_TYPE_PLAYLIST") {
         return YoutubeMusicPlaylists(client).get(item.endpoint.browse_id);
     }
@@ -38,26 +36,45 @@ static YoutubeResult<MusicPlaylist> read_playlist(const YoutubeMusicSession& ses
     return result;
 }
 
-bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& item, bool reload) {
-    if (m_state != PlaylistState::Idle && !reload) return false;
+PlaylistBrowser::PlaylistBrowser(YoutubeMusicConfig config) : m_config(std::move(config)) {}
 
-    m_playlist = {};
+bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& item, PlaylistLoad mode) {
+    if (m_state != PlaylistState::Idle && mode == PlaylistLoad::Normal) {
+        return false;
+    }
+
+    invalidate();
     m_error.clear();
-    m_session = session;
-    m_state = PlaylistState::Loading;
-    m_change = PlaylistChange::None;
-    m_scope.clear();
 
+    m_session = session;
+    if (mode == PlaylistLoad::NewlyCreated || mode == PlaylistLoad::NewlyCreatedWithCover) {
+        m_state = PlaylistState::NewlyCreated;
+        m_attempts_left = 3;
+        m_wait_for_cover = mode == PlaylistLoad::NewlyCreatedWithCover;
+    } else {
+        m_state = PlaylistState::Loading;
+    }
+
+    queue_load(item);
+    return true;
+}
+
+void PlaylistBrowser::queue_load(const MusicItem& item) {
     m_tasks.enqueue(
-        m_scope, [session = m_session, item] { return read_playlist(session, item); },
+        m_scope,
+        [session = m_session, config = m_config, item] { return read_playlist(YoutubeMusicClient(session, config), item); },
         [this](auto result) { accept(youtube_result(std::move(result))); }
     );
-
-    return true;
 }
 
 void PlaylistBrowser::invalidate() {
     m_scope.clear();
+    m_recommendations_scope.clear();
+    m_recommendations.clear();
+    m_recommendations_error.clear();
+    m_recommendations_loading = false;
+    m_retry.cancel();
+    m_playlist = {};
     m_state = PlaylistState::Idle;
     m_change = PlaylistChange::None;
 }
@@ -72,8 +89,8 @@ bool PlaylistBrowser::load_more() {
 
     m_tasks.enqueue(
         m_scope,
-        [session = m_session, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
-            const YoutubeMusicClient client(session);
+        [session = m_session, config = m_config, continuation = *m_playlist.continuation]() -> YoutubeResult<MusicPlaylist> {
+            const YoutubeMusicClient client(session, config);
             auto page = YoutubeMusicPlaylists(client).more(continuation);
             if (!page) {
                 return std::unexpected(std::move(page.error()));
@@ -90,15 +107,36 @@ bool PlaylistBrowser::load_more() {
     return true;
 }
 
-PlaylistChange PlaylistBrowser::poll() {
+PlaylistChange PlaylistBrowser::poll(const MusicItem& item) {
+    if (m_retry.poll()) queue_load(item);
     return std::exchange(m_change, PlaylistChange::None);
 }
 
 void PlaylistBrowser::accept(YoutubeResult<MusicPlaylist> result) {
+    const bool created = newly_created();
+    const bool missing = !result && result.error().kind == YoutubeErrorKind::Parse &&
+                         result.error().message == "missing playlist tracks and header";
+
+    if (created) {
+        // the playlist and uploaded cover may become visible at different times
+        const bool incomplete = missing || (result && m_wait_for_cover && result->thumbnails.empty());
+        if (incomplete && --m_attempts_left != 0) {
+            if (result) {
+                m_playlist = std::move(*result);
+            }
+            m_retry.restart();
+            return;
+        }
+
+        if (!result && !m_playlist.id.empty()) {
+            result = std::move(m_playlist);
+        }
+    }
+
     if (!result) {
-        m_change = PlaylistChange::Failed;
+        m_change = missing && !created ? PlaylistChange::Missing : PlaylistChange::Failed;
         m_state = PlaylistState::Failed;
-        m_error = result.error().message;
+        m_error = missing && created ? "Playlist is not available yet." : result.error().message;
         LOG_ERROR("[playlist] page failed: {}", m_error);
         return;
     }
@@ -106,9 +144,10 @@ void PlaylistBrowser::accept(YoutubeResult<MusicPlaylist> result) {
     auto page = std::move(*result);
     std::erase_if(page.tracks, [](const MusicItem& track) { return !is_playable(track); });
 
-    if (m_state == PlaylistState::Loading) {
+    if (m_state != PlaylistState::Appending) {
         m_change = PlaylistChange::Loaded;
         m_playlist = std::move(page);
+        load_recommendations();
     } else {
         m_change = PlaylistChange::Appended;
         for (auto& track : page.tracks) {
@@ -118,4 +157,28 @@ void PlaylistBrowser::accept(YoutubeResult<MusicPlaylist> result) {
     }
 
     m_state = PlaylistState::Ready;
+}
+
+void PlaylistBrowser::load_recommendations() {
+    if (!m_session.has_credentials() || !m_playlist.owned || !m_playlist.recommendations_continuation) return;
+
+    m_recommendations_loading = true;
+    m_tasks.enqueue(
+        m_recommendations_scope,
+        [session = m_session, config = m_config, id = m_playlist.id, continuation = *m_playlist.recommendations_continuation] {
+            const YoutubeMusicClient client(session, config);
+            return YoutubeMusicPlaylists(client).recommendations(id, continuation);
+        },
+        [this](auto outcome) {
+            auto result = youtube_result(std::move(outcome));
+            m_recommendations_loading = false;
+            if (result) {
+                std::erase_if(result->tracks, [](const MusicItem& track) { return !is_playable(track); });
+                m_recommendations = std::move(result->tracks);
+            } else {
+                m_recommendations_error = result.error().message;
+            }
+            if (m_change == PlaylistChange::None) m_change = PlaylistChange::Recommendations;
+        }
+    );
 }

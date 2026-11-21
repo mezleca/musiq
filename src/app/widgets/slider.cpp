@@ -50,6 +50,8 @@ void MusiqSliderWidget::event(UiEvent& event) {
         return;
     }
     if (event.type == EventType::KeyDown && (event.key == ImGuiKey_LeftArrow || event.key == ImGuiKey_RightArrow)) {
+        if (!input_state().focused) return;
+
         const double step = (m_maximum - m_minimum) / 100.0;
         set_value(m_value + (event.key == ImGuiKey_RightArrow ? step : -step));
     } else {

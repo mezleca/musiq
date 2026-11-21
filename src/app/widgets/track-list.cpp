@@ -3,7 +3,6 @@
 #include "../../youtube/schema/common.hpp"
 #include <arbor/input/router.hpp>
 #include <arbor/surface.hpp>
-#include <arbor/widgets/context-menu.hpp>
 
 #include <algorithm>
 #include <string>
@@ -29,32 +28,16 @@ MediaCardWidget* TrackList::find_track(std::uint64_t key) const {
     return row->second.card;
 }
 
-static bool has_visible_menu(const ui::Node& node) {
-    if (const auto* menu = dynamic_cast<const ui::ContextMenuWidget*>(&node); menu && menu->is_open()) {
-        return true;
-    }
-
-    for (const auto& child : node.children()) {
-        if (has_visible_menu(*child)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 void TrackList::on_update(float) {
     ++m_update;
 
     const auto& router = surface().input_router();
     const auto* focus = router.focused_node();
 
-    // the provider requests rows during draw, so retirement allows two missed updates
+    // draw-time row requests lag updates, and active input may still reference offscreen rows
     for (auto row = m_rows.begin(); row != m_rows.end();) {
-        // keep rows alive until focus, capture and menus have finished
         if (m_update - row->second.last_update > 2 && !row->second.card->contains(router.captured_node()) &&
-            !row->second.card->contains(focus) && !row->second.card->subtree_input_state().active &&
-            !has_visible_menu(*row->second.card)) {
+            !row->second.card->contains(focus) && !row->second.card->subtree_input_state().active) {
             remove(*row->second.card);
             row = m_rows.erase(row);
         } else {
@@ -88,10 +71,17 @@ void TrackList::set_current(std::string_view video_id) {
 }
 
 void update_track_lists(ui::Node& root, std::string_view video_id) {
-    if (!root.visible() || root.removal_pending()) return;
+    if (!root.visible() || root.removal_pending()) {
+        return;
+    }
 
     if (auto* tracks = dynamic_cast<TrackList*>(&root)) {
         tracks->set_current(video_id);
+        return;
+    }
+
+    if (auto* card = dynamic_cast<MediaCardWidget*>(&root)) {
+        card->set_selected(!video_id.empty() && card->id() == video_id);
         return;
     }
 

@@ -15,10 +15,14 @@ public:
     // returns details and one track page, further pages are fetched explicitly through more()
     YoutubeResult<MusicPlaylist> get(std::string_view playlist_id, const MusicRequestOptions& options = {}) const;
     YoutubeResult<MusicPlaylistPage> more(const MusicContinuation& continuation) const;
+    YoutubeResult<MusicPlaylistRecommendations>
+    recommendations(std::string_view playlist_id, const MusicContinuation& continuation) const;
 
     // writes require an authenticated session and return the server status
     YoutubeResult<MusicPlaylistCreated>
     create(const MusicPlaylistCreateRequest& request, const MusicRequestOptions& options = {}) const;
+    YoutubeResult<void> erase(std::string_view playlist_id, const MusicRequestOptions& options = {}) const;
+    YoutubeResult<void> unsave(std::string_view playlist_id, const MusicRequestOptions& options = {}) const;
     YoutubeResult<MusicPlaylistEditResult>
     add(const MusicPlaylistAddRequest& request, const MusicRequestOptions& options = {}) const;
     YoutubeResult<MusicPlaylistEditResult>

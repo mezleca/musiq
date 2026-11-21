@@ -25,10 +25,11 @@ protected:
     }
 };
 
-static void add_label(Container& parent, std::string text, float size = 16.0f) {
+static MusiqText& add_label(Container& parent, std::string text, float size = 16.0f) {
     auto& label = parent.add<MusiqText>(std::move(text), FontWeight::Regular, size);
     label.set_size({grow(), fit()});
     label.set_overflow(TextOverflow::Ellipsis);
+    return label;
 }
 
 OptionsWidget::OptionsWidget(std::string id, std::string text, std::string icon_path, bool selected)
@@ -49,15 +50,24 @@ OptionsWidget::OptionsWidget(std::string id) : Widget(std::move(id), StackDirect
 
 OptionsWidget::OptionsWidget(const MusicItem& playlist, ThumbnailCache& thumbnails) : OptionsWidget(playlist.endpoint.browse_id) {
     set_size({grow(), px(56)});
-    add<MediaCoverWidget>(playlist, thumbnails, 40.0f);
+    m_cover = &add<MediaCoverWidget>(thumbnails, 40.0f);
 
     auto& details = add<Container>("details", StackDirection::Vertical);
     details.set_size({grow(), fit()});
     details.set_spacing(2.0f);
-    add_label(details, playlist.title, 17.0f);
+    details.configure_all_styles([](Style& style) { style.padding_right(32.0f); });
+    m_title = &add_label(details, "", 17.0f);
+    m_creator = &details.add<OptionSubtitleWidget>("");
+    set_playlist(playlist);
+}
 
+void OptionsWidget::set_playlist(const MusicItem& playlist) {
+    m_playlist = playlist;
+    m_cover->set_thumbnails(playlist.thumbnails);
+    m_title->set_text(playlist.title);
     const auto creator = utils::media::media_artist(playlist);
-    if (!creator.empty()) details.add<OptionSubtitleWidget>(creator);
+    m_creator->set_text(creator);
+    m_creator->set_visible(!creator.empty());
 }
 
 void OptionsWidget::set_selected(bool selected) {

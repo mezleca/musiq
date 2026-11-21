@@ -4,11 +4,21 @@ using namespace ui;
 
 Theme musiq_theme() {
     Theme theme;
-    theme.background_color = rgb(3, 3, 3);
-    theme.background_secondary_color = rgb(15, 15, 15);
-    theme.background_tertiary_color = rgb(8, 8, 8);
-    theme.header_background_color = rgb(28, 28, 28);
-    theme.text_secondary_color = rgb(170, 170, 170);
+
+    theme.scrollbar.background_color = theme.transparent;
+    theme.scrollbar.grab_color = rgb(85, 85, 85);
+    theme.scrollbar.grab_hovered_color = rgb(115, 115, 115);
+    theme.scrollbar.grab_active_color = rgb(145, 145, 145);
+    theme.scrollbar.size = 8.0f;
+    theme.scrollbar.grab_rounding = 4.0f;
+    theme.scrollbar.rounding = 4.0f;
+
+    theme.background_color = rgb(15, 15, 18);
+    theme.background_secondary_color = rgb(21, 21, 23);
+    theme.background_tertiary_color = rgb(12, 12, 18);
+    theme.header_background_color = rgb(23, 23, 26);
+    theme.text_color = rgb(255, 255, 255);
+    theme.text_secondary_color = rgb(180, 180, 180);
     theme.border_color = rgb(48, 48, 48);
     theme.header_border_color = theme.border_color;
     theme.accent_color = rgb(255, 0, 51);
@@ -21,11 +31,5 @@ Theme musiq_theme() {
     theme.controls.mark_color = theme.accent_color;
     theme.controls.rounding = 4.0f;
     theme.metrics.popup_rounding = 4.0f;
-    theme.scrollbar.background_color = theme.transparent;
-    theme.scrollbar.grab_color = rgb(85, 85, 85);
-    theme.scrollbar.grab_hovered_color = rgb(115, 115, 115);
-    theme.scrollbar.grab_active_color = rgb(145, 145, 145);
-    theme.scrollbar.rounding = 3.0f;
-    theme.scrollbar.grab_rounding = 3.0f;
     return theme;
 }

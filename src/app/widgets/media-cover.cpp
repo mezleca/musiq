@@ -5,22 +5,25 @@
 
 #include <arbor/runtime.hpp>
 #include <arbor/surface.hpp>
+#include <algorithm>
 
 using namespace ui;
 using namespace utils::media;
 
-MediaCoverWidget::MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbnails, float size)
-    : m_thumbnails(thumbnails), m_size(size) {
+MediaCoverWidget::MediaCoverWidget(
+    ThumbnailCache& thumbnails, float size, std::span<const MusicThumbnail> sources, bool preserve_aspect
+)
+    : m_thumbnails(thumbnails), m_size(size), m_preserve_aspect(preserve_aspect) {
     set_type_name("MediaCoverWidget");
     set_size({px(size), px(size)});
-    set_fit(ImageFit::Cover);
+    set_fit(preserve_aspect ? ImageFit::Contain : ImageFit::Cover);
 
-    set_item(item);
+    set_thumbnails(sources);
 }
 
-void MediaCoverWidget::set_item(const MusicItem& item) {
-    const auto* source = select_thumbnail(item.thumbnails, m_size);
-    const auto url = source ? source->url : std::string{};
+void MediaCoverWidget::set_thumbnails(std::span<const MusicThumbnail> thumbnails) {
+    const auto* source = select_thumbnail(thumbnails, m_size);
+    const std::string_view url = source ? std::string_view(source->url) : std::string_view{};
     if (url == m_url) return;
 
     m_url = url;
@@ -52,16 +55,26 @@ void MediaCoverWidget::draw_before() {
         return;
     }
 
+    if (m_preserve_aspect && image) {
+        const auto size = image->size();
+        const float scale = m_size / std::max(size.x, size.y);
+        set_size({px(size.x * scale), px(size.y * scale)});
+    }
+
     set_texture(std::move(image));
     m_loaded = true;
 }
 
 void MediaCoverWidget::paint_content(const PaintContext& context) {
     ImageWidget::paint_content(context);
-    if (m_loaded || m_url.empty()) return;
+    if (m_loaded || m_url.empty()) {
+        return;
+    }
 
     const auto rect = context.painter.to_screen(context.content_rect);
-    if (!ImGui::IsRectVisible(rect.min, rect.max)) return;
+    if (!ImGui::IsRectVisible(rect.min, rect.max)) {
+        return;
+    }
 
     paint_spinner(context.painter, context.content_rect, surface().theme().text_color);
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -19,6 +20,18 @@ public:
         m_pages.erase(m_pages.begin() + static_cast<std::ptrdiff_t>(m_position + 1), m_pages.end());
         m_pages.push_back(std::move(route));
         ++m_position;
+    }
+
+    void discard(NavigationRoute route) {
+        const auto end = m_pages.begin() + static_cast<std::ptrdiff_t>(m_position + 1);
+        const auto kept = std::count_if(m_pages.begin(), end, [&route](const auto& page) { return page != route; });
+
+        std::erase(m_pages, route);
+        if (m_pages.empty()) {
+            m_pages.emplace_back();
+        }
+
+        m_position = kept > 0 ? static_cast<std::size_t>(kept - 1) : 0;
     }
 
     bool back() {

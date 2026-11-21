@@ -15,7 +15,7 @@ set(ARBOR_BUILD_TESTS OFF)
 FetchContent_Declare(
     arbor
     GIT_REPOSITORY https://github.com/mezleca/arbor.git
-    GIT_TAG 852b56aeff9e3f685c5716b08abf50b1860946a1
+    GIT_TAG 635516b2dfabbd6a1548faefcf140f1b62cc5b69
     GIT_PROGRESS TRUE
 )
 FetchContent_MakeAvailable(arbor)

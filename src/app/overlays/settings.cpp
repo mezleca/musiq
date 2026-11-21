@@ -67,10 +67,11 @@ SettingsOverlay::SettingsOverlay(
     scale_row.set_content_alignment(Anchor::CenterLeft);
     auto& scale = scale_row.add<MusiqSliderWidget>(m_interface_scale);
     scale.set_range(0.75, 1.5);
+    scale.set_commit_on_release(true);
     m_scale_text = &scale_row.add<MusiqText>(std::format("{:.2f}x", m_interface_scale));
     scale.on_change([this] {
         m_scale_text->set_text(std::format("{:.2f}x", m_interface_scale));
-        m_scale_debounce.restart();
+        save_scale();
     });
 
     m_main_font = settings.main_font();
@@ -175,13 +176,6 @@ void SettingsOverlay::save_volume() {
     }
 }
 
-void SettingsOverlay::update(float dt) {
-    // finish pending changes even if settings were hidden during the debounce.
-    if (m_scale_debounce.poll()) save_scale();
-
-    Container::update(dt);
-}
-
 void SettingsOverlay::refresh_playback() {
     const auto repeat_mode = std::to_string(static_cast<int>(m_queue.loop()));
     if (m_repeat_mode != repeat_mode) {
@@ -254,7 +248,7 @@ void SettingsOverlay::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
 
     configure_all_styles([&theme](Style& style) {
-        style.padding({16.0f});
+        style.padding({12.0f, 16.0f});
         style.background_color(theme.background_color);
         style.border_radius(0.0f);
     });

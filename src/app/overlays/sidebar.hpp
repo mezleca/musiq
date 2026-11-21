@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../widgets/context-menu.hpp"
 #include <arbor/layout/resizable-container.hpp>
 #include <functional>
 #include <string>
@@ -14,7 +15,7 @@ class SideBarOverlay final : public ui::ResizableContainer {
 public:
     explicit SideBarOverlay(
         ThumbnailCache& thumbnails, std::function<void(std::string_view)> navigate = {},
-        std::function<void(MusicItem)> open_playlist = {}, std::function<void()> create_playlist = {}
+        std::function<void(MusicItem)> open_playlist = {}, std::function<void()> create_playlist = {}, MediaMenu menu = {}
     );
     void select(std::string_view id);
     void set_playlists(const std::vector<MusicItem>& playlists);
@@ -32,5 +33,6 @@ private:
     std::function<void(std::string_view)> m_navigate;
     std::function<void(MusicItem)> m_open_playlist;
     std::function<void()> m_create_playlist;
+    MediaMenu m_menu;
     std::string m_selected_id = "home";
 };

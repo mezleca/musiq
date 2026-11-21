@@ -3,14 +3,17 @@
 #include <arbor/widgets/image.hpp>
 #include "../../youtube/schema/common.hpp"
 #include <memory>
+#include <span>
 
 class ThumbnailCache;
 struct ThumbnailRequest;
 
-class MediaCoverWidget final : public ui::ImageWidget {
+class MediaCoverWidget : public ui::ImageWidget {
 public:
-    MediaCoverWidget(const MusicItem& item, ThumbnailCache& thumbnails, float size);
-    void set_item(const MusicItem& item);
+    MediaCoverWidget(
+        ThumbnailCache& thumbnails, float size, std::span<const MusicThumbnail> sources = {}, bool preserve_aspect = false
+    );
+    void set_thumbnails(std::span<const MusicThumbnail> thumbnails);
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -22,5 +25,6 @@ private:
     std::string m_url;
     std::shared_ptr<ThumbnailRequest> m_download;
     const float m_size;
+    const bool m_preserve_aspect;
     bool m_loaded = false;
 };

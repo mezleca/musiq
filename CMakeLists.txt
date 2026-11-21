@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(musiq VERSION 0.6.1 LANGUAGES C CXX)
+project(musiq VERSION 0.7.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -101,7 +101,9 @@ if(WIN32)
 endif()
 
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive- /utf-8 /Zc:preprocessor)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /W4 /permissive- /utf-8 $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>
+    )
     target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE

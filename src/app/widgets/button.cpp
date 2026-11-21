@@ -18,13 +18,21 @@ void MusiqButtonWidget::apply_theme_defaults(const Theme& theme) {
     configure_all_styles([](Style& style) { style.font_size(14.0f); });
 }
 
-MusiqIconButtonWidget::MusiqIconButtonWidget(std::string icon_path, float size)
+void MusiqDangerButtonWidget::apply_theme_defaults(const Theme& theme) {
+    MusiqButtonWidget::apply_theme_defaults(theme);
+    style(StyleType::DEFAULT).background_color(theme.accent_color).color(rgb(255, 255, 255));
+    style(StyleType::FOCUS).background_color(theme.accent_color).color(rgb(255, 255, 255));
+    style(StyleType::HOVER).background_color(theme.accent_hover_color).color(rgb(255, 255, 255));
+    style(StyleType::ACTIVE).background_color(theme.accent_color).color(rgb(255, 255, 255));
+}
+
+MusiqIconButtonWidget::MusiqIconButtonWidget(std::string icon_path, float size, float icon_size)
     : MusiqButtonWidget("", {px(size), px(size)}), m_path(std::move(icon_path)) {
     set_type_name("MusiqIconButtonWidget");
     set_content_alignment(Anchor::Center);
 
     m_icon = &add<ImageWidget>();
-    m_icon->set_size({px(24), px(24)});
+    m_icon->set_size({px(icon_size), px(icon_size)});
 }
 
 void MusiqIconButtonWidget::apply_theme_defaults(const Theme& theme) {

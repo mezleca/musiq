@@ -7,13 +7,10 @@
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
 #include "login.hpp"
-#include "../youtube/client.hpp"
-#include "../youtube/playlists.hpp"
 
 #include <arbor/backends/opengl/texture-loader.hpp>
 #include <arbor/backends/sdl/backend.hpp>
 #include <arbor/layout/container.hpp>
-#include <algorithm>
 #include <memory>
 #include <utility>
 #include <cstdlib>
@@ -52,10 +49,8 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
 
     m_sidebar = &main.add<SideBarOverlay>(
         m_thumbnails, [this](std::string_view option) { navigate(option); },
-        [this](MusicItem item) { open_playlist(std::move(item)); },
-        [this] {
-            if (m_playlist_editor) m_playlist_editor->show_create();
-        }
+        [this](MusicItem item) { open_playlist(std::move(item)); }, [this] { m_playlist_editor->show_create(); },
+        media_menu_handler()
     );
 
     auto& content = main.add<Container>("content", StackDirection::Vertical);
@@ -75,8 +70,14 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
         authenticate({}, std::move(identity));
     });
 
-    m_playlist_editor =
-        &m_surface.root().add<PlaylistEditorOverlay>([this](PlaylistDraft draft) { save_playlist(std::move(draft)); });
+    m_playlist_editor = &m_surface.root().add<PlaylistEditorOverlay>(
+        m_thumbnails, [this](PlaylistDraft draft) { save_playlist(std::move(draft)); },
+        [this](std::string id) { delete_playlist(std::move(id)); }
+    );
+
+    // keep the popup outside the scrolling cards so their bounds cannot clip it
+    m_context_menu = &m_surface.root().add<ContextMenuWidget>();
+    m_context_menu->set_size({px(220), fit()});
 }
 
 void MusiqApp::apply_fonts() {
@@ -140,8 +141,7 @@ void MusiqApp::build_pages(Container& content) {
     m_pages = &content.add<Container>("pages", StackDirection::Vertical);
     m_pages->set_size({grow(), grow()});
 
-    m_home = &m_pages->add<CatalogResultsWidget>("home", "Home", m_thumbnails);
-    m_home->set_actions(catalog_actions());
+    m_home = &m_pages->add<CatalogResultsWidget>("home", "", m_thumbnails, catalog_actions());
     m_current_page = m_home;
 
     m_settings_overlay = &m_pages->add<SettingsOverlay>(
@@ -159,9 +159,9 @@ void MusiqApp::build_player() {
 
     auto& player = m_surface.root().add<Container>("player", StackDirection::Vertical);
     player.set_size({grow(), fit()});
-    m_player_bar = &player.add<PlayerBarOverlay>(m_thumbnails, m_player, m_playback, [this](int volume) {
-        m_settings_overlay->set_volume(volume);
-    });
+    m_player_bar = &player.add<PlayerBarOverlay>(
+        m_thumbnails, m_player, m_playback, [this](int volume) { m_settings_overlay->set_volume(volume); }, media_menu_handler()
+    );
 
     // keep the floating control outside the player bar's border clip
     player.add<QueueButtonWidget>().on_event(EventType::Click, [this](UiEvent& event) {
@@ -169,7 +169,7 @@ void MusiqApp::build_player() {
         event.stop_propagation();
     });
 
-    m_queue_overlay = &m_surface.root().add<QueueOverlay>(m_playback, m_thumbnails);
+    m_queue_overlay = &m_surface.root().add<QueueOverlay>(m_playback, m_thumbnails, media_menu_handler());
 }
 
 void MusiqApp::navigate(std::string_view page) {
@@ -177,7 +177,7 @@ void MusiqApp::navigate(std::string_view page) {
     show_page();
 }
 
-void MusiqApp::show_page() {
+void MusiqApp::show_page(PlaylistLoad playlist_load) {
     const auto& route = m_history.current();
     m_sidebar->select(route.page == "playlist" ? route.query : route.page);
     m_back->set_enabled(m_history.can_back());
@@ -192,16 +192,15 @@ void MusiqApp::show_page() {
 
     Container* next = nullptr;
     if (route.page == "home") {
-        m_catalog.home();
+        m_catalog.home(playlist_load == PlaylistLoad::Reload);
         m_home->show(m_catalog.home_state());
         next = m_home;
     } else if (route.page == "search") {
-        m_catalog.search(route.query);
+        m_catalog.search(route.query, playlist_load == PlaylistLoad::Reload);
         auto [entry, created] = m_searches.try_emplace(route.query, nullptr);
         if (created) {
             const auto title = route.query.empty() ? "Search" : "Results for: " + route.query;
-            entry->second = &m_pages->add<CatalogResultsWidget>("search-" + route.query, title, m_thumbnails);
-            entry->second->set_actions(catalog_actions());
+            entry->second = &m_pages->add<CatalogResultsWidget>("search-" + route.query, title, m_thumbnails, catalog_actions());
         }
 
         entry->second->show(m_catalog.search_state());
@@ -210,13 +209,12 @@ void MusiqApp::show_page() {
         auto [entry, created] = m_playlists.try_emplace(route.query, nullptr);
         if (created) {
             entry->second = &m_pages->add<PlaylistOverlay>(
-                m_playlist_items.at(route.query), m_thumbnails, m_playback, [this](const MusicPlaylist& playlist) {
-                    if (m_playlist_editor) m_playlist_editor->show_edit(playlist);
-                }
+                m_playlist_items.at(route.query), m_thumbnails, m_playback,
+                [this](const MusicPlaylist& playlist) { m_playlist_editor->show_edit(playlist); }, media_menu_handler()
             );
         }
         auto* view = entry->second;
-        view->load(m_session.youtube());
+        view->load(m_session.youtube(), playlist_load);
         next = view;
     } else {
         next = m_settings_overlay;
@@ -258,20 +256,6 @@ void MusiqApp::submit_search(std::string query) {
     show_page();
 }
 
-void MusiqApp::refresh_page() {
-    const auto& route = m_history.current();
-
-    if (route.page == "home") {
-        m_catalog.home(true);
-    } else if (route.page == "search") {
-        m_catalog.search(route.query, true);
-    } else if (route.page == "playlist") {
-        m_playlists.at(route.query)->load(m_session.youtube(), true);
-    }
-
-    show_page();
-}
-
 void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
     if (changed.library) m_sidebar->set_playlists(m_catalog.library_playlists());
@@ -307,157 +291,29 @@ CatalogActions MusiqApp::catalog_actions() {
                 m_playback.play(std::move(item));
             }
         },
-        [this](MusicItem item) { m_playback.queue().play_next(std::move(item)); },
-        [this](MusicItem item) { m_playback.queue().append(std::move(item)); }
+        media_menu_handler(), [this](MusicItem item) { m_playback.play_playlist(std::move(item)); }
     };
 }
 
-void MusiqApp::open_playlist(MusicItem item) {
+void MusiqApp::open_playlist(MusicItem item, PlaylistLoad load) {
     const auto id = item.endpoint.browse_id;
     m_playlist_items.insert_or_assign(id, std::move(item));
 
     m_history.visit({"playlist", id});
-    show_page();
-}
-
-void MusiqApp::save_playlist(PlaylistDraft draft) {
-    if (draft.mode == PlaylistEditorMode::Save) {
-        create_playlist(std::move(draft.title), std::move(draft.description), draft.privacy, std::move(draft.cover_path));
-    } else {
-        edit_playlist(
-            std::move(draft.id), std::move(draft.title), std::move(draft.description), draft.privacy, std::move(draft.cover_path)
-        );
-    }
-}
-
-void MusiqApp::create_playlist(
-    std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path
-) {
-    if (!m_session.youtube().user()) {
-        m_playlist_editor->fail("Sign in to create playlists.");
-        return;
-    }
-
-    MusicPlaylistCreateRequest request;
-    request.title = title;
-    request.description = std::move(description);
-    request.privacy = privacy;
-
-    m_tasks.enqueue(
-        [session = m_session.youtube(), request = std::move(request)] {
-            const YoutubeMusicClient client(session);
-            return YoutubeMusicPlaylists(client).create(request);
-        },
-        [this, title = std::move(title),
-         cover_path = std::move(cover_path)](TaskOutcome<YoutubeResult<MusicPlaylistCreated>> outcome) mutable {
-            if (!outcome) {
-                m_playlist_editor->fail("Playlist creation task failed.");
-                return;
-            }
-
-            auto result = std::move(*outcome);
-            if (!result) {
-                m_playlist_editor->fail(result.error().message);
-                return;
-            }
-
-            m_catalog.refresh_library();
-            m_playlist_editor->finish();
-
-            MusicItem item;
-            item.title = std::move(title);
-            item.endpoint.browse_id = "VL" + result->id;
-            open_playlist(std::move(item));
-            upload_playlist_cover(std::move(result->id), std::move(cover_path));
-        }
-    );
-}
-
-void MusiqApp::edit_playlist(
-    std::string id, std::string title, std::string description, MusicPlaylistPrivacy privacy, std::filesystem::path cover_path
-) {
-    MusicPlaylistUpdateRequest request;
-    request.playlist_id = id;
-    request.title = std::move(title);
-    request.description = std::move(description);
-    request.privacy = privacy;
-
-    m_tasks.enqueue(
-        [session = m_session.youtube(), request = std::move(request)] {
-            const YoutubeMusicClient client(session);
-            return YoutubeMusicPlaylists(client).update(request);
-        },
-        [this, id = std::move(id),
-         cover_path = std::move(cover_path)](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) mutable {
-            if (!outcome) {
-                m_playlist_editor->fail("Playlist update task failed.");
-                return;
-            }
-
-            auto result = std::move(*outcome);
-            if (!result) {
-                m_playlist_editor->fail(result.error().message);
-                return;
-            }
-
-            m_catalog.refresh_library();
-            m_playlist_editor->finish();
-            if (auto* view = dynamic_cast<PlaylistOverlay*>(m_current_page)) {
-                view->invalidate();
-                view->load(m_session.youtube());
-            }
-
-            upload_playlist_cover(std::move(id), std::move(cover_path));
-        }
-    );
-}
-
-void MusiqApp::upload_playlist_cover(std::string id, std::filesystem::path cover_path) {
-    if (id.empty() || cover_path.empty()) return;
-
-    MusicPlaylistUpdateRequest request;
-    request.playlist_id = id;
-    request.thumbnail_path = std::move(cover_path);
-    m_tasks.enqueue(
-        [session = m_session.youtube(), request = std::move(request)] {
-            const YoutubeMusicClient client(session);
-            return YoutubeMusicPlaylists(client).update(request);
-        },
-        [this, id = std::move(id)](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) {
-            if (!outcome) {
-                LOG_WARN("[playlist] cover upload task failed for {}", id);
-                return;
-            }
-
-            auto result = std::move(*outcome);
-            if (!result) {
-                LOG_WARN("[playlist] cover upload failed for {}: {}", id, result.error().message);
-                return;
-            }
-
-            m_catalog.refresh_library();
-            const auto& route = m_history.current();
-            const auto browse_id = id.starts_with("VL") ? id : "VL" + id;
-            if (route.page == "playlist" && route.query == browse_id) {
-                if (auto* view = dynamic_cast<PlaylistOverlay*>(m_current_page)) {
-                    view->invalidate();
-                    view->load(m_session.youtube());
-                }
-            }
-        }
-    );
+    show_page(load);
 }
 
 void MusiqApp::update_playback() {
     bool refresh_library = false;
-    for (const auto& playlist : m_playlists) {
-        if (playlist.second->poll()) {
-            m_catalog.remove_playlist(playlist.second->browse_id());
+
+    for (const auto& [browse_id, view] : m_playlists) {
+        if (view->poll()) {
+            m_catalog.remove_playlist(browse_id);
             refresh_library = true;
         }
     }
+
     if (refresh_library) {
-        m_sidebar->set_playlists(m_catalog.library_playlists());
         m_catalog.refresh_library();
     }
 
@@ -482,7 +338,7 @@ void MusiqApp::update_tracks(Node& root) {
 
 void MusiqApp::update_shortcuts() {
     if (m_loading->visible() || m_channel_picker->native_popup_open() || m_queue_overlay->visible()) return;
-    if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) refresh_page();
+    if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) show_page(PlaylistLoad::Reload);
 }
 
 void MusiqApp::initialize() {

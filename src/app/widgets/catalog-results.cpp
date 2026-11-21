@@ -5,10 +5,6 @@
 #include "../../youtube/catalog-browser.hpp"
 #include "../../utils/media.hpp"
 
-#include <arbor/widgets/context-menu.hpp>
-
-#include <algorithm>
-#include <ranges>
 #include <utility>
 
 using namespace ui;
@@ -22,28 +18,20 @@ public:
     )
         : TrackList("tracks"), m_actions(std::move(actions)) {
         set_size({grow(), fit()});
-        set_spacing(8.0f);
+        set_spacing(2.0f);
 
-        // keep the page alive while cards and their callbacks reference its items
         set_items(count, [this, page, shelf, first, &thumbnails](std::size_t index) -> Node& {
-            if (auto* card = find_track(index)) {
-                return *card;
+            if (auto* existing = find_track(index)) {
+                return *existing;
             }
 
             const auto* item = &page->shelves[shelf].items[first + index];
             auto& card = add_track(index, *item, thumbnails);
             card.set_enabled(is_playable(*item));
             card.on_click([this, item] { m_actions.play(*item); });
-
-            auto& menu = card.add<ContextMenuWidget>(ContextMenuItems{
-                ContextMenuItem::action("Play next", [this, item](ContextMenuWidget&) { m_actions.play_next(*item); }),
-                ContextMenuItem::action("Add to queue", [this, item](ContextMenuWidget&) { m_actions.append(*item); })
-            });
-
-            card.on_event(EventType::ContextClick, [&menu](UiEvent& event) {
-                menu.open_at(event.position);
-                event.stop_propagation();
-            });
+            if (m_actions.menu) {
+                attach_context_menu(card, [this, item](ImVec2 position) { return m_actions.menu(*item, {}, position); });
+            }
 
             return card;
         });
@@ -57,7 +45,7 @@ class PlaylistGridWidget final : public Container {
 public:
     PlaylistGridWidget(
         std::shared_ptr<const MusicPage> page, std::size_t shelf, std::size_t first, std::size_t count,
-        ThumbnailCache& thumbnails, std::function<void(MusicItem)> play
+        ThumbnailCache& thumbnails, const CatalogActions& actions
     )
         : Container("playlists", StackDirection::Horizontal) {
         set_size({grow(), fit()});
@@ -65,33 +53,43 @@ public:
         set_wrap(StackWrap::Wrap);
 
         for (std::size_t index = first; index < first + count; ++index) {
-            const auto* item = &page->shelves[shelf].items[index];
-            auto& card = add<PlaylistCardWidget>(*item, thumbnails);
-            // keep the source alive with the callback so its item pointer remains valid
-            card.on_click([page, item, play] { play(*item); });
+            append(page, page->shelves[shelf].items[index], thumbnails, actions);
         }
+    }
+
+    void append(
+        std::shared_ptr<const MusicPage> page, const MusicItem& item, ThumbnailCache& thumbnails, const CatalogActions& actions
+    ) {
+        OpenMenu open;
+        if (actions.menu) {
+            open = [page, item = &item, menu = actions.menu](ImVec2 position) { return menu(*item, {}, position); };
+        }
+
+        auto& card = add<PlaylistCardWidget>(item, thumbnails, std::move(open), [item = &item, play = actions.play_playlist] {
+            play(*item);
+        });
+        card.on_click([item = &item, play = actions.play] { play(*item); });
     }
 };
 
-CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails)
-    : Container(std::move(id), StackDirection::Vertical), m_thumbnails(thumbnails) {
+CatalogResultsWidget::CatalogResultsWidget(std::string id, std::string title, ThumbnailCache& thumbnails, CatalogActions actions)
+    : Container(std::move(id), StackDirection::Vertical), m_thumbnails(thumbnails), m_actions(std::move(actions)) {
     set_type_name("CatalogResultsWidget");
     set_size({grow(), grow()});
     set_spacing(16.0f);
 
-    auto& heading = add<MusiqText>(std::move(title), FontWeight::Bold, 22.0f);
-    heading.set_size({grow(), fit()});
-    heading.set_overflow(TextOverflow::Ellipsis);
+    if (!title.empty()) {
+        auto& heading = add<MusiqText>(std::move(title), FontWeight::Bold, 22.0f);
+        heading.set_size({grow(), fit()});
+        heading.set_overflow(TextOverflow::Ellipsis);
+    }
+
     m_status = &add<MusiqText>("");
 
     m_rows = &add<Container>("results", StackDirection::Vertical);
     m_rows->set_size({grow(), grow()});
-    m_rows->set_spacing(20.0f);
+    m_rows->set_spacing(12.0f);
     m_rows->set_scrollable(true);
-}
-
-void CatalogResultsWidget::set_actions(CatalogActions actions) {
-    m_actions = std::move(actions);
 }
 
 bool CatalogResultsWidget::near_bottom() const {
@@ -101,6 +99,7 @@ bool CatalogResultsWidget::near_bottom() const {
 void CatalogResultsWidget::show(const CatalogPageState& state) {
     if (m_page != state.page) {
         m_rows->clear();
+        m_singleton_playlists = nullptr;
         m_page = state.page;
         m_shelf_count = 0;
         m_rows->scroll().seek_to({0.0f, 0.0f}, ScrollBehavior::Instant);
@@ -113,9 +112,11 @@ void CatalogResultsWidget::show(const CatalogPageState& state) {
         if (m_rows->find("loading") == nullptr) {
             auto& tracks = m_rows->add<TrackList>("loading");
             tracks.set_size({grow(), fit()});
-            tracks.set_spacing(8.0f);
+            tracks.set_spacing(2.0f);
             tracks.set_items(12, [&tracks, this](std::size_t index) -> Node& {
-                if (auto* card = tracks.find_track(index)) return *card;
+                if (auto* card = tracks.find_track(index)) {
+                    return *card;
+                }
                 return tracks.add_track(index, MusicItem{}, m_thumbnails, true);
             });
         }
@@ -140,35 +141,76 @@ void CatalogResultsWidget::show(const CatalogPageState& state) {
 }
 
 void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
-    if (!m_page) {
+    if (m_page == nullptr) {
         return;
     }
-
-    const auto same_card_type = [](const MusicItem& left, const MusicItem& right) {
-        return is_playlist_card(left) == is_playlist_card(right);
-    };
 
     for (std::size_t shelf_index = first_shelf; shelf_index < m_page->shelves.size(); ++shelf_index) {
         const auto& shelf = m_page->shelves[shelf_index];
         if (shelf.items.empty()) {
+            m_singleton_playlists = nullptr;
             continue;
         }
 
+        if (shelf.title.empty() && shelf.items.size() == 1 && !shelf.continuation) {
+            const auto* item = &shelf.items.front();
+            if (is_playlist_card(*item)) {
+                if (m_singleton_playlists) {
+                    m_singleton_playlists->append(m_page, *item, m_thumbnails, m_actions);
+                } else {
+                    m_singleton_playlists = &m_rows->add<PlaylistGridWidget>(m_page, shelf_index, 0, 1, m_thumbnails, m_actions);
+                }
+            } else {
+                m_singleton_playlists = nullptr;
+                auto& card = m_rows->add<MediaCardWidget>(*item, m_thumbnails);
+                card.set_id(item->endpoint.video_id);
+                card.set_enabled(is_playable(*item));
+                card.on_click([item, play = m_actions.play] { play(*item); });
+                if (m_actions.menu) {
+                    attach_context_menu(card, [item, menu = m_actions.menu](ImVec2 position) {
+                        return menu(*item, {}, position);
+                    });
+                }
+            }
+
+            continue;
+        }
+
+        m_singleton_playlists = nullptr;
         auto& section = m_rows->add<Container>("", StackDirection::Vertical);
         section.set_size({grow(), fit()});
-        section.set_spacing(8.0f);
+        section.set_spacing(2.0f);
 
         if (!shelf.title.empty()) {
+            section.configure_all_styles([](Style& style) { style.padding_bottom(8.0f); });
             section.add<MusiqText>(shelf.title, FontWeight::Bold, 22.0f);
         }
 
-        for (const auto group : std::views::chunk_by(shelf.items, same_card_type)) {
-            const auto first = static_cast<std::size_t>(group.begin() - shelf.items.begin());
-            if (is_playlist_card(group.front())) {
-                section.add<PlaylistGridWidget>(m_page, shelf_index, first, group.size(), m_thumbnails, m_actions.play);
-            } else {
-                section.add<CatalogTracksWidget>(m_page, shelf_index, first, group.size(), m_thumbnails, m_actions);
+        for (std::size_t first = 0; first < shelf.items.size();) {
+            const bool playlist = is_playlist_card(shelf.items[first]);
+            std::size_t end = first + 1;
+            while (end < shelf.items.size() && is_playlist_card(shelf.items[end]) == playlist) {
+                ++end;
             }
+
+            if (playlist) {
+                section.configure_all_styles([](Style& style) { style.padding_bottom(8.0f); });
+                section.add<PlaylistGridWidget>(m_page, shelf_index, first, end - first, m_thumbnails, m_actions);
+            } else if (end - first == 1) {
+                const auto* item = &shelf.items[first];
+                auto& card = section.add<MediaCardWidget>(*item, m_thumbnails);
+                card.set_id(item->endpoint.video_id);
+                card.set_enabled(is_playable(*item));
+                card.on_click([item, play = m_actions.play] { play(*item); });
+                if (m_actions.menu) {
+                    attach_context_menu(card, [item, menu = m_actions.menu](ImVec2 position) {
+                        return menu(*item, {}, position);
+                    });
+                }
+            } else {
+                section.add<CatalogTracksWidget>(m_page, shelf_index, first, end - first, m_thumbnails, m_actions);
+            }
+            first = end;
         }
     }
 }
@@ -176,6 +218,6 @@ void CatalogResultsWidget::rebuild(std::size_t first_shelf) {
 void CatalogResultsWidget::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
 
-    configure_all_styles([](Style& style) { style.padding({16.0f, 0.0f, 16.0f, 0.0f}); });
-    m_rows->configure_all_styles([](Style& style) { style.padding({12.0f, 0.0f, 12.0f, 0.0f}); });
+    configure_all_styles([](Style& style) { style.padding({12.0f, 0.0f}); });
+    m_rows->configure_all_styles([](Style& style) { style.padding({0.0f, 12.0f}); });
 }
