@@ -22,7 +22,7 @@ public:
     );
     void load(const YoutubeMusicSession& session, PlaylistLoad mode = PlaylistLoad::Normal);
     void invalidate();
-    bool poll();
+    PlaylistChange poll();
     void update_playback();
     void show_action_error(std::string message);
     const MusicPlaylist& playlist() const {

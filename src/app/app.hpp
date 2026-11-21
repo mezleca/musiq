@@ -72,7 +72,6 @@ private:
     void save_playlist(PlaylistDraft draft);
     void create_playlist(PlaylistDraft&& draft);
     void edit_playlist(PlaylistDraft&& draft);
-    void confirm_playlist_deletion(std::string id);
     void delete_playlist(std::string id);
     void unsave_playlist(std::string id);
     void add_playlist_track(std::string playlist_id, std::string video_id, std::shared_ptr<PlaylistAddState> state);

@@ -199,20 +199,15 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, PlaylistLoad mode
     refresh();
 }
 
-bool PlaylistOverlay::poll() {
+PlaylistChange PlaylistOverlay::poll() {
     const auto change = m_browser.poll(m_item);
-    if (change == PlaylistChange::None) {
-        return false;
-    }
-
-    const auto& playlist = m_browser.playlist();
-
     if (change == PlaylistChange::Loaded) {
+        const auto& playlist = m_browser.playlist();
         m_cover->set_thumbnails(playlist.thumbnails.empty() ? m_item.thumbnails : playlist.thumbnails);
     }
 
-    refresh();
-    return change == PlaylistChange::Missing;
+    if (change != PlaylistChange::None) refresh();
+    return change;
 }
 
 void PlaylistOverlay::play(std::size_t start) {

@@ -1,3 +1,7 @@
+# v0.7.1
+- Sidebar: fixed newly created playlist not appearing
+- PlaylistRemoval: use a simple confirmation instead of re-using the edit one
+
 # v0.7.0
 - Queue: rework queue creation on playlist (first track should load a bit faster and queue will hold all of the songs instead of limiting itself to 100)
 - QueueModal: updated "load more" button

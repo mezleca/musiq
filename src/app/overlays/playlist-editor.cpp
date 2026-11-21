@@ -81,6 +81,7 @@ PlaylistEditorOverlay::PlaylistEditorOverlay(ThumbnailCache& thumbnails, Save sa
     panel.set_spacing(20.0f);
 
     auto& fields = panel.add<Container>("fields", StackDirection::Horizontal);
+    m_fields = &fields;
     fields.set_size({grow(), fit()});
     fields.set_spacing(22.0f);
 
@@ -138,7 +139,12 @@ PlaylistEditorOverlay::PlaylistEditorOverlay(ThumbnailCache& thumbnails, Save sa
     m_delete_cancel = &actions.add<MusiqButtonWidget>("Cancel", LayoutSize{fit(), px(40)});
     m_delete_cancel->set_id("playlist-delete-cancel");
     m_delete_cancel->on_click([this] {
-        if (!m_busy) confirm_delete(false);
+        if (m_busy) return;
+        if (m_fields->visible()) {
+            confirm_delete(false);
+        } else {
+            finish();
+        }
     });
     m_delete_confirm = &actions.add<MusiqDangerButtonWidget>("Delete permanently", LayoutSize{fit(), px(40)});
     m_delete_confirm->set_id("playlist-delete-confirm");
@@ -171,13 +177,17 @@ void PlaylistEditorOverlay::show_edit(const MusicPlaylist& playlist) {
     m_cover->show_existing(playlist.thumbnails);
 }
 
-void PlaylistEditorOverlay::show_delete(const MusicPlaylist& playlist) {
-    if (m_busy || !playlist.owned || playlist.id.empty()) return;
-    show_edit(playlist);
-    confirm_delete(true);
+void PlaylistEditorOverlay::show_delete(const std::string& id, const std::string& title) {
+    if (m_busy || playlist_write_id(id).empty() || !m_delete_playlist) return;
+    m_id = id;
+    m_can_delete = true;
+    m_fields->set_visible(false);
+    confirm_delete(true, title);
+    set_visible(true);
 }
 
 void PlaylistEditorOverlay::show_form(const std::string& title, const std::string& description, MusicPlaylistPrivacy privacy) {
+    m_fields->set_visible(true);
     m_privacy_value = playlist_privacy_value(privacy);
     m_cover_path.clear();
 
@@ -280,13 +290,14 @@ void PlaylistEditorOverlay::submit() {
     );
 }
 
-void PlaylistEditorOverlay::confirm_delete(bool confirm) {
+void PlaylistEditorOverlay::confirm_delete(bool confirm, const std::string& title) {
     m_confirming_delete = confirm;
     m_save_button->set_visible(!confirm);
     m_delete_button->set_visible(m_can_delete && !confirm);
     m_delete_cancel->set_visible(confirm);
     m_delete_confirm->set_visible(confirm);
-    m_status->set_text(confirm ? "Permanently delete this playlist? This action cannot be undone." : "");
+    const auto target = title.empty() ? "this playlist" : "\"" + title + "\"";
+    m_status->set_text(confirm ? "Permanently delete " + target + "? This action cannot be undone." : "");
     m_status->set_visible(confirm);
     set_busy(false);
 }

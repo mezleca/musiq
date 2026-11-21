@@ -103,19 +103,22 @@ void MusiqApp::create_playlist(PlaylistDraft&& draft) {
             }
             return result;
         },
-        [this, title = std::move(draft.title)](TaskOutcome<YoutubeResult<PlaylistCreation>> outcome) mutable {
+        [this, title = std::move(draft.title),
+         identity = m_session.youtube().identity()](TaskOutcome<YoutubeResult<PlaylistCreation>> outcome) mutable {
+            if (identity != m_session.youtube().identity()) return;
             auto result = youtube_result(std::move(outcome));
             if (!result) {
                 m_playlist_editor->fail(result.error().message);
                 return;
             }
 
-            m_catalog.refresh_library();
-            m_playlist_editor->finish();
-
             MusicItem item;
             item.title = std::move(title);
             item.endpoint.browse_id = playlist_browse_id(result->id);
+            item.playlist_owned = true;
+            m_catalog.add_created_playlist(item);
+            m_playlist_editor->finish();
+
             const auto load = result->has_cover ? PlaylistLoad::NewlyCreatedWithCover : PlaylistLoad::NewlyCreated;
             open_playlist(std::move(item), load);
         }
@@ -149,24 +152,6 @@ void MusiqApp::edit_playlist(PlaylistDraft&& draft) {
             m_playlist_editor->finish();
 
             refresh_playlist(id);
-        }
-    );
-}
-
-void MusiqApp::confirm_playlist_deletion(std::string id) {
-    m_tasks.enqueue(
-        [session = m_session.youtube(), id = std::move(id)] {
-            const YoutubeMusicClient client(session);
-            return YoutubeMusicPlaylists(client).get(id, {.auth = MusicAuth::Required});
-        },
-        [this, identity = m_session.youtube().identity()](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
-            if (identity != m_session.youtube().identity()) return;
-            auto result = youtube_result(std::move(outcome));
-            if (!result) {
-                LOG_WARN("[playlist] deletion details failed: {}", result.error().message);
-                return;
-            }
-            m_playlist_editor->show_delete(*result);
         }
     );
 }
@@ -262,8 +247,8 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
 
         if (signed_in && context.library_entry && !is_album(item.endpoint)) {
             if (item.playlist_owned) {
-                add_menu_action(items, "Delete playlist", [this, id = item.endpoint.browse_id] {
-                    confirm_playlist_deletion(id);
+                add_menu_action(items, "Delete playlist", [this, id = item.endpoint.browse_id, title = item.title] {
+                    m_playlist_editor->show_delete(id, title);
                 });
             } else {
                 add_menu_action(items, "Remove from library", [this, id = item.endpoint.browse_id] { unsave_playlist(id); });

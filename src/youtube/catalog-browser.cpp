@@ -29,6 +29,7 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_searches.clear();
     m_search_order.clear();
     m_library.clear();
+    m_created_playlist_ids.clear();
     refresh_library();
 
     suggest({});
@@ -60,11 +61,38 @@ void CatalogBrowser::load_library_page(std::optional<MusicContinuation> continua
     );
 }
 
+void CatalogBrowser::add_created_playlist(MusicItem item) {
+    const auto& id = item.endpoint.browse_id;
+    if (std::ranges::none_of(m_library, [&id](const MusicItem& playlist) { return playlist.endpoint.browse_id == id; })) {
+        m_created_playlist_ids.insert(id);
+        m_library.insert(m_library.begin(), std::move(item));
+        m_changes.library = true;
+    }
+
+    if (m_session.user()) {
+        refresh_library();
+    }
+}
+
+void CatalogBrowser::update_playlist_cover(std::string_view browse_id, const std::vector<MusicThumbnail>& thumbnails) {
+    if (thumbnails.empty()) return;
+
+    const auto matches = [browse_id](const MusicItem& item) { return item.endpoint.browse_id == browse_id; };
+    if (const auto item = std::ranges::find_if(m_library, matches); item != m_library.end()) {
+        item->thumbnails = thumbnails;
+        m_changes.library = true;
+    }
+    if (const auto item = std::ranges::find_if(m_pending_library, matches); item != m_pending_library.end()) {
+        item->thumbnails = thumbnails;
+    }
+}
+
 void CatalogBrowser::remove_playlist(std::string_view browse_id) {
     const auto id = playlist_browse_id(browse_id);
     const auto matches = [&id](const MusicItem& item) { return item.endpoint.browse_id == id; };
     std::erase_if(m_library, matches);
     std::erase_if(m_pending_library, matches);
+    m_created_playlist_ids.erase(id);
     m_library_ids.insert(id);
     m_changes.library = true;
 }
@@ -153,6 +181,11 @@ void CatalogBrowser::accept_library(YoutubeResult<MusicPage> result) {
         for (auto& item : shelf.items) {
             const auto& id = item.endpoint.browse_id;
             if (id.starts_with("VL") && m_library_ids.insert(id).second) {
+                if (item.thumbnails.empty()) {
+                    const auto cached =
+                        std::ranges::find_if(m_library, [&id](const MusicItem& entry) { return entry.endpoint.browse_id == id; });
+                    if (cached != m_library.end()) item.thumbnails = cached->thumbnails;
+                }
                 m_pending_library.push_back(std::move(item));
             }
         }
@@ -167,6 +200,14 @@ void CatalogBrowser::accept_library(YoutubeResult<MusicPage> result) {
             return;
         }
         LOG_WARN("[catalog] repeated library continuation");
+    }
+
+    // keep newly created playlists visible until the library response includes them
+    std::erase_if(m_created_playlist_ids, [this](const auto& id) { return m_library_ids.contains(id); });
+    for (auto item = m_library.rbegin(); !m_created_playlist_ids.empty() && item != m_library.rend(); ++item) {
+        if (m_created_playlist_ids.contains(item->endpoint.browse_id)) {
+            m_pending_library.insert(m_pending_library.begin(), std::move(*item));
+        }
     }
 
     // publishing partial pages would temporarily remove unchanged sidebar entries

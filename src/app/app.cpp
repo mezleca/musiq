@@ -307,7 +307,10 @@ void MusiqApp::update_playback() {
     bool refresh_library = false;
 
     for (const auto& [browse_id, view] : m_playlists) {
-        if (view->poll()) {
+        const auto change = view->poll();
+        if (change == PlaylistChange::Loaded) {
+            m_catalog.update_playlist_cover(browse_id, view->playlist().thumbnails);
+        } else if (change == PlaylistChange::Missing) {
             m_catalog.remove_playlist(browse_id);
             refresh_library = true;
         }

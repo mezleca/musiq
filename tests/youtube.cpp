@@ -1,4 +1,5 @@
 #include "../src/youtube/catalog.hpp"
+#include "../src/youtube/catalog-browser.hpp"
 #include "../src/youtube/client.hpp"
 #include "../src/youtube/playlist-browser.hpp"
 #include "../src/youtube/playlists.hpp"
@@ -26,6 +27,27 @@ static YoutubeMusicSession authenticated_session(const YoutubeMusicConfig& confi
     YoutubeMusicSession session;
     REQUIRE(session.authenticate("SAPISID=local-secret", "local-sync-id", config));
     return session;
+}
+
+TEST_CASE("created playlists appear in the local library immediately", "[youtube]") {
+    CatalogBrowser catalog;
+    MusicItem item;
+    item.title = "New playlist";
+    item.endpoint.browse_id = "VLPLnew";
+    catalog.add_created_playlist(item);
+
+    REQUIRE(catalog.update().library);
+    REQUIRE(catalog.library_playlists().size() == 1);
+    CHECK(catalog.library_playlists().front().title == "New playlist");
+
+    catalog.update_playlist_cover("VLPLnew", {{.url = "https://example.com/cover.jpg"}});
+    REQUIRE(catalog.update().library);
+    REQUIRE(catalog.library_playlists().front().thumbnails.size() == 1);
+    CHECK(catalog.library_playlists().front().thumbnails.front().url == "https://example.com/cover.jpg");
+
+    catalog.remove_playlist("PLnew");
+    REQUIRE(catalog.update().library);
+    CHECK(catalog.library_playlists().empty());
 }
 
 TEST_CASE("anonymous discovery flow", "[youtube][endpoint]") {

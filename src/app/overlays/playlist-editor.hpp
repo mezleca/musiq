@@ -40,7 +40,7 @@ public:
 
     void show_create();
     void show_edit(const MusicPlaylist& playlist);
-    void show_delete(const MusicPlaylist& playlist);
+    void show_delete(const std::string& id, const std::string& title);
     void finish();
     void fail(std::string message);
 
@@ -51,12 +51,13 @@ private:
     void show_form(const std::string& title, const std::string& description, MusicPlaylistPrivacy privacy);
     void pick_cover();
     void submit();
-    void confirm_delete(bool confirm);
+    void confirm_delete(bool confirm, const std::string& title = {});
     void set_busy(bool busy);
     void refresh_save_button();
 
     Save m_save;
     Delete m_delete_playlist;
+    ui::Container* m_fields;
     CoverPickerWidget* m_cover;
     ui::TextInputWidget* m_title;
     ui::TextInputWidget* m_description;

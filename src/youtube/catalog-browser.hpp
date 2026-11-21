@@ -53,6 +53,8 @@ public:
 
     // reloads the saved playlists for the current session, keeping home and search state
     void refresh_library();
+    void add_created_playlist(MusicItem item);
+    void update_playlist_cover(std::string_view browse_id, const std::vector<MusicThumbnail>& thumbnails);
     void remove_playlist(std::string_view browse_id);
 
     CatalogChanges update(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
@@ -86,6 +88,7 @@ private:
     MusicSuggestions m_suggestions;
     std::vector<MusicItem> m_library;
     std::vector<MusicItem> m_pending_library;
+    std::unordered_set<std::string> m_created_playlist_ids;
     std::unordered_set<std::string> m_library_ids;
     std::unordered_set<std::string> m_library_tokens;
     TaskQueue& m_tasks = TaskQueue::instance();
