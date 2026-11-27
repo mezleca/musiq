@@ -62,10 +62,11 @@ PlayerBarOverlay::PlayerBarOverlay(
     m_selection->set_visible(false);
 
     if (menu) {
-        attach_context_menu(*m_selection, [this, menu = std::move(menu)](ImVec2 position) {
+        attach_context_menu(*m_selection, [this, menu = std::move(menu)](ImVec2) {
             const auto* current = m_playback.queue().current();
+            const ImVec2 position{m_selection->layout().visual_rect().min.x, layout().visual_rect().min.y};
             return current &&
-                   menu(current->media, {.playlist_id = {}, .queue_entry_id = current->id, .library_entry = false}, position);
+                   menu(current->media, {.playlist_id = {}, .queue_entry_id = current->id, .active_track = true}, position);
         });
     }
 

@@ -5,11 +5,15 @@
 #include "../widgets/media-cover.hpp"
 #include "../../playback/controller.hpp"
 
+#include <algorithm>
 #include <utility>
 #include <arbor/surface.hpp>
 
 using namespace ui;
 using namespace utils::media;
+
+static constexpr float TrackHeight = 56.0f;
+static constexpr float TrackSpacing = 2.0f;
 
 class PlaylistControlWidget final : public MusiqIconButtonWidget {
 public:
@@ -115,8 +119,8 @@ PlaylistOverlay::PlaylistOverlay(
     m_tracks = &add<TrackList>();
     m_tracks->set_size({grow(), fit()});
     m_tracks->set_scrollable(false);
-    m_tracks->set_item_height(56.0f);
-    m_tracks->set_spacing(2.0f);
+    m_tracks->set_item_height(TrackHeight);
+    m_tracks->set_spacing(TrackSpacing);
     m_tracks->set_overscan(2);
     m_tracks->set_items(0, [this](std::size_t index) -> Node& {
         const auto& playlist = m_browser.playlist();
@@ -230,6 +234,34 @@ void PlaylistOverlay::play(std::size_t start) {
 void PlaylistOverlay::show_action_error(std::string message) {
     m_status->set_text(std::move(message));
     m_status->set_visible(!m_status->empty());
+}
+
+void PlaylistOverlay::reveal_track(const MusicItem& track, ScrollBehavior behavior) {
+    m_track_reveal = {track.endpoint.video_id, track.playlist_set_video_id, behavior};
+}
+
+void PlaylistOverlay::draw_children() {
+    Container::draw_children();
+    if (!m_track_reveal || (m_browser.loading() && !m_browser.appending())) return;
+
+    const auto& target = *m_track_reveal;
+    const auto& tracks = m_browser.playlist().tracks;
+    const auto track = std::ranges::find_if(tracks, [&target](const MusicItem& item) {
+        return item.endpoint.video_id == target.video_id &&
+               (target.set_video_id.empty() || item.playlist_set_video_id == target.set_video_id);
+    });
+    if (track == tracks.end()) {
+        if (!m_browser.appending() && !m_browser.load_more()) m_track_reveal.reset();
+        return;
+    }
+
+    const auto index = static_cast<float>(track - tracks.begin());
+    const auto list_top = m_tracks->layout().visual_rect().min.y;
+    const auto viewport = layout().visual_rect();
+    const auto row_center = list_top + (index * (TrackHeight + TrackSpacing) + TrackHeight / 2.0f) * dpi_scale();
+    const auto viewport_center = (viewport.min.y + viewport.max.y) / 2.0f;
+    scroll().seek_to({0.0f, scroll().position().y + row_center - viewport_center}, target.behavior);
+    m_track_reveal.reset();
 }
 
 void PlaylistOverlay::update_playback() {

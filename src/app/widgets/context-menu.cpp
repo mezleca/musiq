@@ -5,6 +5,29 @@
 
 using namespace ui;
 
+void MediaContextMenu::open_at(ImVec2 position, bool above) {
+    m_position = position;
+    m_above = above;
+    ContextMenuWidget::open_at(position);
+}
+
+void MediaContextMenu::on_measure() {
+    Container::on_measure();
+    if (!is_open()) return;
+
+    const auto area = viewport_work_area();
+    if (!area.valid()) return;
+
+    const auto size = layout().intrinsic_size();
+    auto position = m_position;
+    if (m_above) position.y -= size.y;
+    position = clamp_position(area, size, position);
+    const auto scale = dpi_scale();
+    auto config = layout().config();
+    config.placement.offset = {(position.x - area.min.x) / scale, (position.y - area.min.y) / scale};
+    set_layout(config);
+}
+
 void add_menu_action(ContextMenuItems& items, std::string label, std::function<void()> run) {
     items.push_back(ContextMenuItem::action(std::move(label), [run = std::move(run)](ContextMenuWidget&) { run(); }));
 }

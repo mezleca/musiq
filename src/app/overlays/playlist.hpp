@@ -6,6 +6,7 @@
 #include "../widgets/track-list.hpp"
 
 #include <functional>
+#include <optional>
 
 class ThumbnailCache;
 class PlaybackController;
@@ -13,6 +14,12 @@ class MediaCoverWidget;
 class MusiqText;
 class MusiqButtonWidget;
 class MusiqIconButtonWidget;
+
+struct PlaylistTrackReveal {
+    std::string video_id;
+    std::string set_video_id;
+    ui::ScrollBehavior behavior;
+};
 
 class PlaylistOverlay final : public ui::Container {
 public:
@@ -25,12 +32,14 @@ public:
     PlaylistChange poll();
     void update_playback();
     void show_action_error(std::string message);
+    void reveal_track(const MusicItem& track, ui::ScrollBehavior behavior);
     const MusicPlaylist& playlist() const {
         return m_browser.playlist();
     }
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
+    void draw_children() override;
 
 private:
     void refresh();
@@ -40,6 +49,7 @@ private:
     ThumbnailCache& m_thumbnails;
     PlaybackController& m_playback;
     PlaylistBrowser m_browser;
+    std::optional<PlaylistTrackReveal> m_track_reveal;
     ui::Container* m_header;
     ui::Container* m_separator;
     MediaCoverWidget* m_cover;

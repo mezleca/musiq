@@ -76,7 +76,7 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     );
 
     // keep the popup outside the scrolling cards so their bounds cannot clip it
-    m_context_menu = &m_surface.root().add<ContextMenuWidget>();
+    m_context_menu = &m_surface.root().add<MediaContextMenu>();
     m_context_menu->set_size({px(220), fit()});
 }
 
@@ -301,6 +301,20 @@ void MusiqApp::open_playlist(MusicItem item, PlaylistLoad load) {
 
     m_history.visit({"playlist", id});
     show_page(load);
+}
+
+void MusiqApp::show_on_playlist(const std::string& source, const MusicItem& track) {
+    const auto view = m_playlists.find(source);
+    const bool already_open = view != m_playlists.end() && view->second == m_current_page;
+    if (!already_open) {
+        const auto item = m_playlist_items.find(source);
+        open_playlist(
+            item != m_playlist_items.end() ? item->second
+                                           : MusicItem{.endpoint = {.browse_id = source, .page_type = "MUSIC_PAGE_TYPE_PLAYLIST"}}
+        );
+    }
+
+    m_playlists.at(source)->reveal_track(track, already_open ? ScrollBehavior::Smooth : ScrollBehavior::Instant);
 }
 
 void MusiqApp::update_playback() {

@@ -223,7 +223,7 @@ MediaMenu MusiqApp::media_menu_handler() {
         }
 
         m_context_menu->set_items(std::move(items));
-        m_context_menu->open_at(position);
+        m_context_menu->open_at(position, context.active_track);
         return true;
     };
 }
@@ -273,6 +273,15 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
         add_menu_action(items, "Add to queue", [this, track] { m_playback.queue().append(*track); });
     } else if (context.queue_entry_id != 0) {
         add_menu_action(items, "Remove from queue", [this, id = context.queue_entry_id] { m_playback.remove(id); });
+    }
+
+    if (context.active_track) {
+        const auto* current = m_playback.queue().current();
+        if (current && !current->playlist_source.empty()) {
+            add_menu_action(items, "Show on playlist", [this, source = current->playlist_source, track = item] {
+                show_on_playlist(source, track);
+            });
+        }
     }
 
     if (!signed_in) {

@@ -99,6 +99,7 @@ void PlaybackController::reset_source() {
     m_page_tasks.clear();
     m_page_loading = false;
     m_continuation.reset();
+    m_playlist_source.clear();
     m_error.clear();
     m_playlist_queue_state = PlaylistQueueState::Idle;
     m_changed = true;
@@ -114,6 +115,7 @@ void PlaybackController::remove(std::uint64_t id) {
 }
 
 void PlaybackController::radio(std::string video_id) {
+    m_playlist_source.clear();
     m_page_tasks.clear();
     m_page_loading = true;
 
@@ -196,7 +198,8 @@ void PlaybackController::play_playlist(PlaybackPage page, std::size_t start, std
 
     reset_source();
     m_continuation = std::move(page.continuation);
-    m_queue.replace(std::move(page.tracks), start, std::move(source));
+    if (load_remaining) m_playlist_source = source;
+    m_queue.replace(std::move(page.tracks), start, std::move(source), load_remaining);
 
     if (load_remaining && m_continuation) {
         m_playlist_queue_state = PlaylistQueueState::LoadingRemainingPages;
@@ -247,7 +250,7 @@ void PlaybackController::append_page(YoutubeResult<PlaybackPage> page) {
     }
 
     std::erase_if(page->tracks, [](const MusicItem& track) { return !is_playable(track); });
-    m_queue.extend(std::move(page->tracks));
+    m_queue.extend(std::move(page->tracks), m_playlist_source);
     m_continuation = std::move(page->continuation);
     LOG_INFO("[queue] loaded page (entries={})", m_queue.entries().size());
 

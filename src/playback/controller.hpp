@@ -91,6 +91,7 @@ private:
     TaskScope m_page_tasks;
     TaskScope m_stream_tasks;
     std::optional<MusicContinuation> m_continuation;
+    std::string m_playlist_source;
     std::string m_error;
     PlaylistQueueState m_playlist_queue_state = PlaylistQueueState::Idle;
     bool m_changed = false;

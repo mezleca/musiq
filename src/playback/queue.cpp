@@ -14,7 +14,7 @@ void PlaybackQueue::changed() {
     }
 }
 
-void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source) {
+void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, std::string source, bool from_playlist) {
     if (matches(tracks, source)) return;
 
     m_source = std::move(source);
@@ -24,7 +24,7 @@ void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, st
     m_entries.reserve(tracks.size());
 
     for (auto& track : tracks) {
-        m_entries.push_back({m_next_id++, std::move(track)});
+        m_entries.push_back({m_next_id++, std::move(track), from_playlist ? m_source : std::string{}});
     }
 
     m_position = m_entries.empty() ? 0 : std::min(start, m_entries.size() - 1);
@@ -44,14 +44,14 @@ void PlaybackQueue::play_next(MusicItem track) {
     changed();
 }
 
-void PlaybackQueue::extend(std::vector<MusicItem> tracks) {
+void PlaybackQueue::extend(std::vector<MusicItem> tracks, std::string_view playlist_source) {
     if (tracks.empty()) {
         return;
     }
 
     m_entries.reserve(m_entries.size() + tracks.size());
     for (auto& track : tracks) {
-        m_entries.push_back({m_next_id++, std::move(track)});
+        m_entries.push_back({m_next_id++, std::move(track), std::string(playlist_source)});
     }
 
     changed();

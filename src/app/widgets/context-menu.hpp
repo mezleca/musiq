@@ -13,6 +13,17 @@ struct MediaMenuContext {
     std::string_view playlist_id;
     std::uint64_t queue_entry_id = 0;
     bool library_entry = false;
+    bool active_track = false;
+};
+
+class MediaContextMenu final : public ui::ContextMenuWidget {
+public:
+    void open_at(ImVec2 position, bool above);
+
+private:
+    void on_measure() override;
+    ImVec2 m_position{};
+    bool m_above = false;
 };
 
 using MediaMenu = std::function<bool(const MusicItem&, MediaMenuContext, ImVec2)>;

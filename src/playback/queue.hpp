@@ -7,6 +7,7 @@
 struct QueueEntry {
     std::uint64_t id;
     MusicItem media;
+    std::string playlist_source;
 };
 
 enum class LoopMode {
@@ -20,11 +21,11 @@ class PlaybackQueue {
 public:
     void on_change(std::function<void()> callback);
     // replaying an unchanged named playlist preserves the selected occurrence
-    void replace(std::vector<MusicItem> tracks, std::size_t start = 0, std::string source = {});
+    void replace(std::vector<MusicItem> tracks, std::size_t start = 0, std::string source = {}, bool from_playlist = false);
     void play_next(MusicItem track);
     void append(MusicItem track, bool preserve_source = false);
     // continuation pages retain the source associated with the current queue
-    void extend(std::vector<MusicItem> tracks);
+    void extend(std::vector<MusicItem> tracks, std::string_view playlist_source = {});
     bool remove(std::uint64_t id);
     void select(std::uint64_t id);
     bool advance();

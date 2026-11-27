@@ -69,6 +69,7 @@ private:
     void update_playback();
     void update_tracks(ui::Node& root);
     void open_playlist(MusicItem item, PlaylistLoad load = PlaylistLoad::Normal);
+    void show_on_playlist(const std::string& source, const MusicItem& track);
     void save_playlist(PlaylistDraft draft);
     void create_playlist(PlaylistDraft&& draft);
     void edit_playlist(PlaylistDraft&& draft);
@@ -87,7 +88,7 @@ private:
     ChannelPickerOverlay* m_channel_picker = nullptr;
     PlaylistEditorOverlay* m_playlist_editor = nullptr;
     std::unordered_map<std::string, std::weak_ptr<PlaylistAddState>> m_playlist_additions;
-    ui::ContextMenuWidget* m_context_menu = nullptr;
+    MediaContextMenu* m_context_menu = nullptr;
     NavigationHistory m_history;
     TaskQueue& m_tasks = TaskQueue::instance();
     CatalogBrowser m_catalog;
