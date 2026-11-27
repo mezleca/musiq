@@ -1,3 +1,9 @@
+# Unreleased
+- Sidebar: update the playlist cover properly on new tracks
+- ContextMenu: improve "add to playlist" item feedback
+- Playlist: filter out liked music and not owned playlist from "add to playlist" menu and other actions
+- PlaylistOverlay: fixed unecessary reload while removing a track
+
 # v0.7.1
 - Sidebar: fixed newly created playlist not appearing
 - PlaylistRemoval: use a simple confirmation instead of re-using the edit one

@@ -186,6 +186,26 @@ void PlaylistOverlay::invalidate() {
     m_browser.invalidate();
 }
 
+bool PlaylistOverlay::append_added_track(MusicItem track) {
+    if (!m_browser.append_added_track(std::move(track))) return false;
+    refresh();
+    return true;
+}
+
+void PlaylistOverlay::remove_track(std::string_view set_video_id) {
+    const auto index = m_browser.remove_track(set_video_id);
+    if (!index) return;
+
+    m_tracks->retain([index = *index](std::uint64_t row) { return row < index; });
+    m_tracks->set_items(m_browser.playlist().tracks.size());
+    update_playback();
+}
+
+void PlaylistOverlay::update_cover(const std::vector<MusicThumbnail>& thumbnails) {
+    m_browser.set_thumbnails(thumbnails);
+    m_cover->set_thumbnails(thumbnails.empty() ? m_item.thumbnails : thumbnails);
+}
+
 bool PlaylistOverlay::editable() const {
     return playlist().owned && !is_liked_music_playlist(m_item.endpoint.browse_id);
 }
@@ -205,11 +225,6 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, PlaylistLoad mode
 
 PlaylistChange PlaylistOverlay::poll() {
     const auto change = m_browser.poll(m_item);
-    if (change == PlaylistChange::Loaded) {
-        const auto& playlist = m_browser.playlist();
-        m_cover->set_thumbnails(playlist.thumbnails.empty() ? m_item.thumbnails : playlist.thumbnails);
-    }
-
     if (change != PlaylistChange::None) refresh();
     return change;
 }

@@ -28,10 +28,11 @@
 #include <memory>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
-struct PlaylistAddState;
+enum class PlaylistAddStatus;
 
 class MusiqApp {
 public:
@@ -75,9 +76,11 @@ private:
     void edit_playlist(PlaylistDraft&& draft);
     void delete_playlist(std::string id);
     void unsave_playlist(std::string id);
-    void add_playlist_track(std::string playlist_id, std::string video_id, std::shared_ptr<PlaylistAddState> state);
+    void add_playlist_track(std::string playlist_id, MusicItem track, std::shared_ptr<PlaylistAddStatus> status);
     void remove_playlist_track(std::string playlist_id, MusicPlaylistRemoveRequest::Entry entry);
     void refresh_playlist(const std::string& playlist_id);
+    void refresh_playlist_cover(std::string browse_id);
+    void update_playlist_cover(const std::string& browse_id, const std::vector<MusicThumbnail>& thumbnails);
     void update_shortcuts();
 
     MusiqSession m_session;
@@ -87,7 +90,7 @@ private:
     SettingsOverlay* m_settings_overlay = nullptr;
     ChannelPickerOverlay* m_channel_picker = nullptr;
     PlaylistEditorOverlay* m_playlist_editor = nullptr;
-    std::unordered_map<std::string, std::weak_ptr<PlaylistAddState>> m_playlist_additions;
+    std::unordered_set<std::string> m_pending_playlist_additions;
     MediaContextMenu* m_context_menu = nullptr;
     NavigationHistory m_history;
     TaskQueue& m_tasks = TaskQueue::instance();

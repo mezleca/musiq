@@ -79,8 +79,13 @@ void CatalogBrowser::update_playlist_cover(std::string_view browse_id, const std
 
     const auto matches = [browse_id](const MusicItem& item) { return item.endpoint.browse_id == browse_id; };
     if (const auto item = std::ranges::find_if(m_library, matches); item != m_library.end()) {
-        item->thumbnails = thumbnails;
-        m_changes.library = true;
+        const bool unchanged = std::ranges::equal(item->thumbnails, thumbnails, [](const auto& old, const auto& updated) {
+            return old.url == updated.url && old.width == updated.width && old.height == updated.height;
+        });
+        if (!unchanged) {
+            item->thumbnails = thumbnails;
+            m_changes.library = true;
+        }
     }
     if (const auto item = std::ranges::find_if(m_pending_library, matches); item != m_pending_library.end()) {
         item->thumbnails = thumbnails;

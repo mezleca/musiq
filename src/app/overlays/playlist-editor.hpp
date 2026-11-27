@@ -40,6 +40,7 @@ public:
 
     void show_create();
     void show_edit(const MusicPlaylist& playlist);
+    void update_cover(std::string_view playlist_id, const std::vector<MusicThumbnail>& thumbnails);
     void show_delete(const std::string& id, const std::string& title);
     void finish();
     void fail(std::string message);

@@ -46,6 +46,9 @@ public:
     bool load(const YoutubeMusicSession& session, const MusicItem& item, PlaylistLoad mode = PlaylistLoad::Normal);
     void invalidate();
     bool load_more();
+    bool append_added_track(MusicItem track);
+    std::optional<std::size_t> remove_track(std::string_view set_video_id);
+    void set_thumbnails(const std::vector<MusicThumbnail>& thumbnails);
     PlaylistChange poll(const MusicItem& item);
 
     const MusicPlaylist& playlist() const {

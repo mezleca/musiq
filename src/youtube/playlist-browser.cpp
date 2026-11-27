@@ -5,6 +5,7 @@
 #include "../utils/media.hpp"
 #include "../utils/log.hpp"
 
+#include <algorithm>
 #include <utility>
 
 using namespace utils::media;
@@ -77,6 +78,32 @@ void PlaylistBrowser::invalidate() {
     m_playlist = {};
     m_state = PlaylistState::Idle;
     m_change = PlaylistChange::None;
+}
+
+bool PlaylistBrowser::append_added_track(MusicItem track) {
+    if (m_state != PlaylistState::Ready || m_playlist.continuation) return false;
+
+    if (std::ranges::find(m_playlist.tracks, track.playlist_set_video_id, &MusicItem::playlist_set_video_id) ==
+        m_playlist.tracks.end()) {
+        m_playlist.tracks.push_back(std::move(track));
+        if (m_playlist.track_count) ++*m_playlist.track_count;
+    }
+    return true;
+}
+
+std::optional<std::size_t> PlaylistBrowser::remove_track(std::string_view set_video_id) {
+    auto& tracks = m_playlist.tracks;
+    const auto track = std::ranges::find(tracks, set_video_id, &MusicItem::playlist_set_video_id);
+    if (track == tracks.end()) return std::nullopt;
+
+    const auto index = static_cast<std::size_t>(track - tracks.begin());
+    tracks.erase(track);
+    if (m_playlist.track_count && *m_playlist.track_count > 0) --*m_playlist.track_count;
+    return index;
+}
+
+void PlaylistBrowser::set_thumbnails(const std::vector<MusicThumbnail>& thumbnails) {
+    m_playlist.thumbnails = thumbnails;
 }
 
 bool PlaylistBrowser::load_more() {

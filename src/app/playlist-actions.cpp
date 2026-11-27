@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "widgets/spinner.hpp"
 #include "../utils/media.hpp"
 #include "../utils/log.hpp"
 #include "../utils/path.hpp"
@@ -21,39 +22,77 @@ enum class PlaylistAddStatus {
     Succeeded
 };
 
-struct PlaylistAddState {
-    PlaylistAddStatus status = PlaylistAddStatus::Idle;
-};
-
 class PlaylistDestinationWidget final : public Widget {
 public:
-    PlaylistDestinationWidget(std::string title, TextureHandle check, std::shared_ptr<PlaylistAddState> state)
-        : Widget({}, StackDirection::Horizontal, "PlaylistDestination", InputMode::None), m_state(std::move(state)) {
+    PlaylistDestinationWidget(std::string title, TextureHandle check, std::shared_ptr<PlaylistAddStatus> status)
+        : Widget({}, StackDirection::Horizontal, "PlaylistDestination", InputMode::None), m_status(std::move(status)) {
         set_size({grow(), grow()});
-        set_spacing(6.0f);
-        set_content_alignment(Anchor::CenterLeft);
-        auto& label = add<TextWidget>(std::move(title));
-        label.set_size({grow(), grow()});
-        label.set_alignment(Anchor::CenterLeft);
-        label.set_overflow(TextOverflow::Ellipsis);
-        m_check = &add<ImageWidget>(std::move(check));
-        m_check->set_size({px(16), px(16)});
+        m_label = &add<TextWidget>(std::move(title));
+        m_label->set_size({grow(), grow()});
+        m_label->set_alignment(Anchor::CenterLeft);
+        m_label->set_overflow(TextOverflow::Ellipsis);
+        m_label->set_input_mode(InputMode::None);
+
+        m_feedback = &add<Widget>("feedback", StackDirection::Horizontal, "PlaylistAddFeedback", InputMode::None);
+        m_feedback->set_layout({
+            .size = {grow(), grow()},
+            .placement = {.anchor = Anchor::Center, .origin = Anchor::Center},
+            .in_flow = false,
+        });
+        m_feedback->set_content_alignment(Anchor::Center);
+        m_feedback->set_opacity(0.0f, {0.0f});
+        m_spinner = &m_feedback->add<SpinnerWidget>();
+        m_check = &m_feedback->add<ImageWidget>(std::move(check));
         m_check->set_input_mode(InputMode::None);
-        m_check->set_opacity(0.0f, {0.0f});
+        m_check->set_visible(false);
     }
 
 private:
+    void apply_theme_defaults(const Theme& theme) override {
+        Widget::apply_theme_defaults(theme);
+        const auto size = px(theme.controls.font_size);
+        m_spinner->set_size({size, size});
+        m_check->set_size({size, size});
+    }
+
     void on_update(float) override {
-        if (m_state->status == PlaylistAddStatus::Succeeded && !m_confirmed) {
-            m_confirmed = true;
-            m_check->set_opacity(1.0f, {0.0f});
-            m_check->animator().animate().delay(2.0f).end([check = m_check] { check->fade_out({0.25f}); });
+        const auto& menu = static_cast<const ContextMenuWidget&>(*parent()->parent());
+        if (!menu.is_open()) {
+            if (m_displayed != PlaylistAddStatus::Idle || *m_status != PlaylistAddStatus::Idle) {
+                *m_status = m_displayed = PlaylistAddStatus::Idle;
+                animator().cancel();
+                parent()->set_enabled(true);
+                m_label->set_opacity(1.0f, {0.0f});
+                m_feedback->set_opacity(0.0f, {0.0f});
+            }
+            return;
+        }
+        if (m_displayed == *m_status) return;
+        m_displayed = *m_status;
+        const bool working = m_displayed == PlaylistAddStatus::Pending;
+        const bool done = m_displayed == PlaylistAddStatus::Succeeded;
+        if (working || done) {
+            m_spinner->set_visible(working);
+            m_check->set_visible(done);
+        }
+        parent()->set_enabled(!working && !done);
+        m_label->set_opacity(working || done ? 0.0f : 1.0f, {0.15f});
+        m_feedback->set_opacity(working || done ? 1.0f : 0.0f, {0.15f});
+        if (done) {
+            m_check->set_opacity(0.0f, {0.0f});
+            m_check->fade_in({0.15f});
+            animator().animate().delay(1.5f).end([status = m_status] {
+                if (*status == PlaylistAddStatus::Succeeded) *status = PlaylistAddStatus::Idle;
+            });
         }
     }
 
-    std::shared_ptr<PlaylistAddState> m_state;
+    std::shared_ptr<PlaylistAddStatus> m_status;
+    TextWidget* m_label = nullptr;
+    Widget* m_feedback = nullptr;
+    SpinnerWidget* m_spinner = nullptr;
     ImageWidget* m_check = nullptr;
-    bool m_confirmed = false;
+    PlaylistAddStatus m_displayed = PlaylistAddStatus::Idle;
 };
 
 struct PlaylistCreation {
@@ -291,18 +330,18 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
 
     ContextMenuItems destinations;
     const auto check = m_runtime.textures().acquire("icons/check.svg", utils::path::from_resources("icons/check.svg"));
+    const auto track = std::make_shared<MusicItem>(item);
     for (const auto& playlist : m_catalog.library_playlists()) {
         if (!playlist.playlist_owned || is_liked_music_playlist(playlist.endpoint.browse_id)) continue;
 
-        auto state = std::make_shared<PlaylistAddState>();
-        auto destination = ContextMenuItem::action(
-            playlist.title, [this, id = playlist.endpoint.browse_id, video_id, state](ContextMenuWidget&) {
-                add_playlist_track(id, video_id, state);
-            }
-        );
+        const auto status = std::make_shared<PlaylistAddStatus>(PlaylistAddStatus::Idle);
+        auto destination =
+            ContextMenuItem::action(playlist.title, [this, id = playlist.endpoint.browse_id, track, status](ContextMenuWidget&) {
+                if (*status == PlaylistAddStatus::Idle) add_playlist_track(id, *track, status);
+            });
         destination.close_on_activate = false;
-        destination.build_content = [title = playlist.title, check, state](Widget& row) {
-            row.add<PlaylistDestinationWidget>(title, check, state);
+        destination.build_content = [title = playlist.title, check, status](Widget& row) {
+            row.add<PlaylistDestinationWidget>(title, check, status);
         };
         destinations.push_back(std::move(destination));
     }
@@ -320,41 +359,47 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
     return items;
 }
 
-void MusiqApp::add_playlist_track(std::string playlist_id, std::string video_id, std::shared_ptr<PlaylistAddState> state) {
-    if (state->status != PlaylistAddStatus::Idle) return;
-    std::erase_if(m_playlist_additions, [](const auto& addition) { return addition.second.expired(); });
-    const auto key = playlist_id + '\n' + video_id;
-    const auto previous = m_playlist_additions.find(key);
-    if (previous != m_playlist_additions.end()) {
-        const auto active = previous->second.lock();
-        if (active && active->status != PlaylistAddStatus::Idle) return;
-    }
-    m_playlist_additions[key] = state;
-    state->status = PlaylistAddStatus::Pending;
-    MusicPlaylistAddRequest request;
-    request.playlist_id = playlist_id;
-    request.video_ids = {video_id};
+void MusiqApp::add_playlist_track(std::string playlist_id, MusicItem track, std::shared_ptr<PlaylistAddStatus> status) {
+    const auto key = playlist_id + '\n' + track.endpoint.video_id;
+    if (!m_pending_playlist_additions.insert(key).second) return;
+
+    *status = PlaylistAddStatus::Pending;
+    MusicPlaylistAddRequest request{.playlist_id = playlist_id, .video_ids = {track.endpoint.video_id}};
 
     m_tasks.enqueue(
         [session = m_session.youtube(), request = std::move(request)] {
             const YoutubeMusicClient client(session);
             return YoutubeMusicPlaylists(client).add(request);
         },
-        [this, state, playlist_id, key](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) {
+        [this, status, key, playlist_id = std::move(playlist_id), track = std::move(track),
+         identity = m_session.youtube().identity()](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) mutable {
+            m_pending_playlist_additions.erase(key);
             const auto result = youtube_result(std::move(outcome));
-            if (result) {
-                state->status = PlaylistAddStatus::Succeeded;
-                refresh_playlist(playlist_id);
-            } else {
-                state->status = PlaylistAddStatus::Idle;
+            if (!result) {
+                *status = PlaylistAddStatus::Idle;
                 LOG_WARN("[playlist] add failed for {}: {}", playlist_id, result.error().message);
-                m_playlist_additions.erase(key);
+                return;
             }
+
+            if (*status == PlaylistAddStatus::Pending) *status = PlaylistAddStatus::Succeeded;
+            if (identity != m_session.youtube().identity()) return;
+
+            const auto view = m_playlists.find(playlist_id);
+            if (view != m_playlists.end()) {
+                const auto added = std::ranges::find(result->added, track.endpoint.video_id, &MusicPlaylistAddedEntry::video_id);
+                track.playlist_set_video_id = added == result->added.end() ? std::string{} : added->set_video_id;
+                if (track.playlist_set_video_id.empty() || !view->second->append_added_track(std::move(track))) {
+                    view->second->load(m_session.youtube(), PlaylistLoad::Reload);
+                    return;
+                }
+            }
+            refresh_playlist_cover(playlist_id);
         }
     );
 }
 
 void MusiqApp::remove_playlist_track(std::string playlist_id, MusicPlaylistRemoveRequest::Entry entry) {
+    const auto set_video_id = entry.set_video_id;
     MusicPlaylistRemoveRequest request{.playlist_id = playlist_id, .entries = {std::move(entry)}};
     const auto browse_id = playlist_browse_id(playlist_id);
     m_tasks.enqueue(
@@ -362,17 +407,42 @@ void MusiqApp::remove_playlist_track(std::string playlist_id, MusicPlaylistRemov
             const YoutubeMusicClient client(session);
             return YoutubeMusicPlaylists(client).remove(request);
         },
-        [this, browse_id](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) {
+        [this, browse_id, set_video_id,
+         identity = m_session.youtube().identity()](TaskOutcome<YoutubeResult<MusicPlaylistEditResult>> outcome) {
+            if (identity != m_session.youtube().identity()) return;
+            const auto view = m_playlists.find(browse_id);
             const auto result = youtube_result(std::move(outcome));
             if (!result) {
-                const auto view = m_playlists.find(browse_id);
                 if (view != m_playlists.end()) view->second->show_action_error(result.error().message);
                 return;
             }
 
-            refresh_playlist(browse_id);
+            if (view != m_playlists.end()) view->second->remove_track(set_video_id);
+            refresh_playlist_cover(browse_id);
         }
     );
+}
+
+void MusiqApp::refresh_playlist_cover(std::string browse_id) {
+    m_tasks.enqueue(
+        [session = m_session.youtube(), browse_id] {
+            const YoutubeMusicClient client(session);
+            return YoutubeMusicPlaylists(client).get(browse_id);
+        },
+        [this, browse_id, identity = m_session.youtube().identity()](TaskOutcome<YoutubeResult<MusicPlaylist>> outcome) {
+            if (identity != m_session.youtube().identity()) return;
+            const auto result = youtube_result(std::move(outcome));
+            if (result) update_playlist_cover(browse_id, result->thumbnails);
+        }
+    );
+}
+
+void MusiqApp::update_playlist_cover(const std::string& browse_id, const std::vector<MusicThumbnail>& thumbnails) {
+    if (const auto view = m_playlists.find(browse_id); view != m_playlists.end()) {
+        view->second->update_cover(thumbnails);
+    }
+    m_catalog.update_playlist_cover(browse_id, thumbnails);
+    m_playlist_editor->update_cover(browse_id, thumbnails);
 }
 
 void MusiqApp::refresh_playlist(const std::string& playlist_id) {

@@ -177,6 +177,13 @@ void PlaylistEditorOverlay::show_edit(const MusicPlaylist& playlist) {
     m_cover->show_existing(playlist.thumbnails);
 }
 
+void PlaylistEditorOverlay::update_cover(std::string_view playlist_id, const std::vector<MusicThumbnail>& thumbnails) {
+    if (visible() && m_mode == PlaylistEditorMode::Edit && m_cover_path.empty() &&
+        playlist_write_id(m_id) == playlist_write_id(playlist_id)) {
+        m_cover->show_existing(thumbnails);
+    }
+}
+
 void PlaylistEditorOverlay::show_delete(const std::string& id, const std::string& title) {
     if (m_busy || playlist_write_id(id).empty() || !m_delete_playlist) return;
     m_id = id;

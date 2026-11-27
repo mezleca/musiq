@@ -29,6 +29,9 @@ public:
     );
     void load(const YoutubeMusicSession& session, PlaylistLoad mode = PlaylistLoad::Normal);
     void invalidate();
+    bool append_added_track(MusicItem track);
+    void remove_track(std::string_view set_video_id);
+    void update_cover(const std::vector<MusicThumbnail>& thumbnails);
     PlaylistChange poll();
     void update_playback();
     bool editable() const;
