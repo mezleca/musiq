@@ -8,8 +8,10 @@ std::string music_text(const json& data) {
     if (data.empty()) return {};
     const auto simple = data.find("simpleText");
     if (simple != data.end()) return simple->get<std::string>();
+    const auto runs = data.find("runs");
+    if (runs == data.end()) return {};
     std::string text;
-    for (const auto& run : data.at("runs")) {
+    for (const auto& run : *runs) {
         text += run.at("text").get_ref<const std::string&>();
     }
     return text;
@@ -49,6 +51,16 @@ void from_json(const json& data, MusicEndpoint& value) {
         endpoint.video_id = watch->value("videoId", std::string{});
         endpoint.playlist_id = watch->value("playlistId", std::string{});
         endpoint.params = watch->value("params", std::string{});
+        const json::json_pointer video_type("/watchEndpointMusicSupportedConfigs/watchEndpointMusicConfig/musicVideoType");
+        if (watch->contains(video_type)) {
+            const auto& type = watch->at(video_type);
+            endpoint.music_video = type == "MUSIC_VIDEO_TYPE_OMV" || type == "MUSIC_VIDEO_TYPE_UGC";
+        }
+    }
+    const auto watch_playlist = data.find("watchPlaylistEndpoint");
+    if (watch_playlist != data.end() && watch_playlist->contains("playlistId")) {
+        endpoint.playlist_id = watch_playlist->at("playlistId").get<std::string>();
+        if (!endpoint.playlist_id.empty()) endpoint.browse_id = "VL" + endpoint.playlist_id;
     }
     const auto browse = data.find("browseEndpoint");
     if (browse != data.end()) {

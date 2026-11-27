@@ -4,6 +4,7 @@
 #include "schema/catalog.hpp"
 
 #include <cpr/parameters.h>
+#include <stop_token>
 
 class YoutubeMusicClient;
 
@@ -11,7 +12,8 @@ class YoutubeMusicCatalog {
 public:
     explicit YoutubeMusicCatalog(const YoutubeMusicClient& client);
     YoutubeResult<MusicPage> search(const MusicSearchRequest& request, const MusicRequestOptions& options = {}) const;
-    YoutubeResult<MusicSuggestions> suggestions(std::string_view input, const MusicRequestOptions& options = {}) const;
+    YoutubeResult<MusicSuggestions>
+    suggestions(std::string_view input, const MusicRequestOptions& options = {}, std::stop_token stop = {}) const;
     YoutubeResult<MusicPage> browse(const MusicBrowseRequest& request, const MusicRequestOptions& options = {}) const;
     YoutubeResult<MusicPage> more(const MusicContinuation& continuation) const;
 

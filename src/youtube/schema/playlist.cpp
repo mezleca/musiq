@@ -137,37 +137,6 @@ static const json& playlist_shelf(const json& data) {
     return *shelf;
 }
 
-static std::optional<MusicContinuation> playlist_continuation(const json& rows) {
-    if (rows.empty()) return std::nullopt;
-
-    // newer playlist pages put the next token in the last row instead of the shelf's continuations field
-    const json::json_pointer endpoint("/continuationItemRenderer/continuationEndpoint");
-    const auto& last = rows.back();
-    if (!last.contains(endpoint)) return std::nullopt;
-    const auto& next = last.at(endpoint);
-    MusicContinuation continuation;
-    continuation.in_body = true;
-
-    const auto command = next.find("continuationCommand");
-    if (command != next.end()) {
-        command->at("token").get_to(continuation.token);
-        return continuation;
-    }
-
-    const auto executor = next.find("commandExecutorCommand");
-    if (executor != next.end()) {
-        for (const auto& entry : executor->at("commands")) {
-            const auto item = entry.find("continuationCommand");
-            if (item != entry.end() && item->value("request", std::string{}) == "CONTINUATION_REQUEST_TYPE_BROWSE") {
-                item->at("token").get_to(continuation.token);
-                return continuation;
-            }
-        }
-    }
-
-    return std::nullopt;
-}
-
 static MusicPlaylistPage playlist_rows(const json& rows) {
     MusicPlaylistPage page;
     for (const auto& row : rows) {
@@ -175,7 +144,7 @@ static MusicPlaylistPage playlist_rows(const json& rows) {
         if (item != row.end()) page.tracks.push_back(item->get<MusicItem>());
     }
 
-    page.continuation = playlist_continuation(rows);
+    if (!rows.empty()) page.continuation = music_continuation_item(rows.back());
     return page;
 }
 
@@ -278,22 +247,20 @@ static std::optional<std::int64_t> playlist_count(std::string_view text) {
     return count;
 }
 
-static void playlist_author(const json& header, MusicPlaylist& playlist) {
+static void playlist_author(const json& header, const std::vector<MusicTextRun>& subtitle, MusicPlaylist& playlist) {
     const auto strapline = header.find("straplineTextOne");
     if (strapline != header.end()) {
-        const auto& runs = strapline->at("runs");
-        if (!runs.empty()) playlist.author = runs.front().get<MusicTextRun>();
-        return;
+        auto runs = music_text_runs(*strapline);
+        if (!runs.empty()) {
+            playlist.author = std::move(runs.front());
+            return;
+        }
     }
 
-    const auto subtitle = header.find("subtitle");
-    if (subtitle != header.end()) {
-        for (const auto& run : subtitle->at("runs")) {
-            auto text = run.get<MusicTextRun>();
-            if (text.endpoint.browse_id.starts_with("UC")) {
-                playlist.author = std::move(text);
-                return;
-            }
+    for (const auto& run : subtitle) {
+        if (run.endpoint.browse_id.starts_with("UC")) {
+            playlist.author = run;
+            return;
         }
     }
 
@@ -333,10 +300,11 @@ void from_json(const json& data, MusicPlaylist& value) {
 
     if (header) {
         playlist.title = music_text(header->at("title"));
-        playlist_author(*header, playlist);
         const auto subtitle = header->find("subtitle");
-        if (subtitle != header->end() && !subtitle->at("runs").empty()) {
-            const auto& year = subtitle->at("runs").back().at("text").get_ref<const std::string&>();
+        const auto subtitle_runs = subtitle == header->end() ? std::vector<MusicTextRun>{} : music_text_runs(*subtitle);
+        playlist_author(*header, subtitle_runs, playlist);
+        if (!subtitle_runs.empty()) {
+            const auto& year = subtitle_runs.back().text;
             if (year.size() == 4 && year.find_first_not_of("0123456789") == std::string::npos) playlist.year = year;
         }
 
@@ -355,13 +323,13 @@ void from_json(const json& data, MusicPlaylist& value) {
         }
 
         const auto stats = header->find("secondSubtitle");
-        if (stats != header->end() && !stats->at("runs").empty()) {
-            const auto& runs = stats->at("runs");
+        const auto runs = stats == header->end() ? std::vector<MusicTextRun>{} : music_text_runs(*stats);
+        if (!runs.empty()) {
             // view counts prepend a count and separator before the song count and duration
             const bool views = runs.size() > 3;
-            playlist.track_count = playlist_count(runs.at(views ? 2 : 0).at("text").get_ref<const std::string&>());
-            if (views) playlist.views = runs.front().at("text").get<std::string>();
-            if (runs.size() > 1) playlist.duration = runs.back().at("text").get<std::string>();
+            playlist.track_count = playlist_count(runs[views ? 2 : 0].text);
+            if (views) playlist.views = runs.front().text;
+            if (runs.size() > 1) playlist.duration = runs.back().text;
         }
     } else if (!playlist.tracks.empty()) {
         // audio playlists may omit the header, their first track still carries album metadata

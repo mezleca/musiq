@@ -133,11 +133,9 @@ private:
     Widget& m_owner;
 };
 
-PlaylistCardWidget::PlaylistCardWidget(
-    const MusicItem& item, ThumbnailCache& thumbnails, OpenMenu menu, std::function<void()> play
-)
+CatalogTileWidget::CatalogTileWidget(const MusicItem& item, ThumbnailCache& thumbnails, OpenMenu menu, std::function<void()> play)
     : MusiqButtonWidget("", {px(176), fit()}) {
-    set_type_name("PlaylistCardWidget");
+    set_type_name("CatalogTileWidget");
     set_direction(StackDirection::Vertical);
     set_spacing(8.0f);
     auto& cover = add<Container>("cover");
@@ -162,10 +160,12 @@ PlaylistCardWidget::PlaylistCardWidget(
     details.set_size({grow(), fit()});
     details.set_spacing(4.0f);
     add_card_text(details, item.title, FontWeight::Bold, "title", false);
-    add_card_text(details, playlist_subtitle(item), FontWeight::Regular, "metadata", false);
+    add_card_text(
+        details, is_playlist_card(item) ? playlist_subtitle(item) : media_artist(item), FontWeight::Regular, "metadata", false
+    );
 }
 
-void PlaylistCardWidget::apply_theme_defaults(const Theme& theme) {
+void CatalogTileWidget::apply_theme_defaults(const Theme& theme) {
     MusiqButtonWidget::apply_theme_defaults(theme);
 
     configure_all_styles([&theme](Style& style) {

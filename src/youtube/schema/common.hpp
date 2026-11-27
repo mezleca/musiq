@@ -21,6 +21,7 @@ struct MusicEndpoint {
     std::string browse_id;
     std::string params;
     std::string page_type;
+    bool music_video = false;
 };
 
 struct MusicTextRun {

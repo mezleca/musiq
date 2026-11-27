@@ -10,7 +10,6 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-RELEASE_VERSION = "v0.7.1"
 CWD = Path(__file__).resolve().parent
 RESOURCES_DIR = CWD / "resources"
 BUILD_DIR = CWD / "build"
@@ -112,8 +111,12 @@ def format_code() -> None:
     sources = [str(path) for path in (CWD / "src").rglob("*") if path.suffix in {".h", ".hpp", ".cpp", ".cc", ".cxx"}]
     run(["clang-format", "-i", *sources])
 
-def print_release_version() -> None:
-    print(RELEASE_VERSION)
+def release_version() -> str:
+    cmake = (CWD / "CMakeLists.txt").read_text(encoding="utf-8")
+    match = re.search(r"(?im)^\s*project\s*\(\s*musiq\s+VERSION\s+([0-9]+(?:\.[0-9]+){0,3})(?=\s|\))", cmake)
+    if not match:
+        sys.exit("[ez] project version not found in CMakeLists.txt")
+    return match.group(1)
 
 def parse_release_note(version: str, dest: str) -> None:
     content = NOTES_FILE.read_text()
@@ -177,7 +180,7 @@ def package_appimage() -> None:
 
     environment = os.environ.copy()
     environment["LDAI_OUTPUT"] = str(APPIMAGE_PATH)
-    environment["VERSION"] = RELEASE_VERSION.removeprefix("v")
+    environment["VERSION"] = release_version()
     environment.setdefault("APPIMAGE_EXTRACT_AND_RUN", "1")
     run([
         str(linuxdeploy), "--appdir", str(APPIMAGE_APPDIR),
@@ -213,7 +216,7 @@ def package_arch() -> None:
     run(["cmake", "--install", str(build_dir), "--prefix", str(staging_dir / "usr"),
          "--component", "Runtime", "--strip"])
     environment = os.environ.copy()
-    environment["MUSIQ_VERSION"] = RELEASE_VERSION.removeprefix("v")
+    environment["MUSIQ_VERSION"] = release_version()
     environment["MUSIQ_ARCH"] = platform.machine()
     run(["nfpm", "package", "--packager", "archlinux", "--config", str(PACKAGING_DIR / "nfpm.yaml"),
          "--target", str(CWD / "dist")], env=environment)
@@ -263,7 +266,7 @@ def main() -> None:
         return
 
     if args.command == "release-version":
-        print_release_version()
+        print(f"v{release_version()}")
         return
 
     if args.command == "parse-note":

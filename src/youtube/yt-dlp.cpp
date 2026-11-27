@@ -1,6 +1,7 @@
 #include "yt-dlp.hpp"
 #include "session.hpp"
 #include "dlp-manager.hpp"
+#include "schema/request.hpp"
 #include "../utils/json.hpp"
 #include "../utils/log.hpp"
 
@@ -62,9 +63,15 @@ static YoutubeResult<AudioSource> read_source(asio::io_context& io, process::pop
     }
 
     const auto data = json::parse(output);
-    return AudioSource{
-        data.at("url").get<std::string>(), data.at("user_agent").get<std::string>(), data.at("size").get<std::int64_t>()
-    };
+
+    auto user_agent = std::string(music_client_profile(MusicClient::VisionOs).user_agent);
+    if (const auto headers = data.find("http_headers"); headers != data.end()) {
+        if (const auto agent = headers->find("User-Agent"); agent != headers->end() && agent->is_string()) {
+            user_agent = agent->get<std::string>();
+        }
+    }
+
+    return AudioSource{data.at("url").get<std::string>(), std::move(user_agent), data.at("filesize").get<std::int64_t>()};
 }
 
 YoutubeResult<AudioSource>
@@ -80,9 +87,7 @@ dlp::resolve(const YoutubeMusicSession& session, const std::string& video_id, co
             io, process::filesystem::path(tools.executable.native()),
             {"--ignore-config", "--no-warnings", "--no-playlist", "--socket-timeout", "10", "--retries", "1",
              "--extractor-retries", "1", "--js-runtimes", runtime, "--config-locations", "-", "--format",
-             "bestaudio[protocol=https][filesize>0]", "--print",
-             "{\"url\":%(url)j,\"user_agent\":%(http_headers.User-Agent)j,\"size\":%(filesize)j}",
-             "https://www.youtube.com/watch?v=" + video_id}
+             "bestaudio[protocol=https][filesize>0]", "--dump-single-json", "https://www.youtube.com/watch?v=" + video_id}
         );
         const auto config = authentication_config(session);
         asio::write(child.get_stdin(), asio::buffer(config));

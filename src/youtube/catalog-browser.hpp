@@ -11,30 +11,17 @@
 #include <unordered_map>
 #include <memory>
 #include <string_view>
-#include <cstdint>
 #include <unordered_set>
 
-enum class CatalogPageStatus {
-    Idle,
-    Loading,
-    Ready,
-    Failed
-};
-
 struct CatalogPageState {
-    bool loading() const {
-        return status == CatalogPageStatus::Loading;
-    }
-
-    std::string query;
     std::shared_ptr<MusicPage> page;
     std::string error;
-    CatalogPageStatus status = CatalogPageStatus::Idle;
+    bool loading = false;
 };
 
 struct CatalogChanges {
     bool home = false;
-    std::vector<std::string> searches;
+    bool search = false;
     bool suggestions = false;
     bool library = false;
 };
@@ -46,9 +33,9 @@ public:
     const std::vector<MusicItem>& library_playlists() const {
         return m_library;
     }
-    bool home(bool refresh = false);
+    void home(bool refresh = false);
     bool more_home();
-    bool search(std::string query, bool refresh = false);
+    void search(std::string query, bool refresh = false);
     void suggest(std::string query);
 
     // reloads the saved playlists for the current session, keeping home and search state
@@ -63,11 +50,11 @@ public:
         return m_home;
     }
 
-    const CatalogPageState& search_state() const {
-        return search_state(m_query);
+    const std::string& search_query() const {
+        return m_query;
     }
 
-    const CatalogPageState& search_state(const std::string& query) const;
+    const CatalogPageState& search_state() const;
 
     const MusicSuggestions& suggestions() const {
         return m_suggestions;

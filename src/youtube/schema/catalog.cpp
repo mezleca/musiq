@@ -1,5 +1,7 @@
 #include "catalog.hpp"
+#include "../../utils/media.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 #include <type_traits>
@@ -20,6 +22,42 @@ void MusicPage::set_scope(MusicRoute route, const MusicRequestOptions& options, 
     if (continuation) continuation->set_scope(route, options, identity);
     for (auto& shelf : shelves) {
         if (shelf.continuation) shelf.continuation->set_scope(route, options, identity);
+    }
+}
+
+void MusicPage::group_search_results() {
+    const auto flat = [](const MusicShelf& shelf) { return shelf.title.empty() && !shelf.carousel && !shelf.continuation; };
+    const auto first = std::ranges::find_if(shelves, flat);
+    if (first == shelves.end()) return;
+
+    MusicShelf songs{.title = "Songs"};
+    MusicShelf videos{.title = "Videos"};
+    MusicShelf albums{.title = "Albums"};
+    MusicShelf artists{.title = "Artists"};
+    MusicShelf playlists{.title = "Playlists"};
+    MusicShelf other{.title = "Other results"};
+    for (auto shelf = first; shelf != shelves.end(); ++shelf) {
+        if (!flat(*shelf)) continue;
+        for (auto& item : shelf->items) {
+            const auto& endpoint = item.endpoint;
+            auto* group = &other;
+            if (is_album(endpoint))
+                group = &albums;
+            else if (utils::media::is_playlist_card(item))
+                group = &playlists;
+            else if (!endpoint.video_id.empty())
+                group = endpoint.music_video ? &videos : &songs;
+            else if (endpoint.browse_id.starts_with("UC") || endpoint.page_type == "MUSIC_PAGE_TYPE_ARTIST")
+                group = &artists;
+            group->items.push_back(std::move(item));
+        }
+    }
+
+    const auto index = first - shelves.begin();
+    std::erase_if(shelves, flat);
+    auto position = shelves.begin() + index;
+    for (auto* group : {&songs, &videos, &albums, &artists, &playlists, &other}) {
+        if (!group->items.empty()) position = shelves.insert(position, std::move(*group)) + 1;
     }
 }
 
@@ -63,6 +101,8 @@ static void append_shelf(const json& entry, std::vector<MusicShelf>& shelves) {
     const auto card = entry.find("musicCardShelfRenderer");
     if (card != entry.end()) {
         MusicShelf shelf;
+        const json::json_pointer title("/header/musicCardShelfHeaderBasicRenderer/title");
+        shelf.title = card->contains(title) ? music_text(card->at(title)) : "Top result";
         shelf.items.push_back(card->get<MusicItem>());
         const auto contents = card->find("contents");
         if (contents != card->end()) {
@@ -78,6 +118,7 @@ static void append_shelf(const json& entry, std::vector<MusicShelf>& shelves) {
         if (renderer == entry.end()) continue;
 
         MusicShelf shelf;
+        shelf.carousel = std::string_view(key) == "musicCarouselShelfRenderer";
         const auto title = renderer->find("title");
         const json::json_pointer carousel_title("/header/musicCarouselShelfBasicHeaderRenderer/title");
         if (title != renderer->end()) {
@@ -85,8 +126,10 @@ static void append_shelf(const json& entry, std::vector<MusicShelf>& shelves) {
         } else if (renderer->contains(carousel_title)) {
             shelf.title = music_text(renderer->at(carousel_title));
         }
-        shelf.items = catalog_items(renderer->at(std::string_view(key) == "gridRenderer" ? "items" : "contents"));
+        const auto& items = renderer->at(std::string_view(key) == "gridRenderer" ? "items" : "contents");
+        shelf.items = catalog_items(items);
         shelf.continuation = music_continuation(*renderer);
+        if (!shelf.continuation && !items.empty()) shelf.continuation = music_continuation_item(items.back());
         shelves.push_back(std::move(shelf));
         return;
     }
@@ -95,6 +138,15 @@ static void append_shelf(const json& entry, std::vector<MusicShelf>& shelves) {
 void from_json(const json& data, MusicPage& value) {
     MusicPage page;
     bool found = false;
+    const auto append_sections = [&page](const json& entries) {
+        for (const auto& entry : entries) {
+            if (auto continuation = music_continuation_item(entry)) {
+                page.continuation = std::move(continuation);
+            } else {
+                append_shelf(entry, page.shelves);
+            }
+        }
+    };
     static const auto paths = {
         json::json_pointer("/contents/tabbedSearchResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer"),
         json::json_pointer("/contents/singleColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer"),
@@ -102,16 +154,27 @@ void from_json(const json& data, MusicPage& value) {
         json::json_pointer("/contents/twoColumnBrowseResultsRenderer/secondaryContents/sectionListRenderer"),
         json::json_pointer("/continuationContents/sectionListContinuation")
     };
-    // two-column responses can expose shelves in both sections
     for (const auto& pointer : paths) {
         if (!data.contains(pointer)) continue;
         found = true;
         const auto& section = data.at(pointer);
-        for (const auto& entry : section.at("contents")) {
-            append_shelf(entry, page.shelves);
-        }
+        append_sections(section.at("contents"));
         auto continuation = music_continuation(section);
-        if (continuation) page.continuation = std::move(continuation);
+        if (continuation && !page.continuation) page.continuation = std::move(continuation);
+    }
+
+    for (const auto key : {"onResponseReceivedActions", "onResponseReceivedCommands", "onResponseReceivedEndpoints"}) {
+        const auto actions = data.find(key);
+        if (actions == data.end()) continue;
+        const json::json_pointer items("/appendContinuationItemsAction/continuationItems");
+        for (const auto& action : *actions) {
+            if (!action.contains(items)) continue;
+            found = true;
+            const auto& entries = action.at(items);
+            append_sections(entries);
+            auto tracks = catalog_items(entries);
+            if (!tracks.empty()) page.shelves.push_back({.items = std::move(tracks)});
+        }
     }
 
     static const auto continuation_paths = {
@@ -124,8 +187,10 @@ void from_json(const json& data, MusicPage& value) {
         found = true;
         const auto& section = data.at(pointer);
         MusicShelf shelf;
-        shelf.items = catalog_items(section.at(pointer.back() == "gridContinuation" ? "items" : "contents"));
+        const auto& items = section.at(pointer.back() == "gridContinuation" ? "items" : "contents");
+        shelf.items = catalog_items(items);
         shelf.continuation = music_continuation(section);
+        if (!shelf.continuation && !items.empty()) shelf.continuation = music_continuation_item(items.back());
         page.continuation = shelf.continuation;
         page.shelves.push_back(std::move(shelf));
     }

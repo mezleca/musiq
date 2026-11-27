@@ -1,6 +1,7 @@
 #include "stream.hpp"
 #include "client.hpp"
 #include "schema/player.hpp"
+#include "session.hpp"
 #include "yt-dlp.hpp"
 
 #include <utility>
@@ -23,6 +24,21 @@ const MusicFormat* YoutubeMediaStream::select_audio_format(const MusicStreamingD
     return best_audio_format(data.formats);
 }
 
+void YoutubeMediaStream::warm_up() {
+    const YoutubeMusicSession session;
+    const YoutubeMusicClient client(session);
+
+    // a speculative request must not block the first track's resolver
+    auto visitor = client.visitor_data();
+    if (!visitor) return;
+
+    const std::lock_guard lock(m_mutex);
+    if (m_visitor_expires > std::chrono::steady_clock::now()) return;
+
+    m_visitor_data = std::move(visitor->visitor_data);
+    m_visitor_expires = std::chrono::steady_clock::now() + std::chrono::minutes(30);
+}
+
 YoutubeResult<std::string> YoutubeMediaStream::visitor_data(const YoutubeMusicClient& client) {
     // track resolutions share one anonymous bootstrap and serialize its refresh
     const std::lock_guard lock(m_mutex);
@@ -40,7 +56,6 @@ YoutubeResult<AudioSource> YoutubeMediaStream::resolve(const YoutubeMusicSession
     const YoutubeMusicClient client(session);
     const auto visitor = visitor_data(client);
 
-    // prefer the anonymous VISIONOS player and fall back to yt-dlp when it yields no direct audio format
     std::string reason = visitor ? "no supported direct audio stream" : visitor.error().message;
 
     if (visitor) {

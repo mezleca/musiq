@@ -109,6 +109,10 @@ void PlaybackController::set_session(const YoutubeMusicSession& session) {
     m_session = session;
 }
 
+void PlaybackController::warm_up() {
+    m_tasks.enqueue([stream = m_media_stream] { stream->warm_up(); }, [](TaskOutcome<void>) {}, TaskPriority::Background);
+}
+
 void PlaybackController::remove(std::uint64_t id) {
     m_queue.remove(id);
     if (!m_queue.current()) reset_source();
@@ -199,9 +203,10 @@ void PlaybackController::play_playlist(PlaybackPage page, std::size_t start, std
     reset_source();
     m_continuation = std::move(page.continuation);
     if (load_remaining) m_playlist_source = source;
+    const bool mix = playlist_write_id(source).starts_with("RD");
     m_queue.replace(std::move(page.tracks), start, std::move(source), load_remaining);
 
-    if (load_remaining && m_continuation) {
+    if (load_remaining && m_continuation && !mix) {
         m_playlist_queue_state = PlaylistQueueState::LoadingRemainingPages;
         load_more();
     }
@@ -338,6 +343,12 @@ void PlaybackController::resolve_current() {
                 if (stop.stop_requested()) return youtube_error(YoutubeErrorKind::Transport, "audio resolution cancelled");
                 auto source = stream->resolve(session, video);
                 if (source || attempt == 3 || stop.stop_requested()) return source;
+
+                // only transient request failures can succeed on another attempt
+                if (source.error().kind != YoutubeErrorKind::Transport && source.error().kind != YoutubeErrorKind::Http) {
+                    return source;
+                }
+
                 LOG_WARN("[player] audio resolution retry {}/3: {}", attempt + 1, source.error().message);
             }
         },

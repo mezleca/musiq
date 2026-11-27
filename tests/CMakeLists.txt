@@ -22,6 +22,7 @@ target_link_libraries(tests PRIVATE
     mpv::mpv
     miniz
     arbor::sdl
+    plutovg::plutovg
     OpenGL::GL
     webview::core
     sqlite_orm::sqlite_orm

@@ -15,6 +15,7 @@ class YoutubeMusicSession;
 class YoutubeMediaStream {
 public:
     static const MusicFormat* select_audio_format(const MusicStreamingData& data);
+    void warm_up();
     YoutubeResult<AudioSource> resolve(const YoutubeMusicSession& session, const std::string& video_id);
 
 private:

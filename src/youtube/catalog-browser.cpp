@@ -8,18 +8,6 @@
 #include <algorithm>
 #include <utility>
 
-static YoutubeResult<MusicPage> read_page(const YoutubeMusicSession& session, const std::string& query) {
-    const YoutubeMusicClient client(session);
-    const YoutubeMusicCatalog catalog(client);
-    return query.empty() ? catalog.browse({.browse_id = "FEmusic_home", .params = {}})
-                         : catalog.search({.query = query, .params = {}});
-}
-
-static YoutubeResult<MusicSuggestions> read_suggestions(const YoutubeMusicSession& session, const std::string& query) {
-    const YoutubeMusicClient client(session);
-    return YoutubeMusicCatalog(client).suggestions(query, {.auth = MusicAuth::Anonymous});
-}
-
 void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_pages.clear();
 
@@ -28,6 +16,7 @@ void CatalogBrowser::set_session(const YoutubeMusicSession& session) {
     m_home = {};
     m_searches.clear();
     m_search_order.clear();
+    m_query.clear();
     m_library.clear();
     m_created_playlist_ids.clear();
     refresh_library();
@@ -102,37 +91,38 @@ void CatalogBrowser::remove_playlist(std::string_view browse_id) {
     m_changes.library = true;
 }
 
-const CatalogPageState& CatalogBrowser::search_state(const std::string& query) const {
+const CatalogPageState& CatalogBrowser::search_state() const {
     static const CatalogPageState empty;
-    const auto entry = m_searches.find(query);
+    const auto entry = m_searches.find(m_query);
     return entry == m_searches.end() ? empty : entry->second;
 }
 
 void CatalogBrowser::queue_page(std::string query) {
     auto& state = query.empty() ? m_home : m_searches.at(query);
-    state.status = CatalogPageStatus::Loading;
+    state.loading = true;
     state.error.clear();
 
     LOG_INFO("[catalog] loading {}", query.empty() ? "home" : "search");
 
-    // independent pages do not wait for an earlier home or search response
     m_tasks.enqueue(
-        m_pages, [session = m_session, query] { return read_page(session, query); },
+        m_pages,
+        [session = m_session, query] {
+            const YoutubeMusicClient client(session);
+            const YoutubeMusicCatalog catalog(client);
+            return query.empty() ? catalog.browse({.browse_id = "FEmusic_home"}) : catalog.search({.query = query});
+        },
         [this, query](auto result) { accept_page(query, false, youtube_result(std::move(result))); }
     );
 }
 
-bool CatalogBrowser::home(bool refresh) {
-    if (m_home.loading() || (!refresh && m_home.page)) return false;
-
-    queue_page({});
-    return true;
+void CatalogBrowser::home(bool refresh) {
+    if (!m_home.loading && (refresh || !m_home.page)) queue_page({});
 }
 
 bool CatalogBrowser::more_home() {
-    if (m_home.loading() || !m_home.error.empty() || !m_home.page || !m_home.page->continuation) return false;
+    if (m_home.loading || !m_home.error.empty() || !m_home.page || !m_home.page->continuation) return false;
 
-    m_home.status = CatalogPageStatus::Loading;
+    m_home.loading = true;
 
     m_tasks.enqueue(
         m_pages,
@@ -146,26 +136,21 @@ bool CatalogBrowser::more_home() {
     return true;
 }
 
-bool CatalogBrowser::search(std::string query, bool refresh) {
+void CatalogBrowser::search(std::string query, bool refresh) {
     m_query = std::move(query);
-    if (m_query.empty()) return false;
+    if (m_query.empty()) return;
 
     std::erase(m_search_order, m_query);
     m_search_order.push_back(m_query);
 
     auto& state = m_searches[m_query];
-    if (state.loading() || (!refresh && state.page)) return false;
-
-    state.query = m_query;
-    queue_page(m_query);
-    suggest({});
-    return true;
+    if (!state.loading && (refresh || !state.page)) queue_page(m_query);
 }
 
 void CatalogBrowser::prune_searches() {
     for (auto entry = m_search_order.begin(); m_searches.size() > 12 && entry != m_search_order.end();) {
         const auto state = m_searches.find(*entry);
-        if (*entry != m_query && !state->second.loading()) {
+        if (*entry != m_query && !state->second.loading) {
             m_searches.erase(state);
             entry = m_search_order.erase(entry);
         } else {
@@ -223,7 +208,7 @@ void CatalogBrowser::accept_library(YoutubeResult<MusicPage> result) {
 void CatalogBrowser::accept_page(std::string query, bool append, YoutubeResult<MusicPage> result) {
     const bool home = query.empty();
     auto& state = home ? m_home : m_searches.at(query);
-    state.status = result ? CatalogPageStatus::Ready : CatalogPageStatus::Failed;
+    state.loading = false;
 
     if (result) {
         if (append) {
@@ -244,9 +229,7 @@ void CatalogBrowser::accept_page(std::string query, bool append, YoutubeResult<M
     }
 
     m_changes.home |= home;
-    if (!home) {
-        m_changes.searches.push_back(std::move(query));
-    }
+    m_changes.search |= !home && query == m_query;
 }
 
 void CatalogBrowser::suggest(std::string query) {
@@ -268,7 +251,11 @@ CatalogChanges CatalogBrowser::update(std::chrono::steady_clock::time_point now)
         const auto query = m_suggestion_query;
 
         m_tasks.enqueue(
-            m_suggestion_tasks, [session = m_session, query] { return read_suggestions(session, query); },
+            m_suggestion_tasks,
+            [session = m_session, query, stop = m_suggestion_tasks.token()] {
+                const YoutubeMusicClient client(session);
+                return YoutubeMusicCatalog(client).suggestions(query, {.auth = MusicAuth::Anonymous}, stop);
+            },
             [this](auto outcome) {
                 auto result = youtube_result(std::move(outcome));
                 if (result) {

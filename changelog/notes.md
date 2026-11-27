@@ -1,8 +1,14 @@
-# Unreleased
-- Sidebar: update the playlist cover properly on new tracks
-- ContextMenu: improve "add to playlist" item feedback
-- Playlist: filter out liked music and not owned playlist from "add to playlist" menu and other actions
+# v0.8.0
+- Playback: fixed dlp fallback not working due to invalid headers
+- HomeOverlay: improved page startup (up to 2x faster)
+- PlaylistOverlay: improved page startup (a bit faster)
 - PlaylistOverlay: fixed unecessary reload while removing a track
+- PlaylistOverlay: more design adjustments (also fixes recommended being too glued to the player bar) 
+- Playlist: filter out liked music and not owned playlist from "add to playlist" menu and other actions
+- Playlist: fix mixes not loading due to incorrect parse
+- Sidebar: update the playlist cover properly on new tracks
+- ContextMenu: wait 2 seconds before closing context menu (previously was 1) 
+- ContextMenu: improve "add to playlist" item feedback
 
 # v0.7.1
 - Sidebar: fixed newly created playlist not appearing

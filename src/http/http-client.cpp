@@ -57,7 +57,8 @@ cpr::Response http::get(std::string_view url, cpr::Header headers, cpr::Paramete
     return request({.url = std::string(url), .headers = std::move(headers), .parameters = std::move(parameters)});
 }
 
-cpr::Response http::post_json(std::string_view url, const json& body, cpr::Header headers, cpr::Parameters parameters) {
+cpr::Response
+http::post_json(std::string_view url, const json& body, cpr::Header headers, cpr::Parameters parameters, std::stop_token stop) {
     headers.try_emplace("Accept", "application/json");
     headers.try_emplace("Content-Type", "application/json");
 
@@ -66,7 +67,8 @@ cpr::Response http::post_json(std::string_view url, const json& body, cpr::Heade
          .url = std::string(url),
          .headers = std::move(headers),
          .parameters = std::move(parameters),
-         .body = body.dump()}
+         .body = body.dump(),
+         .stop = stop}
     );
 }
 

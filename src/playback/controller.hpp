@@ -36,6 +36,7 @@ public:
     PlaybackController& operator=(PlaybackController&&) = delete;
 
     void set_session(const YoutubeMusicSession& session);
+    void warm_up();
     void play(MusicItem item);
     void play_playlist(MusicItem item, std::size_t start = 0);
     void play_playlist(PlaybackPage page, std::size_t start, std::string source, bool load_remaining);

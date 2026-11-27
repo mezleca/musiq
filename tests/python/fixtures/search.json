@@ -1,12 +1,27 @@
 {
   "contents": {
-    "singleColumnBrowseResultsRenderer": {
+    "tabbedSearchResultsRenderer": {
       "tabs": [
         {
           "tabRenderer": {
             "content": {
               "sectionListRenderer": {
-                "contents": []
+                "contents": [
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {"musicTwoRowItemRenderer": {
+                          "title": {"simpleText": "An album"},
+                          "navigationEndpoint": {"browseEndpoint": {"browseId": "MPREexample"}}
+                        }},
+                        {"musicTwoRowItemRenderer": {
+                          "title": {"simpleText": "A song"},
+                          "navigationEndpoint": {"watchEndpoint": {"videoId": "song-id"}}
+                        }}
+                      ]
+                    }
+                  }
+                ]
               }
             }
           }

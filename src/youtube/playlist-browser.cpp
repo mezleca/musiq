@@ -44,7 +44,15 @@ bool PlaylistBrowser::load(const YoutubeMusicSession& session, const MusicItem& 
         return false;
     }
 
+    const bool reload = mode == PlaylistLoad::Reload;
+    auto previous = reload ? std::move(m_playlist) : MusicPlaylist{};
+    auto previous_recommendations = reload ? std::move(m_recommendations) : std::vector<MusicItem>{};
     invalidate();
+    if (reload) {
+        m_playlist = std::move(previous);
+        m_recommendations = std::move(previous_recommendations);
+    }
+
     m_error.clear();
 
     m_session = session;
@@ -187,7 +195,11 @@ void PlaylistBrowser::accept(YoutubeResult<MusicPlaylist> result) {
 }
 
 void PlaylistBrowser::load_recommendations() {
-    if (!m_session.has_credentials() || !m_playlist.owned || !m_playlist.recommendations_continuation) return;
+    if (!m_session.has_credentials() || !m_playlist.owned || !m_playlist.recommendations_continuation) {
+        m_recommendations.clear();
+        m_recommendations_error.clear();
+        return;
+    }
 
     m_recommendations_loading = true;
     m_tasks.enqueue(

@@ -31,6 +31,9 @@ struct HttpRequest {
 namespace http {
     cpr::Response request(const HttpRequest& request);
     cpr::Response get(std::string_view url, cpr::Header headers = {}, cpr::Parameters parameters = {});
-    cpr::Response post_json(std::string_view url, const json& body, cpr::Header headers = {}, cpr::Parameters parameters = {});
+    cpr::Response post_json(
+        std::string_view url, const json& body, cpr::Header headers = {}, cpr::Parameters parameters = {},
+        std::stop_token stop = {}
+    );
     bool successful(const cpr::Response& response);
 } // namespace http

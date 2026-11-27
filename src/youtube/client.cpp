@@ -82,6 +82,7 @@ YoutubeResult<cpr::Header> YoutubeMusicClient::headers(const MusicRequestOptions
          {"X-YouTube-Client-Name", std::string(profile.id)},
          {"X-YouTube-Client-Version", std::string(profile.version)},
          {"X-Goog-Api-Format-Version", "1"},
+         {"Accept-Language", "en-US,en;q=0.9"},
          {"User-Agent", std::string(profile.user_agent)}}
     );
     if (!options.visitor_data.empty()) headers["X-Goog-Visitor-Id"] = options.visitor_data;
@@ -90,7 +91,7 @@ YoutubeResult<cpr::Header> YoutubeMusicClient::headers(const MusicRequestOptions
 
 YoutubeResult<YoutubeResponse> YoutubeMusicClient::post(
     std::string_view endpoint, json body, const MusicRequestOptions& options, std::string_view identity,
-    cpr::Parameters parameters
+    cpr::Parameters parameters, std::stop_token stop
 ) const {
     const auto resolved = request_options(options);
     auto request_headers = headers(resolved);
@@ -106,7 +107,7 @@ YoutubeResult<YoutubeResponse> YoutubeMusicClient::post(
 
     return read_response(
         http::post_json(
-            std::format("{}/{}", m_config.api_url, endpoint), body, std::move(*request_headers), std::move(parameters)
+            std::format("{}/{}", m_config.api_url, endpoint), body, std::move(*request_headers), std::move(parameters), stop
         )
     );
 }

@@ -29,7 +29,16 @@ void MediaCoverWidget::set_thumbnails(std::span<const MusicThumbnail> thumbnails
     m_url = url;
     m_download = {};
     m_loaded = false;
-    set_texture(nullptr);
+
+    // keep the previous artwork visible until its replacement finishes decoding
+    if (m_url.empty()) {
+        set_texture(nullptr);
+        m_has_texture = false;
+    }
+}
+
+std::optional<Color> MediaCoverWidget::accent() const {
+    return m_thumbnails.accent(m_url);
 }
 
 void MediaCoverWidget::apply_theme_defaults(const Theme& theme) {
@@ -61,13 +70,14 @@ void MediaCoverWidget::draw_before() {
         set_size({px(size.x * scale), px(size.y * scale)});
     }
 
+    m_has_texture = static_cast<bool>(image);
     set_texture(std::move(image));
     m_loaded = true;
 }
 
 void MediaCoverWidget::paint_content(const PaintContext& context) {
     ImageWidget::paint_content(context);
-    if (m_loaded || m_url.empty()) {
+    if (m_loaded || m_has_texture || m_url.empty()) {
         return;
     }
 

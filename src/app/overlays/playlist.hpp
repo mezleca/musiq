@@ -47,6 +47,7 @@ protected:
 
 private:
     void refresh();
+    void update_backdrop();
     void play(std::size_t start);
 
     MusicItem m_item;
@@ -55,7 +56,8 @@ private:
     PlaylistBrowser m_browser;
     std::optional<PlaylistTrackReveal> m_track_reveal;
     ui::Container* m_header;
-    ui::Container* m_separator;
+    ui::Container* m_backdrop;
+    std::optional<ui::Color> m_cover_accent;
     MediaCoverWidget* m_cover;
     MusiqText* m_title;
     MusiqText* m_author;

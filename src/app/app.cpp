@@ -78,6 +78,7 @@ MusiqApp::MusiqApp(SDL_Window* window, SDL_GLContext context)
     // keep the popup outside the scrolling cards so their bounds cannot clip it
     m_context_menu = &m_surface.root().add<MediaContextMenu>();
     m_context_menu->set_size({px(220), fit()});
+    m_context_menu->set_hover_close_delay(2.0f);
 }
 
 void MusiqApp::apply_fonts() {
@@ -141,7 +142,7 @@ void MusiqApp::build_pages(Container& content) {
     m_pages = &content.add<Container>("pages", StackDirection::Vertical);
     m_pages->set_size({grow(), grow()});
 
-    m_home = &m_pages->add<CatalogResultsWidget>("home", "", m_thumbnails, catalog_actions());
+    m_home = &m_pages->add<CatalogResultsWidget>("home", "", m_thumbnails, catalog_actions(), true);
     m_current_page = m_home;
 
     m_settings_overlay = &m_pages->add<SettingsOverlay>(
@@ -173,7 +174,7 @@ void MusiqApp::build_player() {
 }
 
 void MusiqApp::navigate(std::string_view page) {
-    m_history.visit({std::string(page), page == "search" ? m_catalog.search_state().query : std::string{}});
+    m_history.visit({std::string(page), page == "search" ? m_catalog.search_query() : std::string{}});
     show_page();
 }
 
@@ -260,7 +261,7 @@ void MusiqApp::update_catalog() {
     const auto changed = m_catalog.update();
     if (changed.library) m_sidebar->set_playlists(m_catalog.library_playlists());
 
-    if (changed.home) {
+    if (changed.home && m_current_page == m_home) {
         m_home->show(m_catalog.home_state());
         update_tracks(*m_home);
     }
@@ -269,12 +270,10 @@ void MusiqApp::update_catalog() {
         m_home->show(m_catalog.home_state());
     }
 
-    for (const auto& query : changed.searches) {
-        const auto view = m_searches.find(query);
-        if (view != m_searches.end()) {
-            view->second->show(m_catalog.search_state(query));
-            update_tracks(*view->second);
-        }
+    if (changed.search && m_history.current().page == "search") {
+        auto& view = *m_searches.at(m_history.current().query);
+        view.show(m_catalog.search_state());
+        update_tracks(view);
     }
 
     if (changed.suggestions) {
@@ -314,7 +313,7 @@ void MusiqApp::show_on_playlist(const std::string& source, const MusicItem& trac
         );
     }
 
-    m_playlists.at(source)->reveal_track(track, already_open ? ScrollBehavior::Smooth : ScrollBehavior::Instant);
+    m_playlists.at(source)->reveal_track(track, ScrollBehavior::Smooth);
 }
 
 void MusiqApp::update_playback() {
@@ -359,6 +358,7 @@ void MusiqApp::update_shortcuts() {
 }
 
 void MusiqApp::initialize() {
+    m_playback.warm_up();
     auto& cache = MusiqCache::instance();
 
     const auto token = cache.get("auth.session");

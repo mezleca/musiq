@@ -14,6 +14,7 @@
 #include <string_view>
 #include <string>
 #include <filesystem>
+#include <stop_token>
 
 class YoutubeMusicSession;
 
@@ -28,7 +29,7 @@ public:
     const std::string& identity() const;
     YoutubeResult<YoutubeResponse> post(
         std::string_view endpoint, json body, const MusicRequestOptions& options, std::string_view identity = {},
-        cpr::Parameters parameters = {}
+        cpr::Parameters parameters = {}, std::stop_token stop = {}
     ) const;
     YoutubeResult<std::string> upload_playlist_thumbnail(const std::filesystem::path& path) const;
 

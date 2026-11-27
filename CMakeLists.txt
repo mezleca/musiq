@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(musiq VERSION 0.7.1 LANGUAGES C CXX)
+project(musiq VERSION 0.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -81,6 +81,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     Boost::hash2
     OpenGL::GL
     arbor::sdl
+    plutovg::plutovg
     cpr
     nlohmann_json
     webview::core

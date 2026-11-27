@@ -14,6 +14,7 @@ using namespace utils::media;
 
 static constexpr float TrackHeight = 56.0f;
 static constexpr float TrackSpacing = 2.0f;
+static constexpr float PlaylistSpacing = 16.0f;
 
 class PlaylistControlWidget final : public MusiqIconButtonWidget {
 public:
@@ -34,29 +35,6 @@ protected:
     }
 };
 
-class PlaylistDetailsWidget final : public Container {
-public:
-    PlaylistDetailsWidget() : Container("details", StackDirection::Horizontal) {
-        set_size({grow(), fit()});
-        set_spacing(20.0f);
-        set_content_alignment(Anchor::TopLeft);
-    }
-
-protected:
-    void apply_theme_defaults(const Theme& theme) override {
-        Container::apply_theme_defaults(theme);
-
-        configure_all_styles([&theme](Style& style) {
-            style.padding({20.0f});
-            style.border_radius(10.0f);
-            style.background_color(gradient(
-                GradientType::Linear, {{0.0f, theme.background_color}, {1.0f, theme.background_secondary_color}}, {0.0f, 0.0f},
-                {0.0f, 1.0f}
-            ));
-        });
-    }
-};
-
 PlaylistOverlay::PlaylistOverlay(
     MusicItem item, ThumbnailCache& thumbnails, PlaybackController& playback,
     std::function<void(const MusicPlaylist&)> edit_playlist, MediaMenu menu
@@ -65,11 +43,19 @@ PlaylistOverlay::PlaylistOverlay(
       m_edit_playlist(std::move(edit_playlist)), m_menu(std::move(menu)) {
     set_type_name("PlaylistOverlay");
     set_size({grow(), grow()});
-    set_spacing(16.0f);
+    set_spacing(PlaylistSpacing);
     set_scrollable(true);
     set_visible(false);
 
-    auto& header = add<PlaylistDetailsWidget>();
+    m_backdrop = &add<Container>("playlist-backdrop");
+    m_backdrop->set_layout({.in_flow = false});
+    m_backdrop->set_input_mode(InputMode::None);
+
+    auto& header = add<Container>("details", StackDirection::Horizontal);
+    header.set_size({grow(), fit()});
+    header.set_spacing(24.0f);
+    header.set_content_alignment(Anchor::CenterLeft);
+    header.configure_all_styles([](Style& style) { style.padding({20.0f, 28.0f, 20.0f, 14.0f}); });
     m_header = &header;
     m_cover = &header.add<MediaCoverWidget>(m_thumbnails, 180.0f, m_item.thumbnails, true);
 
@@ -77,7 +63,7 @@ PlaylistOverlay::PlaylistOverlay(
     details.set_size({grow(), fit()});
     details.set_spacing(8.0f);
     details.configure_all_styles([](Style& style) { style.padding_right(50.0f); });
-    m_title = &details.add<MusiqText>(m_item.title, FontWeight::Bold, 22.0f);
+    m_title = &details.add<MusiqText>(m_item.title, FontWeight::Bold, 30.0f);
     m_author = &details.add<MusiqText>(media_artist(m_item));
     m_details = &details.add<MusiqText>("");
     m_description = &details.add<MusiqText>("");
@@ -92,6 +78,7 @@ PlaylistOverlay::PlaylistOverlay(
     controls.set_spacing(8.0f);
 
     m_play = &controls.add<PlaylistControlWidget>("icons/play.svg");
+    m_play->set_enabled(false);
     m_play->on_click([this] {
         if (m_playback.queue().matches_prefix(m_browser.playlist().tracks, m_item.endpoint.browse_id)) {
             m_playback.toggle_pause();
@@ -112,9 +99,6 @@ PlaylistOverlay::PlaylistOverlay(
     });
 
     m_status = &add<MusiqText>("");
-
-    m_separator = &add<Container>("separator");
-    m_separator->set_size({grow(), px(1)});
 
     m_tracks = &add<TrackList>();
     m_tracks->set_size({grow(), fit()});
@@ -157,8 +141,8 @@ PlaylistOverlay::PlaylistOverlay(
     m_recommended_tracks = &m_recommended_section->add<TrackList>();
     m_recommended_tracks->set_size({grow(), fit()});
     m_recommended_tracks->set_scrollable(false);
-    m_recommended_tracks->set_item_height(56.0f);
-    m_recommended_tracks->set_spacing(2.0f);
+    m_recommended_tracks->set_item_height(TrackHeight);
+    m_recommended_tracks->set_spacing(TrackSpacing);
     m_recommended_tracks->set_items(0, [this](std::size_t index) -> Node& {
         if (auto* card = m_recommended_tracks->find_track(index)) {
             return *card;
@@ -216,16 +200,20 @@ void PlaylistOverlay::load(const YoutubeMusicSession& session, PlaylistLoad mode
         return;
     }
 
-    m_tracks->clear_tracks();
-    m_recommended_tracks->clear_tracks();
-    scroll().seek_to({}, ScrollBehavior::Instant);
-
-    refresh();
+    if (mode != PlaylistLoad::Reload) {
+        m_tracks->clear_tracks();
+        m_recommended_tracks->clear_tracks();
+        scroll().seek_to({}, ScrollBehavior::Instant);
+        m_play->set_enabled(false);
+    }
 }
 
 PlaylistChange PlaylistOverlay::poll() {
     const auto change = m_browser.poll(m_item);
+    if (change == PlaylistChange::Loaded) m_tracks->clear_tracks();
+
     if (change != PlaylistChange::None) refresh();
+
     return change;
 }
 
@@ -256,7 +244,15 @@ void PlaylistOverlay::reveal_track(const MusicItem& track, ScrollBehavior behavi
 }
 
 void PlaylistOverlay::draw_children() {
+    const auto scale = dpi_scale();
+    auto backdrop_height = m_header->layout().intrinsic_size().y / scale + PlaylistSpacing + TrackHeight;
+    if (m_status->visible()) backdrop_height += m_status->layout().intrinsic_size().y / scale + PlaylistSpacing;
+    m_backdrop->set_size({grow(), px(backdrop_height)});
+
+    if (const auto accent = m_cover->accent(); accent && accent != m_cover_accent) update_backdrop();
+
     Container::draw_children();
+
     if (!m_track_reveal || (m_browser.loading() && !m_browser.appending())) return;
 
     const auto& target = *m_track_reveal;
@@ -276,6 +272,7 @@ void PlaylistOverlay::draw_children() {
     const auto row_center = list_top + (index * (TrackHeight + TrackSpacing) + TrackHeight / 2.0f) * dpi_scale();
     const auto viewport_center = (viewport.min.y + viewport.max.y) / 2.0f;
     scroll().seek_to({0.0f, scroll().position().y + row_center - viewport_center}, target.behavior);
+
     m_track_reveal.reset();
 }
 
@@ -288,8 +285,6 @@ void PlaylistOverlay::update_playback() {
 void PlaylistOverlay::refresh() {
     const auto& playlist = m_browser.playlist();
     const bool loading = m_browser.loading() && !m_browser.appending();
-    m_header->set_visible(!loading);
-    m_separator->set_visible(!loading);
 
     m_title->set_text(playlist.title.empty() ? m_item.title : playlist.title);
     m_author->set_text(playlist.author.text.empty() ? media_artist(m_item) : playlist.author.text);
@@ -301,6 +296,7 @@ void PlaylistOverlay::refresh() {
     details += playlist.duration;
     m_details->set_text(std::move(details));
     m_description->set_text(playlist.description);
+
     m_author->set_visible(!m_author->empty());
     m_details->set_visible(!m_details->empty());
     m_description->set_visible(!m_description->empty());
@@ -309,18 +305,16 @@ void PlaylistOverlay::refresh() {
     m_edit->set_visible(editable());
     update_playback();
 
-    m_tracks->set_items(loading ? 0 : playlist.tracks.size());
+    m_tracks->set_items(playlist.tracks.size());
 
     m_status->set_text(loading ? "Loading..." : m_browser.error());
     m_status->set_visible(!m_status->empty());
 
-    const bool recommendations_loading = m_browser.recommendations_loading();
     const auto& recommendations_error = m_browser.recommendations_error();
     m_recommended_section->set_visible(
-        !loading && !playlist.continuation &&
-        (recommendations_loading || !m_browser.recommendations().empty() || !recommendations_error.empty())
+        !loading && !playlist.continuation && (!m_browser.recommendations().empty() || !recommendations_error.empty())
     );
-    m_recommended_status->set_text(recommendations_loading ? "Loading..." : recommendations_error);
+    m_recommended_status->set_text(recommendations_error);
     m_recommended_status->set_visible(!m_recommended_status->empty());
     m_recommended_tracks->set_items(m_browser.recommendations().size());
 }
@@ -328,10 +322,32 @@ void PlaylistOverlay::refresh() {
 void PlaylistOverlay::apply_theme_defaults(const Theme& theme) {
     Container::apply_theme_defaults(theme);
     configure_all_styles([](Style& style) { style.padding({12.0f, 0.0f}); });
-    m_separator->configure_all_styles([&theme](Style& style) {
-        style.background_color(theme.transparent).border_top(1.0f).border_color(theme.border_color).border_radius(0.0f);
+
+    const auto clear_background = [&theme](Style& style) { style.background_color(theme.transparent); };
+    m_header->configure_all_styles(clear_background);
+    m_tracks->configure_all_styles(clear_background);
+
+    m_cover->configure_all_styles([](Style& style) {
+        style.box_shadow({.offset = {0.0f, 6.0f}, .blur = 24.0f, .color = rgba(0.0f, 0.0f, 0.0f, 0.45f)});
     });
-    m_recommended_section->configure_all_styles([&theme](Style& style) {
-        style.padding({12.0f, 20.0f, 12.0f, 0.0f}).border_top(1.0f).border_color(theme.border_color).border_radius(0.0f);
+
+    m_recommended_section->configure_all_styles([](Style& style) {
+        style.margin({0.0f, 20.0f, 0.0f, 24.0f}).padding({12.0f, 0.0f});
     });
+
+    update_backdrop();
+}
+
+void PlaylistOverlay::update_backdrop() {
+    if (const auto accent = m_cover->accent()) m_cover_accent = accent;
+
+    const auto& theme = surface().theme();
+    const auto accent = m_cover_accent.value_or(theme.background_secondary_color);
+    const auto top = interpolate_color(theme.background_color, accent, 0.55f);
+
+    const auto color = top.rgba();
+    const auto transparent = rgba(color.x, color.y, color.z, 0.0f);
+    const auto background = gradient(GradientType::Linear, {{0.0f, top}, {1.0f, transparent}}, {0.0f, 0.0f}, {0.0f, 1.0f});
+
+    m_backdrop->configure_all_styles([&background](Style& style) { style.background_color(background); });
 }

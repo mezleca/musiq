@@ -3,6 +3,7 @@
 #include <arbor/widgets/image.hpp>
 #include "../../youtube/schema/common.hpp"
 #include <memory>
+#include <optional>
 #include <span>
 
 class ThumbnailCache;
@@ -14,6 +15,7 @@ public:
         ThumbnailCache& thumbnails, float size, std::span<const MusicThumbnail> sources = {}, bool preserve_aspect = false
     );
     void set_thumbnails(std::span<const MusicThumbnail> thumbnails);
+    std::optional<ui::Color> accent() const;
 
 protected:
     void apply_theme_defaults(const ui::Theme& theme) override;
@@ -27,4 +29,5 @@ private:
     const float m_size;
     const bool m_preserve_aspect;
     bool m_loaded = false;
+    bool m_has_texture = false;
 };

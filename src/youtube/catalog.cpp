@@ -1,18 +1,21 @@
 #include "catalog.hpp"
 #include "client.hpp"
-
 #include <utility>
 
 YoutubeMusicCatalog::YoutubeMusicCatalog(const YoutubeMusicClient& client) : m_client(client) {}
 
 YoutubeResult<MusicPage>
 YoutubeMusicCatalog::search(const MusicSearchRequest& request, const MusicRequestOptions& options) const {
-    return page(MusicRoute::Search, "search", request, options);
+    auto result = page(MusicRoute::Search, "search", request, options);
+    if (result && request.params.empty()) result->group_search_results();
+    return result;
 }
 
 YoutubeResult<MusicSuggestions>
-YoutubeMusicCatalog::suggestions(std::string_view input, const MusicRequestOptions& options) const {
-    return youtube_parse<MusicSuggestions>(m_client.post("music/get_search_suggestions", {{"input", input}}, options));
+YoutubeMusicCatalog::suggestions(std::string_view input, const MusicRequestOptions& options, std::stop_token stop) const {
+    return youtube_parse<MusicSuggestions>(
+        m_client.post("music/get_search_suggestions", {{"input", input}}, options, {}, {}, stop)
+    );
 }
 
 YoutubeResult<MusicPage>

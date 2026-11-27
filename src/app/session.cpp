@@ -154,7 +154,7 @@ void MusiqApp::session_changed(SessionAction action, YoutubeResult<void> session
 
     LOG_INFO("[login] session ready");
 
-    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading()) {
+    if (m_history.current().page == "home" && !m_catalog.home_state().page && !m_catalog.home_state().loading) {
         show_page();
     }
 }

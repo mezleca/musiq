@@ -29,6 +29,48 @@ static YoutubeMusicSession authenticated_session(const YoutubeMusicConfig& confi
     return session;
 }
 
+TEST_CASE("catalog keeps mix carousels and reads action continuations", "[youtube]") {
+    const auto page = json::parse(R"({
+        "onResponseReceivedActions": [{
+            "appendContinuationItemsAction": {
+                "continuationItems": [
+                    {"musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer": {"title": {"simpleText": "Mixed for you"}}},
+                        "contents": [{"musicTwoRowItemRenderer": {
+                            "title": {"simpleText": "My Mix"},
+                            "navigationEndpoint": {"watchPlaylistEndpoint": {"playlistId": "RDmix"}}
+                        }}]
+                    }},
+                    {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "next-page"}}}}
+                ]
+            }
+        }]
+    })").get<MusicPage>();
+
+    REQUIRE(page.shelves.size() == 1);
+    CHECK(page.shelves[0].title == "Mixed for you");
+    CHECK(page.shelves[0].carousel);
+    REQUIRE(page.shelves[0].items.size() == 1);
+    CHECK(page.shelves[0].items[0].endpoint.browse_id == "VLRDmix");
+    REQUIRE(page.continuation);
+    CHECK(page.continuation->token == "next-page");
+}
+
+TEST_CASE("mix playlist headers accept plain text", "[youtube]") {
+    const auto playlist = json::parse(R"({
+        "header": {"musicDetailHeaderRenderer": {
+            "title": {"simpleText": "My Mix"},
+            "straplineTextOne": {"simpleText": "YouTube Music"},
+            "subtitle": {"simpleText": "Mix"},
+            "secondSubtitle": {"simpleText": "20 songs"}
+        }}
+    })").get<MusicPlaylist>();
+
+    CHECK(playlist.title == "My Mix");
+    CHECK(playlist.author.text == "YouTube Music");
+    CHECK(playlist.track_count == 20);
+}
+
 TEST_CASE("created playlists appear in the local library immediately", "[youtube]") {
     CatalogBrowser catalog;
     MusicItem item;
@@ -66,7 +108,9 @@ TEST_CASE("anonymous discovery flow", "[youtube][endpoint]") {
 
     const auto results = catalog.search({.query = "search query"});
     REQUIRE(results);
-    REQUIRE(results->shelves.empty());
+    REQUIRE(results->shelves.size() == 2);
+    CHECK(results->shelves[0].title == "Songs");
+    CHECK(results->shelves[1].title == "Albums");
 
     const auto home = catalog.browse({.browse_id = "FEmusic_home"});
     REQUIRE(home);

@@ -20,9 +20,9 @@ private:
     bool m_selected = false;
 };
 
-class PlaylistCardWidget final : public MusiqButtonWidget {
+class CatalogTileWidget final : public MusiqButtonWidget {
 public:
-    explicit PlaylistCardWidget(
+    explicit CatalogTileWidget(
         const MusicItem& item, ThumbnailCache& thumbnails, OpenMenu menu = {}, std::function<void()> play = {}
     );
 

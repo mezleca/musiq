@@ -7,12 +7,13 @@ struct MusicShelf {
     std::string title;
     std::vector<MusicItem> items;
     std::optional<MusicContinuation> continuation;
+    bool carousel = false;
 };
 
-// ref: https://ytmusicapi.readthedocs.io/en/stable/reference/browsing.html#ytmusicapi.YTMusic.get_home
 struct MusicPage {
     void set_scope(MusicRoute route, const MusicRequestOptions& options, std::string_view identity);
     void append(MusicPage page);
+    void group_search_results();
 
     std::vector<MusicShelf> shelves;
     std::optional<MusicContinuation> continuation;
