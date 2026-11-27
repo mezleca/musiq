@@ -31,6 +31,7 @@ public:
     void invalidate();
     PlaylistChange poll();
     void update_playback();
+    bool editable() const;
     void show_action_error(std::string message);
     void reveal_track(const MusicItem& track, ui::ScrollBehavior behavior);
     const MusicPlaylist& playlist() const {

@@ -13,6 +13,10 @@ std::string_view playlist_write_id(std::string_view playlist_id) {
     return playlist_id.starts_with("VL") ? playlist_id.substr(2) : playlist_id;
 }
 
+bool is_liked_music_playlist(std::string_view playlist_id) {
+    return playlist_write_id(playlist_id) == "LM";
+}
+
 void to_json(json& data, const MusicPlaylistRequest& value) {
     data = {{"browseId", playlist_browse_id(value.playlist_id)}};
 }

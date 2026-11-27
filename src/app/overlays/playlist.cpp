@@ -139,11 +139,7 @@ PlaylistOverlay::PlaylistOverlay(
             attach_context_menu(card, [this, index](ImVec2 position) {
                 const auto& current = m_browser.playlist();
                 if (index >= current.tracks.size()) return false;
-                return m_menu(
-                    current.tracks[index],
-                    {.playlist_id = current.owned ? current.id : std::string_view{}, .queue_entry_id = 0, .library_entry = false},
-                    position
-                );
+                return m_menu(current.tracks[index], {.playlist_id = editable() ? current.id : std::string_view{}}, position);
             });
         }
 
@@ -188,6 +184,10 @@ PlaylistOverlay::PlaylistOverlay(
 
 void PlaylistOverlay::invalidate() {
     m_browser.invalidate();
+}
+
+bool PlaylistOverlay::editable() const {
+    return playlist().owned && !is_liked_music_playlist(m_item.endpoint.browse_id);
 }
 
 void PlaylistOverlay::load(const YoutubeMusicSession& session, PlaylistLoad mode) {
@@ -291,7 +291,7 @@ void PlaylistOverlay::refresh() {
     m_description->set_visible(!m_description->empty());
 
     m_play->set_enabled(!playlist.tracks.empty());
-    m_edit->set_visible(playlist.owned);
+    m_edit->set_visible(editable());
     update_playback();
 
     m_tracks->set_items(loading ? 0 : playlist.tracks.size());

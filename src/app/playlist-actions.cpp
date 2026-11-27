@@ -234,18 +234,19 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
 
     if (is_playlist_card(item)) {
         add_menu_action(items, is_album(item.endpoint) ? "Open album" : "Open playlist", [this, item] { open_playlist(item); });
+        if (!signed_in || is_liked_music_playlist(item.endpoint.browse_id)) return items;
 
         const auto view = m_playlists.find(item.endpoint.browse_id);
-        if (signed_in && view != m_playlists.end() && view->second->playlist().owned) {
+        if (view != m_playlists.end() && view->second->editable()) {
             add_menu_action(items, "Edit playlist", [this, id = item.endpoint.browse_id] {
                 const auto current = m_playlists.find(id);
-                if (current != m_playlists.end() && current->second->playlist().owned) {
+                if (current != m_playlists.end() && current->second->editable()) {
                     m_playlist_editor->show_edit(current->second->playlist());
                 }
             });
         }
 
-        if (signed_in && context.library_entry && !is_album(item.endpoint)) {
+        if (context.library_entry && !is_album(item.endpoint)) {
             if (item.playlist_owned) {
                 add_menu_action(items, "Delete playlist", [this, id = item.endpoint.browse_id, title = item.title] {
                     m_playlist_editor->show_delete(id, title);
@@ -291,6 +292,8 @@ ContextMenuItems MusiqApp::media_menu(const MusicItem& item, MediaMenuContext co
     ContextMenuItems destinations;
     const auto check = m_runtime.textures().acquire("icons/check.svg", utils::path::from_resources("icons/check.svg"));
     for (const auto& playlist : m_catalog.library_playlists()) {
+        if (!playlist.playlist_owned || is_liked_music_playlist(playlist.endpoint.browse_id)) continue;
+
         auto state = std::make_shared<PlaylistAddState>();
         auto destination = ContextMenuItem::action(
             playlist.title, [this, id = playlist.endpoint.browse_id, video_id, state](ContextMenuWidget&) {

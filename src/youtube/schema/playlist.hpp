@@ -10,6 +10,7 @@
 std::string playlist_browse_id(std::string_view playlist_id);
 // the returned view borrows the input storage
 std::string_view playlist_write_id(std::string_view playlist_id);
+bool is_liked_music_playlist(std::string_view playlist_id);
 
 enum class MusicPlaylistPrivacy : uint8_t {
     Private,
