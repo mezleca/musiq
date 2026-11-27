@@ -19,6 +19,7 @@ void PlaybackQueue::replace(std::vector<MusicItem> tracks, std::size_t start, st
 
     m_source = std::move(source);
 
+    m_random_history.clear();
     m_entries.clear();
     m_entries.reserve(tracks.size());
 
@@ -60,16 +61,8 @@ const QueueEntry* PlaybackQueue::current() const {
     return m_entries.empty() ? nullptr : &m_entries[m_position];
 }
 
-std::size_t PlaybackQueue::remaining() const {
-    return m_entries.empty() ? 0 : m_entries.size() - m_position - 1;
-}
-
 bool PlaybackQueue::matches(const std::vector<MusicItem>& tracks, std::string_view source) const {
-    return !source.empty() && m_source == source &&
-           std::ranges::equal(m_entries, tracks, [](const QueueEntry& entry, const MusicItem& track) {
-               return entry.media.endpoint.video_id == track.endpoint.video_id &&
-                      entry.media.playlist_set_video_id == track.playlist_set_video_id;
-           });
+    return tracks.size() == m_entries.size() && matches_prefix(tracks, source);
 }
 
 bool PlaybackQueue::matches_prefix(const std::vector<MusicItem>& tracks, std::string_view source) const {
@@ -87,6 +80,13 @@ void PlaybackQueue::select(std::uint64_t id) {
     const auto position = static_cast<std::size_t>(entry - m_entries.begin());
     if (position == m_position) return;
 
+    move_to(position);
+}
+
+void PlaybackQueue::move_to(std::size_t position) {
+    if (m_random && position != m_position) {
+        m_random_history.push_back(m_entries[m_position].id);
+    }
     m_position = position;
     changed();
 }
@@ -104,6 +104,17 @@ bool PlaybackQueue::remove(std::uint64_t id) {
         --m_position;
     }
 
+    if (m_random) {
+        std::erase(m_random_history, id);
+
+        // removing an entry can make two visits to the same row consecutive
+        const auto duplicates = std::ranges::unique(m_random_history);
+        m_random_history.erase(duplicates.begin(), duplicates.end());
+        if (!m_random_history.empty() && m_random_history.back() == current()->id) {
+            m_random_history.pop_back();
+        }
+    }
+
     changed();
     return true;
 }
@@ -111,27 +122,32 @@ bool PlaybackQueue::remove(std::uint64_t id) {
 bool PlaybackQueue::advance() {
     if (!can_advance()) return false;
 
-    if (m_random && m_entries.size() > 1) {
-        auto position = utils::random::random_index(m_entries.size() - 1);
-        if (position >= m_position) ++position;
-        m_position = position;
-    } else {
-        m_position = (m_position + 1) % m_entries.size();
-    }
-
-    changed();
+    const auto count = m_entries.size();
+    const auto offset = m_random && count > 1 ? 1 + utils::random::random_index(count - 1) : 1;
+    move_to((m_position + offset) % count);
     return true;
 }
 
 bool PlaybackQueue::can_advance() const {
     if (m_loop == LoopMode::Playlist && !m_entries.empty()) return true;
-    return m_random ? m_entries.size() > 1 : remaining() > 0;
+    return m_random ? m_entries.size() > 1 : m_position + 1 < m_entries.size();
 }
 
 void PlaybackQueue::previous() {
-    if (m_position == 0) return;
-    --m_position;
+    if (!can_go_previous()) return;
+
+    if (m_random) {
+        const auto entry = std::ranges::find(m_entries, m_random_history.back(), &QueueEntry::id);
+        m_random_history.pop_back();
+        m_position = static_cast<std::size_t>(entry - m_entries.begin());
+    } else {
+        --m_position;
+    }
     changed();
+}
+
+bool PlaybackQueue::can_go_previous() const {
+    return m_random ? !m_random_history.empty() : m_position > 0;
 }
 
 void PlaybackQueue::set_random(bool enabled) {
@@ -139,6 +155,7 @@ void PlaybackQueue::set_random(bool enabled) {
         return;
     }
     m_random = enabled;
+    m_random_history.clear();
     changed();
 }
 
@@ -156,15 +173,10 @@ void PlaybackQueue::set_loop(LoopMode mode) {
 }
 
 bool PlaybackQueue::take_repeat() {
-    if (current() && (m_loop == LoopMode::Track || (m_loop == LoopMode::Playlist && m_entries.size() == 1))) {
+    if (!current()) return false;
+    if (m_loop == LoopMode::Once) {
+        set_loop(LoopMode::None);
         return true;
     }
-
-    if (m_loop != LoopMode::Once || !current()) {
-        return false;
-    }
-
-    m_loop = LoopMode::None;
-    changed();
-    return true;
+    return m_loop == LoopMode::Track || (m_loop == LoopMode::Playlist && m_entries.size() == 1);
 }

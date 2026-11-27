@@ -300,7 +300,7 @@ void PlaybackController::update_media_session() {
     );
     m_media_session.set_volume(state.volume / 100.0);
     m_media_session.set_controls(
-        track != nullptr, m_queue.can_advance(), m_queue.position() > 0,
+        track != nullptr, m_queue.can_advance(), m_queue.can_go_previous(),
         track && track->id == m_track_id && state.loaded && state.duration > 0 && !resolving()
     );
 #endif

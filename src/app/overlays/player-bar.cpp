@@ -170,7 +170,7 @@ void PlayerBarOverlay::refresh() {
         m_duration_seconds = -1;
     }
 
-    m_previous->set_enabled(queue.position() > 0);
+    m_previous->set_enabled(queue.can_go_previous());
     m_next->set_enabled(queue.can_advance());
     m_random->set_enabled(queue.entries().size() > 1);
     m_random->set_selected(queue.random());

@@ -30,6 +30,7 @@ public:
     bool advance();
     bool can_advance() const;
     void previous();
+    bool can_go_previous() const;
     void set_random(bool enabled);
     void set_repeat(bool enabled);
     void set_loop(LoopMode mode);
@@ -48,7 +49,6 @@ public:
     }
 
     const QueueEntry* current() const;
-    std::size_t remaining() const;
     // source identity alone does not prove that a refreshed playlist still matches the queue
     bool matches(const std::vector<MusicItem>& tracks, std::string_view source) const;
     bool matches_prefix(const std::vector<MusicItem>& tracks, std::string_view source) const;
@@ -66,8 +66,10 @@ public:
     }
 
 private:
+    void move_to(std::size_t position);
     void changed();
     std::vector<QueueEntry> m_entries;
+    std::vector<std::uint64_t> m_random_history;
     std::function<void()> m_on_change;
 
     std::string m_source;

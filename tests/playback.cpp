@@ -92,6 +92,25 @@ TEST_CASE("queue repeat modes distinguish once, track and playlist", "[playback]
     }
 }
 
+TEST_CASE("previous returns to the played entry with shuffle and repeat", "[playback]") {
+    const MusicItem song{.endpoint = {.video_id = "same-video"}};
+    PlaybackQueue queue;
+    queue.replace({song, song}, 1);
+    const auto first = queue.entries()[0].id;
+    const auto second = queue.current()->id;
+    queue.set_random(true);
+    queue.set_loop(LoopMode::Playlist);
+    REQUIRE_FALSE(queue.can_go_previous());
+    REQUIRE(queue.advance());
+    REQUIRE(queue.current()->id == first);
+    REQUIRE(queue.can_go_previous());
+
+    queue.previous();
+    CHECK(queue.current()->id == second);
+    CHECK(queue.loop() == LoopMode::Playlist);
+    CHECK_FALSE(queue.can_go_previous());
+}
+
 TEST_CASE("queue edits preserve the selected occurrence of repeated tracks", "[playback]") {
     const MusicItem song{.title = "Repeated song", .endpoint = {.video_id = "same-video"}};
     PlaybackQueue queue;
